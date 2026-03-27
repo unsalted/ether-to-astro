@@ -6,20 +6,24 @@ This file is for coding agents working in `astro-mcp`. It documents the real arc
 ## Current Runtime Facts
 - Engine is native Node binding: `sweph` (not WASM/WASI).
 - `sweph` is version-pinned in `package.json` to keep numeric baselines stable for fixtures/validation.
-- Main entrypoint used by package scripts/bin is `src/loader.ts` -> `src/index.ts`.
+- MCP entrypoint is `src/loader.ts` -> `src/index.ts`.
+- CLI entrypoint is `src/cli.ts` (`astro-cli` bin), designed for single-shot stateless usage.
 - Ephemeris files are expected under `data/ephemeris` and configured via `set_ephe_path()`.
 - Server state is process-local and in-memory: one mutable `natalChart` in `src/index.ts`.
 
 ## Fast Commands
 - Install: `npm install`
 - Build: `npm run build`
+- CLI: `npm run start:cli -- --help`
 - Unit/integration tests: `npm test -- --run`
 - Validation harness: `npm run validate:astro`
 - Strict dead-code check: `npm run build -- --noUnusedLocals --noUnusedParameters`
 - Lint: `npm run lint`
 
 ## Code Map
-- `src/index.ts`: MCP tool schemas + request handling + orchestration.
+- `src/astro-service.ts`: shared business logic used by both MCP and CLI.
+- `src/index.ts`: MCP tool schemas + request handling + stateful orchestration.
+- `src/cli.ts`: commander-based single-shot CLI surface.
 - `src/ephemeris.ts`: low-level ephemeris adapter, JD/date conversion, position calc, exact root solver.
 - `src/transits.ts`: transit detection, exact-time policy, applying/separating selection, dedupe.
 - `src/houses.ts`: house cusps + polar fallback behavior.

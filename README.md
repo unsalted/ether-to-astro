@@ -1,6 +1,8 @@
-# Ether-to-Astro MCP Server
+# Ether-to-Astro (MCP + CLI)
 
-MCP server for astrology calculations and transit tracking using Swiss Ephemeris.
+Astrology calculations and transit tracking using native Swiss Ephemeris (`sweph`), exposed as:
+- a stateful MCP server, and
+- a stateless single-shot CLI.
 
 ## Features
 
@@ -59,7 +61,13 @@ npm run build
 
 1. Run setup script or install manually (see above)
 
-2. Add to your MCP settings (e.g., Claude Desktop config):
+2. Build:
+
+```bash
+npm run build
+```
+
+3. Add MCP to your MCP settings (e.g., Claude Desktop config):
 
 ```json
 {
@@ -72,7 +80,9 @@ npm run build
 }
 ```
 
-## How It Works
+## Runtime Surfaces
+
+### MCP server (stateful per process)
 
 ### In-Memory Storage
 The MCP server uses **in-memory storage** for natal chart data:
@@ -83,6 +93,23 @@ The MCP server uses **in-memory storage** for natal chart data:
 - Simply call `set_natal_chart` again when reconnecting
 
 This design is **MCP-compliant** for stdio transport and ensures complete isolation between different clients.
+
+### CLI (single-shot, stateless)
+
+`astro-cli` is JSON-first for agent usage and supports `--pretty` for human-readable output.
+
+Examples:
+
+```bash
+# Help
+npx astro-cli --help
+
+# Set natal chart and print JSON
+npx astro-cli set-natal-chart --name "Test" --year 1990 --month 1 --day 1 --hour 12 --minute 0 --latitude 40.7 --longitude -74.0 --timezone America/New_York
+
+# Human-readable transit output
+npx astro-cli get-transits --natal-file ./natal.json --date 2026-03-27 --pretty
+```
 
 ### Time Handling
 The server accepts **local birth time** (not UTC):
@@ -127,18 +154,13 @@ Ask your AI agent:
 - "When will this transit be exact?"
 - "What transits are coming up this week?"
 
-## Tools Available
+## MCP Tools Available
 
 ### Setup
 - `set_natal_chart` - Store birth chart data
 
 ### Transits
-- `get_daily_transits` - Current planetary positions (with retrograde indicators)
-- `get_moon_transits` - Moon aspects to natal planets
-- `get_personal_planet_transits` - Sun/Mercury/Venus/Mars aspects
-- `get_outer_planet_transits` - Jupiter/Saturn/Uranus/Neptune/Pluto aspects
-- `get_exact_transit_times` - Calculate exact aspect times
-- `get_upcoming_transits` - Multi-day forecast (default 7 days)
+- `get_transits` - Category-filtered transits with optional exact-time data
 
 ### Advanced Tools
 - `get_houses` - House cusps, Ascendant, Midheaven (Placidus, Koch, Whole Sign, Equal)
@@ -148,8 +170,20 @@ Ask your AI agent:
 - `get_next_eclipses` - Next solar and lunar eclipses
 
 ### Visual Charts
-- `generate_natal_chart` - SVG natal chart wheel with planets, houses, and aspects
-- `generate_transit_chart` - SVG chart with current transits overlaid on natal chart
+- `generate_natal_chart` - Natal chart wheel (SVG/PNG/WebP)
+- `generate_transit_chart` - Transit overlay chart (SVG/PNG/WebP)
+
+## CLI Commands Available
+
+- `set-natal-chart`
+- `get-transits`
+- `get-houses`
+- `get-retrograde-planets`
+- `get-rise-set-times`
+- `get-asteroid-positions`
+- `get-next-eclipses`
+- `generate-natal-chart`
+- `generate-transit-chart`
 
 ## Technical Details
 

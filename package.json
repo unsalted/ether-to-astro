@@ -4,14 +4,19 @@
   "description": "MCP server for astrology calculations using Swiss Ephemeris",
   "type": "module",
   "main": "dist/index.js",
+  "engines": {
+    "node": ">=20"
+  },
   "bin": {
-    "ether-to-astro-mcp": "./dist/loader.js"
+    "ether-to-astro-mcp": "./dist/loader.js",
+    "astro-cli": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "dev:watch": "tsx watch src/loader.ts",
     "start": "node dist/loader.js",
+    "start:cli": "node dist/cli.js",
     "postinstall": "node scripts/download-ephemeris.js",
     "test": "vitest",
     "validate:astro": "vitest run tests/validation",
@@ -35,6 +40,8 @@
     "@js-temporal/polyfill": "^0.5.1",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@std/datetime": "npm:@jsr/std__datetime@^0.225.7",
+    "commander": "^14.0.3",
+    "picocolors": "^1.1.1",
     "sharp": "^0.34.5",
     "sweph": "2.10.3-b-1"
   },
