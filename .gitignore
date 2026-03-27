@@ -14,7 +14,7 @@ data/ephemeris/*.se1
 *.svg
 *.png
 *.webp
-!color-picker.html
+!tools/color-picker.html
 
 # Test coverage
 coverage/

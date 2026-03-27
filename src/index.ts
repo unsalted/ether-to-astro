@@ -2,7 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { writeFile } from 'fs/promises';
 import { logger } from './logger.js';
-import { ErrorCategory } from './constants.js';
+import { ErrorCategory, getDefaultTheme } from './constants.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -171,14 +171,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'generate_natal_chart',
-        description: 'Generate a visual natal chart wheel with planets, houses, and aspects. Supports SVG, PNG, and WebP formats with light or dark themes.',
+        description: 'Generate a visual natal chart wheel with planets, houses, and aspects. Supports SVG, PNG, and WebP formats. Theme defaults to dark (6pm-6am) or light (6am-6pm) based on current time, but can be overridden with the theme parameter.',
         inputSchema: {
           type: 'object',
           properties: {
             theme: {
               type: 'string',
               enum: ['light', 'dark'],
-              description: 'Color theme (light or dark), defaults to light'
+              description: 'Color theme override. Defaults to time-based: dark (6pm-6am) or light (6am-6pm)'
             },
             format: {
               type: 'string',
@@ -194,7 +194,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'generate_transit_chart',
-        description: 'Generate a visual chart showing current transits overlaid on natal chart. Supports SVG, PNG, and WebP formats with light or dark themes.',
+        description: 'Generate a visual chart showing current transits overlaid on natal chart. Supports SVG, PNG, and WebP formats. Theme defaults to dark (6pm-6am) or light (6am-6pm) based on current time, but can be overridden with the theme parameter.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -205,7 +205,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             theme: {
               type: 'string',
               enum: ['light', 'dark'],
-              description: 'Color theme (light or dark), defaults to light'
+              description: 'Color theme override. Defaults to time-based: dark (6pm-6am) or light (6am-6pm)'
             },
             format: {
               type: 'string',
@@ -615,7 +615,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        const theme = (args.theme as 'light' | 'dark') || 'light';
+        const theme = (args.theme as 'light' | 'dark') || getDefaultTheme();
         const format = (args.format as 'svg' | 'png' | 'webp') || 'svg';
         const outputPath = args.output_path as string | undefined;
         const chart = await chartRenderer.generateNatalChart(natalChart, theme, format);
@@ -663,7 +663,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         const transitDate = args.date ? new Date(args.date as string) : undefined;
-        const theme = (args.theme as 'light' | 'dark') || 'light';
+        const theme = (args.theme as 'light' | 'dark') || getDefaultTheme();
         const format = (args.format as 'svg' | 'png' | 'webp') || 'svg';
         const outputPath = args.output_path as string | undefined;
         const chart = await chartRenderer.generateTransitChart(natalChart, transitDate, theme, format);
