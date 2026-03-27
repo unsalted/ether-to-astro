@@ -153,8 +153,11 @@ Ask your AI agent:
 
 ## Technical Details
 
-- **Engine**: WebAssembly Swiss Ephemeris (no native compilation needed!)
-- **Accuracy**: Moshier mode (~1 arcsecond precision)
+- **Engine**: Native Swiss Ephemeris via Node `sweph` bindings
+- **Dependency policy**: `sweph` is pinned to an exact version to keep validation fixtures and numerical baselines stable across installs
+- **Accuracy**:
+  - Primary mode: Swiss Ephemeris data files (`SEFLG_SWIEPH`) for highest precision
+  - Fallback mode: Moshier (`EPHEMERIS_VERSION=moshier` or missing ephemeris files), lower precision but fully functional
 - **Chart Rendering**: @astrodraw/astrochart with JSDOM for server-side SVG generation
 - **Orb settings**: 
   - Conjunction/Opposition: 8°

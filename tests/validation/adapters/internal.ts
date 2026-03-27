@@ -135,14 +135,8 @@ export class InternalValidationAdapter {
   canComputeEclipses(): boolean {
     try {
       const probeJd = this.ephem.dateToJulianDay(new Date('2024-03-26T00:00:00Z'));
-      const eph = this.ephem.eph as
-        | {
-            swe_sol_eclipse_when_glob: (jd: number, iflag: number, ifltype: number, backwards: boolean) => unknown;
-            swe_lun_eclipse_when: (jd: number, iflag: number, ifltype: number, backwards: boolean) => unknown;
-          }
-        | null;
-      eph?.swe_sol_eclipse_when_glob(probeJd, 0, 0, false);
-      eph?.swe_lun_eclipse_when(probeJd, 0, 0, false);
+      this.ephem.eph?.sol_eclipse_when_glob(probeJd, 0, 0, false);
+      this.ephem.eph?.lun_eclipse_when(probeJd, 0, 0, false);
       return true;
     } catch (error) {
       return !String(error).includes('is not a function');

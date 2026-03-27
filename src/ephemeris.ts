@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Constants, load, type SwissEph } from '@fusionstrings/swiss-eph/wasi';
+import sweph, { constants as Constants } from 'sweph';
 import { logger } from './logger.js';
 import { PLANET_NAMES, type PlanetPosition, ZODIAC_SIGNS } from './types.js';
 
@@ -14,24 +14,24 @@ const MAX_COARSE_SCAN_SAMPLES = 500;
 const TANGENTIAL_ROOT_SCAN_FACTOR = 20; // candidate threshold in tolerance multiples
 
 /**
- * Ephemeris calculator wrapper for Swiss Ephemeris WASM
+ * Ephemeris calculator wrapper for native Swiss Ephemeris (sweph)
  * 
  * @remarks
  * Provides a high-level interface for planetary calculations using the
- * Swiss Ephemeris library compiled to WebAssembly. Handles initialization,
+ * Swiss Ephemeris Node bindings. Handles initialization,
  * coordinate conversions, and common astrological calculations.
  * 
  * All longitudes are tropical (not sidereal) and geocentric.
  */
 export class EphemerisCalculator {
-  /** Swiss Ephemeris WASM instance */
-  public eph: SwissEph | null = null;
+  /** Native sweph module instance */
+  public eph: typeof sweph | null = null;
 
   /**
-   * Initialize the Swiss Ephemeris WASM module
+   * Initialize the Swiss Ephemeris native module
    * 
    * @returns Promise that resolves when initialization is complete
-   * @throws Error if WASM fails to load or initialize
+   * @throws Error if module setup fails
    * 
    * @remarks
    * Must be called before any other methods. Loads the Swiss Ephemeris
@@ -39,10 +39,7 @@ export class EphemerisCalculator {
    */
   async init(): Promise<void> {
     if (!this.eph) {
-      this.eph = await load();
-
-      // Mount ephemeris files into WASM virtual filesystem
-      // dist/ephemeris.js -> up one level -> ether-to-astro-mcp/
+      this.eph = sweph;
       const __dirname = dirname(fileURLToPath(import.meta.url));
       const projectRoot = join(__dirname, '..');
       const ephePath = join(projectRoot, 'data', 'ephemeris');
@@ -51,23 +48,19 @@ export class EphemerisCalculator {
         logger.info('Loading ephemeris files from filesystem', { ephePath });
         const files = await readdir(ephePath);
         const se1Files = files.filter((f) => f.endsWith('.se1'));
-        logger.info(`Found ${se1Files.length} .se1 files to mount`);
+        logger.info(`Found ${se1Files.length} .se1 files on filesystem`);
 
+        // Basic readability sanity check; native sweph reads files by path.
         for (const filename of se1Files) {
           const filePath = join(ephePath, filename);
           const buffer = await readFile(filePath);
-          const uint8Array = new Uint8Array(buffer);
-          logger.info(
-            `Mounting ${filename} into WASM (${(uint8Array.length / 1024).toFixed(2)}KB)`
-          );
-          this.eph.mount(filename, uint8Array);
+          logger.info(`Detected ${filename} (${(buffer.length / 1024).toFixed(2)}KB)`);
         }
 
-        // Set path to current directory since files are mounted at root
-        this.eph.set_ephe_path('.');
-        logger.info(`✅ Successfully mounted ${se1Files.length} ephemeris files into WASM`);
+        this.eph.set_ephe_path(ephePath);
+        logger.info(`✅ Ephemeris path configured for native sweph: ${ephePath}`);
       } catch (error) {
-        logger.warn('⚠️ Failed to mount ephemeris files - using Moshier fallback', {
+        logger.warn('⚠️ Failed to verify ephemeris files - continuing with sweph defaults', {
           error: error instanceof Error ? error.message : String(error),
         });
       }
@@ -94,7 +87,7 @@ export class EphemerisCalculator {
     const day = date.getUTCDate();
     const hour = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
 
-    return this.eph.swe_julday(year, month, day, hour, Constants.SE_GREG_CAL);
+    return this.eph.julday(year, month, day, hour, Constants.SE_GREG_CAL);
   }
 
   /**
@@ -132,7 +125,7 @@ export class EphemerisCalculator {
       throw new Error(`Invalid Julian Day: ${jd} (must be finite)`);
     }
 
-    const result = this.eph.swe_calc_ut(jd, planetId, Constants.SEFLG_SPEED);
+    const result = this.eph.calc_ut(jd, planetId, Constants.SEFLG_SPEED);
 
     // Swiss Ephemeris puts warnings in error field even on success
     // Log warnings but only throw if we don't have valid data
@@ -140,16 +133,16 @@ export class EphemerisCalculator {
       logger.ephemerisWarning(result.error);
     }
 
-    if (!result.xx || result.xx.length < 4) {
+    if (!result.data || result.data.length < 4) {
       throw new Error(
         `Failed to calculate position for planet ${planetId}: ${result.error || 'No data returned'}`
       );
     }
 
-    const longitude = result.xx[0];
-    const latitude = result.xx[1];
-    const distance = result.xx[2];
-    const speed = result.xx[3];
+    const longitude = result.data[0];
+    const latitude = result.data[1];
+    const distance = result.data[2];
+    const speed = result.data[3];
 
     const normalizedLon = this.normalizeAngle(longitude);
     const signIndex = Math.floor(normalizedLon / 30);
@@ -301,6 +294,8 @@ export class EphemerisCalculator {
       const prevAbs = absDiffs[i - 1];
       const currAbs = absDiffs[i];
       const nextAbs = absDiffs[i + 1];
+      const prevDiff = samples[i - 1].diff;
+      const nextDiff = samples[i + 1].diff;
 
       const isLocalMin =
         currAbs <= prevAbs &&
@@ -308,6 +303,9 @@ export class EphemerisCalculator {
         (currAbs < prevAbs || currAbs < nextAbs);
 
       if (!isLocalMin) continue;
+      const hasSignChangeAcrossWindow =
+        (prevDiff < 0 && nextDiff > 0) || (prevDiff > 0 && nextDiff < 0);
+      if (hasSignChangeAcrossWindow) continue;
 
       const dipProminence = Math.max(prevAbs, nextAbs) - currAbs;
       const looksPromising =
@@ -432,7 +430,7 @@ export class EphemerisCalculator {
   julianDayToDate(jd: number): Date {
     if (!this.eph) throw new Error('Ephemeris not initialized');
 
-    const result = this.eph.swe_revjul(jd, Constants.SE_GREG_CAL);
+    const result = this.eph.revjul(jd, Constants.SE_GREG_CAL);
 
     // Convert fractional hour to milliseconds from midnight and round once.
     // Adding to midnight timestamp naturally handles overflow carries.

@@ -86,16 +86,15 @@ describe('When an AI asks "What transits is Bowen experiencing today?"', () => {
 
 🚧 **In Progress:**
 - Core unit tests (ephemeris, transits, houses, charts, storage)
-- WASM/fetch mocking for Swiss Ephemeris
 - Integration tests for MCP tools
 
 ## Known Issues
 
-### WASM Loading in Tests
-The Swiss Ephemeris library uses WASM which requires special handling in Node.js test environment:
-- **Solution:** Mock fetch API in `tests/setup.ts`
-- **Fallback:** Uses Moshier calculations when WASM unavailable
-- **Impact:** Tests run faster without ephemeris files
+### Ephemeris in Tests
+The project uses native `sweph` bindings in Node.js:
+- **Setup:** `tests/setup.ts` fixes test time for deterministic output
+- **Data:** tests use real ephemeris logic with local ephemeris files when available
+- **Fallback:** Moshier mode remains available when ephemeris files are missing
 
 ### AstroChart Browser Dependencies
 The AstroChart library expects browser globals:
@@ -167,8 +166,8 @@ Increase timeout in `vitest.config.ts`:
 testTimeout: 30000 // 30 seconds
 ```
 
-### WASM Loading Fails
-Check that `tests/setup.ts` properly mocks fetch API.
+### Ephemeris Data Missing
+Check that `data/ephemeris` exists or reinstall with `npm install` (runs postinstall downloader).
 
 ### Coverage Too Low
 Run with `--coverage` to see which lines aren't covered, then add targeted tests.

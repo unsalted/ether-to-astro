@@ -86,7 +86,6 @@ const currentJD = ephem.dateToJulianDay(new Date());
 ### What We Mock
 1. **Date/Time:** Fixed to March 26, 2024, 12:00 UTC
 2. **File I/O:** Mock file writes in storage tests
-3. **Fetch API:** Mock WASM loading for Swiss Ephemeris
 
 ### What We DON'T Mock
 1. **Ephemeris Calculations:** Use real Moshier calculations
@@ -168,7 +167,7 @@ npm run test:coverage
 
 ### "Tests pass locally but fail in CI"
 - Ensure Date is mocked in setup.ts
-- Check that WASM fetch is properly mocked
+- Check that ephemeris files are present (or run in Moshier mode)
 - Verify no tests use `new Date()` directly
 
 ### "Coverage too low"

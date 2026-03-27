@@ -11,7 +11,7 @@ import {
 } from './chart-types.js';
 import type { EphemerisCalculator } from './ephemeris.js';
 import type { HouseCalculator } from './houses.js';
-import { ASTEROIDS, type NatalChart, NODES, PLANETS } from './types.js';
+import { type NatalChart, PLANETS } from './types.js';
 
 /**
  * Renderer for astrological charts using SVG

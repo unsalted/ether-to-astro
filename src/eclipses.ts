@@ -1,8 +1,25 @@
-import { Constants } from '@fusionstrings/swiss-eph/wasi';
+import { constants as Constants } from 'sweph';
 import { ErrorCategory } from './constants.js';
 import type { EphemerisCalculator } from './ephemeris.js';
 import { logger } from './logger.js';
 import type { EclipseInfo } from './types.js';
+
+interface EclipseWhenResult {
+  flag: number;
+  error: string;
+  data: number[];
+}
+
+function isEclipseWhenResult(value: unknown): value is EclipseWhenResult {
+  if (typeof value !== 'object' || value == null) return false;
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.flag === 'number' &&
+    typeof obj.error === 'string' &&
+    Array.isArray(obj.data) &&
+    obj.data.every((v) => typeof v === 'number')
+  );
+}
 
 /**
  * Calculator for solar and lunar eclipses
@@ -30,6 +47,27 @@ export class EclipseCalculator {
     this.ephem = ephem;
   }
 
+  private callSolarEclipseWhenGlob(startJD: number): EclipseWhenResult {
+    if (!this.ephem.eph) {
+      throw new Error('Ephemeris not initialized');
+    }
+
+    // sweph typings currently declare `backwards` as number, but runtime expects boolean.
+    const callable = this.ephem.eph.sol_eclipse_when_glob as unknown as (
+      startJd: number,
+      flags: number,
+      eclipseType: number,
+      backwards: boolean
+    ) => unknown;
+
+    const raw = callable(startJD, Constants.SEFLG_SWIEPH, 0, false);
+    if (!isEclipseWhenResult(raw)) {
+      throw new Error('Unexpected sol_eclipse_when_glob result shape');
+    }
+
+    return raw;
+  }
+
   /**
    * Find the next solar eclipse after a given date
    * 
@@ -47,24 +85,19 @@ export class EclipseCalculator {
     }
 
     try {
-      const result = this.ephem.eph.swe_sol_eclipse_when_glob(
-        startJD,
-        Constants.SEFLG_SWIEPH,
-        0,
-        false
-      );
+      const result = this.callSolarEclipseWhenGlob(startJD);
 
-      if (result.error || !result.tret || result.tret.length < 1) {
+      if (result.error || !result.data || result.data.length < 1) {
         return null;
       }
 
-      const eclipseType = this.getSolarEclipseType(result.returnCode);
+      const eclipseType = this.getSolarEclipseType(result.flag);
 
       return {
         type: 'solar',
-        date: this.ephem.julianDayToDate(result.tret[0]),
+        date: this.ephem.julianDayToDate(result.data[0]),
         eclipseType,
-        maxTime: this.ephem.julianDayToDate(result.tret[0]),
+        maxTime: this.ephem.julianDayToDate(result.data[0]),
       };
     } catch (e) {
       logger.error(
@@ -93,19 +126,19 @@ export class EclipseCalculator {
     }
 
     try {
-      const result = this.ephem.eph.swe_lun_eclipse_when(startJD, Constants.SEFLG_SWIEPH, 0, false);
+      const result = this.ephem.eph.lun_eclipse_when(startJD, Constants.SEFLG_SWIEPH, 0, false);
 
-      if (result.error || !result.tret || result.tret.length < 1) {
+      if (result.error || !result.data || result.data.length < 1) {
         return null;
       }
 
-      const eclipseType = this.getLunarEclipseType(result.returnCode);
+      const eclipseType = this.getLunarEclipseType(result.flag);
 
       return {
         type: 'lunar',
-        date: this.ephem.julianDayToDate(result.tret[0]),
+        date: this.ephem.julianDayToDate(result.data[0]),
         eclipseType,
-        maxTime: this.ephem.julianDayToDate(result.tret[0]),
+        maxTime: this.ephem.julianDayToDate(result.data[0]),
       };
     } catch (e) {
       logger.error(

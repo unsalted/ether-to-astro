@@ -11,7 +11,7 @@ const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
 (globalThis as any).self = globalThis; // Critical: astrochart checks for 'self' - see https://github.com/AstroDraw/AstroChart/issues/85
 (globalThis as any).SVGElement = dom.window.SVGElement;
 
-// Polyfill fetch for file:// URLs (needed for Swiss Ephemeris WASM loading)
+// Polyfill fetch for file:// URLs used by chart tooling in Node.
 const originalFetch = globalThis.fetch;
 (globalThis as any).fetch = async (url: string | URL, ...args: any[]) => {
   const urlStr = url.toString();

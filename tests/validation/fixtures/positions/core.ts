@@ -8,7 +8,7 @@ export const positionFixtures: PositionFixture[] = [
     planetIds: [PLANETS.SUN, PLANETS.MOON, PLANETS.MERCURY, PLANETS.PLUTO],
     expected: [
       { body: 'Sun', longitude: 6.316731386907804, latitude: -0.00007352800431972934, speed: 0.9897125520461556, retrograde: false },
-      { body: 'Moon', longitude: 199.48679716995002, latitude: -0.36176788562088447, speed: 11.94171311500129, retrograde: false },
+      { body: 'Moon', longitude: 199.48694064839447, latitude: -0.36176675515418295, speed: 11.941713114615638, retrograde: false },
       { body: 'Mercury', longitude: 24.69285200607294, latitude: 2.672580045178339, speed: 0.7867951188862425, retrograde: false },
       { body: 'Pluto', longitude: 301.7781198496598, latitude: -2.927662494192267, speed: 0.017128737345548647, retrograde: false },
     ],
@@ -30,7 +30,7 @@ export const positionFixtures: PositionFixture[] = [
     expected: [
       { body: 'Saturn', longitude: 345.7060989429216, latitude: -1.9494898994552385, speed: 0.0926345534031346, retrograde: false },
       { body: 'Uranus', longitude: 53.36875615623478, latitude: -0.24802075433686954, speed: -0.013507214995734195, retrograde: true },
-      { body: 'Neptune', longitude: 357.54301992948785, latitude: -1.2774822956500207, speed: 0.02110565863427591, retrograde: false },
+      { body: 'Neptune', longitude: 357.54312216762855, latitude: -1.2774823347799653, speed: 0.02110562924597566, retrograde: false },
       { body: 'Pluto', longitude: 301.5060850985308, latitude: -3.288200764433513, speed: 0.032129088743535324, retrograde: false },
     ],
   },
@@ -51,7 +51,7 @@ export const positionFixtures: PositionFixture[] = [
     expected: [
       { body: 'Sun', longitude: 279.58558664635507, latitude: 0.00011630013927636058, speed: 1.0187919739012508, retrograde: false },
       { body: 'Mercury', longitude: 286.38509679515437, latitude: -2.0863288163781823, speed: 1.6192452202966239, retrograde: false },
-      { body: 'Neptune', longitude: 167.29687997613632, latitude: 0.9631918450180185, speed: -0.00662687644302578, retrograde: true },
+      { body: 'Neptune', longitude: 167.29740813269177, latitude: 0.963176276464019, speed: -0.006626443683328727, retrograde: true },
     ],
   },
 ];

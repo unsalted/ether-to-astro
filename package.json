@@ -32,12 +32,11 @@
   "license": "MIT",
   "dependencies": {
     "@astrodraw/astrochart": "^3.0.2",
-    "@fusionstrings/swiss-eph": "npm:@jsr/fusionstrings__swiss-eph@^0.2.1",
     "@js-temporal/polyfill": "^0.5.1",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@std/datetime": "npm:@jsr/std__datetime@^0.225.7",
     "sharp": "^0.34.5",
-    "sweph": "https://codeload.github.com/timotejroiko/sweph/tar.gz/refs/heads/main"
+    "sweph": "2.10.3-b-1"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.9",

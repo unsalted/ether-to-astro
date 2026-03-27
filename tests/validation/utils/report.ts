@@ -14,8 +14,7 @@ export interface ValidationMismatch {
 export class ValidationReport {
   readonly hardFailures: ValidationMismatch[] = [];
   readonly warnings: ValidationMismatch[] = [];
-  generatedAtTestClock?: string;
-  generatedAtWallClock?: string;
+  generatedAt?: string;
 
   addHard(mismatch: ValidationMismatch): void {
     this.hardFailures.push(mismatch);
@@ -40,8 +39,7 @@ export class ValidationReport {
       {
         hardFailures: this.hardFailures,
         warnings: this.warnings,
-        generatedAtTestClock: this.generatedAtTestClock ?? new Date().toISOString(),
-        generatedAtWallClock: this.generatedAtWallClock ?? wallClockIso,
+        generatedAt: this.generatedAt ?? wallClockIso,
       },
       null,
       2

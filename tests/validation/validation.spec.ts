@@ -19,6 +19,7 @@ import { dstFixtures } from './fixtures/transits/dst.js';
 import { transitFixtures } from './fixtures/transits/core.js';
 import { denseScanRootOracleWithDebug } from './utils/denseRootOracle.js';
 import { formatMismatch, ValidationReport } from './utils/report.js';
+import { TOLERANCES } from './utils/tolerances.js';
 
 function assertNoHardFailures(report: ValidationReport): void {
   if (report.hardFailures.length === 0) return;
@@ -48,9 +49,8 @@ describe('Astro Validation Harness', () => {
   });
 
   afterAll(() => {
-    aggregateReport.generatedAtTestClock = new Date().toISOString();
     const wallClockMs = Math.round(performance.timeOrigin + performance.now());
-    aggregateReport.generatedAtWallClock = new Date(wallClockMs).toISOString();
+    aggregateReport.generatedAt = new Date(wallClockMs).toISOString();
     aggregateReport.flushWarningsToConsole();
     writeFileSync('/tmp/astro-validation-report.json', aggregateReport.toJson(), 'utf8');
   });
@@ -91,15 +91,15 @@ describe('Astro Validation Harness', () => {
           const ext = astrolog.positions.find((p) => p.body === row.body);
           if (!ext) continue;
           const delta = normalizeLongitudeDelta(row.longitude, ext.longitude);
-          if (delta > 2) {
+          if (delta > TOLERANCES.astrologPositionLongitudeDeg) {
             report.addHard({
               fixture: fixture.name,
               subsystem: 'astrolog-positions',
               expected: row.longitude,
               actual: ext.longitude,
               delta,
-              tolerance: 2,
-              message: `${row.body} longitude differs by >2° vs Astrolog`,
+              tolerance: TOLERANCES.astrologPositionLongitudeDeg,
+              message: `${row.body} longitude differs by >${TOLERANCES.astrologPositionLongitudeDeg}° vs Astrolog`,
             });
           }
         }
@@ -395,7 +395,7 @@ describe('Astro Validation Harness', () => {
           capability: 'unavailable',
           validation: 'skipped_intentionally',
           details: {
-            missingExports: ['swe_rise_trans'],
+            missingExports: ['rise_trans'],
           },
         });
         return;
@@ -450,7 +450,7 @@ describe('Astro Validation Harness', () => {
           capability: 'unavailable',
           validation: 'skipped_intentionally',
           details: {
-            missingExports: ['swe_sol_eclipse_when_glob', 'swe_lun_eclipse_when'],
+            missingExports: ['sol_eclipse_when_glob', 'lun_eclipse_when'],
           },
         });
         return;

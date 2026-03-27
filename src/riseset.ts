@@ -1,4 +1,4 @@
-import { Constants } from '@fusionstrings/swiss-eph/wasi';
+import { constants as Constants } from 'sweph';
 import type { EphemerisCalculator } from './ephemeris.js';
 import { logger } from './logger.js';
 import { PLANET_NAMES, type RiseSetTime } from './types.js';
@@ -86,9 +86,9 @@ export class RiseSetCalculator {
       planet: planetName,
     };
 
-    // Helper to call swe_rise_trans and handle return codes
+    // Helper to call rise_trans and handle return codes
     const calculateEvent = (eventType: number, eventName: string): Date | undefined => {
-      const eventResult = this.ephem.eph!.swe_rise_trans(
+      const eventResult = this.ephem.eph!.rise_trans(
         julianDay,
         planetId,
         null,
@@ -99,16 +99,16 @@ export class RiseSetCalculator {
         0  // attemp: 0°C
       );
 
-      if (eventResult.returnCode === -1) {
+      if (eventResult.flag === -1) {
         throw new Error(`${eventName} calculation failed for ${planetName}: ${eventResult.error || 'Unknown error'}`);
-      } else if (eventResult.returnCode === -2) {
+      } else if (eventResult.flag === -2) {
         logger.debug(`No ${eventName} for ${planetName} (circumpolar or no event)`, {
           planet: planetName,
           latitude,
         });
         return undefined;
-      } else if (eventResult.tret) {
-        return this.ephem.julianDayToDate(eventResult.tret);
+      } else if (Number.isFinite(eventResult.data)) {
+        return this.ephem.julianDayToDate(eventResult.data);
       }
       return undefined;
     };

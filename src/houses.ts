@@ -78,48 +78,50 @@ export class HouseCalculator {
     let systemToUse = normalized as HouseSystem;
     
     // Try requested system
-    const result = this.ephem.eph.swe_houses(
+    const result = this.ephem.eph.houses_ex2(
       julianDay,
+      0,
       latitude,
       longitude,
-      systemToUse.charCodeAt(0)
+      systemToUse
     );
 
     // Handle polar latitude failure with real fallback
-    if (result.returnCode < 0 && isPolar && systemToUse !== 'W') {
+    if (result.flag < 0 && isPolar && systemToUse !== 'W') {
       // Retry with Whole Sign (works at all latitudes)
       systemToUse = 'W';
-      const fallbackResult = this.ephem.eph.swe_houses(
+      const fallbackResult = this.ephem.eph.houses_ex2(
         julianDay,
+        0,
         latitude,
         longitude,
-        systemToUse.charCodeAt(0)
+        systemToUse
       );
       
-      if (fallbackResult.returnCode < 0) {
+      if (fallbackResult.flag < 0) {
         // Even Whole Sign failed - this should never happen
         throw new Error(`House calculation failed even with Whole Sign fallback at latitude ${latitude.toFixed(1)}°`);
       }
       
       // Return fallback result with actual system used
       return {
-        ascendant: fallbackResult.ascmc[0],
-        mc: fallbackResult.ascmc[1],
-        cusps: Array.from(fallbackResult.cusps), // Swiss 1-based: [0] unused, [1..12] houses
+        ascendant: fallbackResult.data.points[0],
+        mc: fallbackResult.data.points[1],
+        cusps: [0, ...Array.from(fallbackResult.data.houses)], // Swiss 1-based: [0] unused, [1..12] houses
         system: systemToUse, // Return 'W', not original requested system
       };
     }
 
     // For non-polar failures, throw error (don't return fake data)
-    if (result.returnCode < 0) {
+    if (result.flag < 0) {
       throw new Error(`House calculation failed for ${systemToUse} system at latitude ${latitude.toFixed(1)}°`);
     }
 
     // Success - return actual data
     return {
-      ascendant: result.ascmc[0],
-      mc: result.ascmc[1],
-      cusps: Array.from(result.cusps), // Swiss 1-based: [0] unused, [1..12] houses
+      ascendant: result.data.points[0],
+      mc: result.data.points[1],
+      cusps: [0, ...Array.from(result.data.houses)], // Swiss 1-based: [0] unused, [1..12] houses
       system: systemToUse,
     };
   }

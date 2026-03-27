@@ -18,13 +18,14 @@ export function probeAstrolog(): AstrologProbe {
     return { enabled: false, available: false, bin, reason: 'VALIDATE_WITH_ASTROLOG is not enabled' };
   }
 
-  const version = spawnSync(bin, ['-v'], { encoding: 'utf8' });
-  if (version.error || version.status !== 0) {
+  const probe = spawnSync(bin, ['-Hc'], { encoding: 'utf8' });
+  const probeText = `${probe.stdout || ''}\n${probe.stderr || ''}`;
+  if (probe.error || (probe.status !== 0 && !/Astrolog\s+version/i.test(probeText))) {
     return {
       enabled,
       available: false,
       bin,
-      reason: version.error?.message || version.stderr || `Exit ${version.status}`,
+      reason: probe.error?.message || probe.stderr || `Exit ${probe.status}`,
     };
   }
 
@@ -36,6 +37,36 @@ function parsePositionsFromStdout(stdout: string): NormalizedBody[] {
   const parsed: NormalizedBody[] = [];
 
   for (const line of lines) {
+    // Common Astrolog table line format:
+    // "Sun :  6Ari38 ..."
+    const tableMatch = line.match(/^(Sun|Moon|Merc|Venu|Mars|Jupi|Satu|Uran|Nept|Plut)\s*:\s*([0-9]{1,2})([A-Za-z]{3})([0-9]{1,2})/i);
+    if (tableMatch) {
+      const bodyMap: Record<string, string> = {
+        Sun: 'Sun',
+        Moon: 'Moon',
+        Merc: 'Mercury',
+        Venu: 'Venus',
+        Mars: 'Mars',
+        Jupi: 'Jupiter',
+        Satu: 'Saturn',
+        Uran: 'Uranus',
+        Nept: 'Neptune',
+        Plut: 'Pluto',
+      };
+      const signOrder = ['Ari', 'Tau', 'Gem', 'Can', 'Leo', 'Vir', 'Lib', 'Sco', 'Sag', 'Cap', 'Aqu', 'Pis'];
+      const body = bodyMap[tableMatch[1]];
+      const degree = Number(tableMatch[2]);
+      const signIndex = signOrder.indexOf(tableMatch[3]);
+      const minutes = Number(tableMatch[4]);
+      if (body && signIndex >= 0) {
+        parsed.push({
+          body,
+          longitude: signIndex * 30 + degree + minutes / 60,
+        });
+      }
+      continue;
+    }
+
     // Example-ish line formats across Astrolog builds often include:
     // "Sun  6Ar19  ..." or "Sun 6.32"
     const plainMatch = line.match(/^(Sun|Moon|Mercury|Venus|Mars|Jupiter|Saturn|Uranus|Neptune|Pluto)\s+([0-9]+(?:\.[0-9]+)?)/i);
@@ -77,14 +108,18 @@ export function getAstrologPositions(isoUtc: string, probe: AstrologProbe): { ok
   }
 
   const d = new Date(isoUtc);
-  const month = d.getUTCMonth() + 1;
-  const day = d.getUTCDate();
-  const year = d.getUTCFullYear();
-  const hour = String(d.getUTCHours()).padStart(2, '0');
-  const minute = String(d.getUTCMinutes()).padStart(2, '0');
+  // Astrolog `-q` in this build parses input in its default fixed zone (shown as ST Zone 8W).
+  // Convert UTC to that clock basis so we compare the same instant.
+  const astrologClock = new Date(d.getTime() - 8 * 60 * 60 * 1000);
+  const month = astrologClock.getUTCMonth() + 1;
+  const day = astrologClock.getUTCDate();
+  const year = astrologClock.getUTCFullYear();
+  const hour = String(astrologClock.getUTCHours()).padStart(2, '0');
+  const minute = String(astrologClock.getUTCMinutes()).padStart(2, '0');
 
   // Astrolog CLI flags vary by build. Try a few minimal templates.
   const argSets = [
+    ['-q', String(month), String(day), String(year), `${hour}:${minute}`],
     ['-q', '-d', `${month}/${day}/${year}`, '-t', `${hour}:${minute}`, '-z', '0'],
     ['-q', `${month}/${day}/${year}`, `${hour}:${minute}`],
     ['-q'],

@@ -4,7 +4,7 @@
  */
 
 // For now, we'll use approximate but realistic values based on astronomical data
-// These can be verified against actual ephemeris once WASM loading is fixed
+// These can be verified against actual ephemeris with native sweph + local ephemeris files
 
 export const BOWEN_YANG_NATAL_POSITIONS = {
   // November 6, 1990, 01:30 UTC
