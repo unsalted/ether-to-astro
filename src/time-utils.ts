@@ -22,7 +22,9 @@ export interface LocalDateTime {
  * @returns UTC Date object
  */
 export function localToUTC(local: LocalDateTime, timezone: string): Date {
-  // Build a date string in ISO format
+  // Strategy: Create a date in the target timezone, then extract its UTC equivalent
+  // We'll use the fact that Date.parse() + toLocaleString() can help us find the offset
+  
   const year = local.year;
   const month = String(local.month).padStart(2, '0');
   const day = String(local.day).padStart(2, '0');
@@ -30,13 +32,14 @@ export function localToUTC(local: LocalDateTime, timezone: string): Date {
   const minute = String(local.minute).padStart(2, '0');
   const second = String(local.second || 0).padStart(2, '0');
   
-  const dateString = `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+  // Create an ISO string representing the local time
+  const localString = `${year}-${month}-${day}T${hour}:${minute}:${second}`;
   
-  // Parse as UTC first to get a baseline
-  const utcDate = new Date(`${dateString}Z`);
+  // Parse this as if it were UTC to get a reference point
+  const utcReference = new Date(`${localString}Z`);
   
-  // Format this UTC date as it would appear in the target timezone
-  const tzString = utcDate.toLocaleString('en-US', {
+  // Now format this UTC time as it would appear in the target timezone
+  const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
     year: 'numeric',
     month: '2-digit',
@@ -47,15 +50,29 @@ export function localToUTC(local: LocalDateTime, timezone: string): Date {
     hour12: false,
   });
   
-  // Parse the timezone string back to a Date (in local system time)
-  const tzDate = new Date(tzString);
+  const parts = formatter.formatToParts(utcReference);
+  const getValue = (type: string): number => {
+    const part = parts.find(p => p.type === type);
+    return part ? Number.parseInt(part.value, 10) : 0;
+  };
   
-  // Calculate the offset: difference between UTC interpretation and TZ interpretation
-  const offset = utcDate.getTime() - tzDate.getTime();
+  // What the UTC reference looks like in the target timezone
+  const tzYear = getValue('year');
+  const tzMonth = getValue('month');
+  const tzDay = getValue('day');
+  const tzHour = getValue('hour');
+  const tzMinute = getValue('minute');
+  const tzSecond = getValue('second');
   
-  // Apply the offset to get the correct UTC time
-  // If we want "1:06 PM EDT" to become "5:06 PM UTC", we need to add the offset
-  return new Date(utcDate.getTime() + offset);
+  // Calculate the difference between what we want (local) and what we got (tz interpretation of UTC)
+  const wantedMs = Date.UTC(local.year, local.month - 1, local.day, local.hour, local.minute, local.second || 0);
+  const gotMs = Date.UTC(tzYear, tzMonth - 1, tzDay, tzHour, tzMinute, tzSecond);
+  
+  // The offset tells us how much to adjust
+  const offsetMs = wantedMs - gotMs;
+  
+  // Apply the offset to the UTC reference
+  return new Date(utcReference.getTime() + offsetMs);
 }
 
 /**

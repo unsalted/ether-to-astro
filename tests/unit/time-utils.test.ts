@@ -79,12 +79,12 @@ describe('Time conversion utility', () => {
 
       const utc = localToUTC(local, 'America/New_York');
 
-      // Midnight EST = 5 AM UTC (previous day might roll over)
-      expect(utc.getUTCHours()).toBe(5);
+      // Midnight EDT (March 15 is after DST starts) = 4 AM UTC
+      expect(utc.getUTCHours()).toBe(4);
     });
 
     it('should handle date rollover when converting to UTC', () => {
-      // 11 PM PST should become next day in UTC
+      // 11 PM PDT should become next day in UTC
       const local: LocalDateTime = {
         year: 2024,
         month: 3,
@@ -95,9 +95,9 @@ describe('Time conversion utility', () => {
 
       const utc = localToUTC(local, 'America/Los_Angeles');
 
-      // 11 PM PST = 7 AM UTC next day
+      // 11 PM PDT (March 15 is after DST) = 6 AM UTC next day
       expect(utc.getUTCDate()).toBe(16);
-      expect(utc.getUTCHours()).toBe(7);
+      expect(utc.getUTCHours()).toBe(6);
     });
   });
 
