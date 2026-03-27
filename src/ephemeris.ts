@@ -125,6 +125,12 @@ export class EphemerisCalculator {
    */
   getPlanetPosition(planetId: number, jd: number): PlanetPosition {
     if (!this.eph) throw new Error('Ephemeris not initialized');
+    if (!Number.isInteger(planetId) || !Number.isFinite(planetId)) {
+      throw new Error(`Invalid planet ID: ${planetId} (must be a finite integer)`);
+    }
+    if (!Number.isFinite(jd)) {
+      throw new Error(`Invalid Julian Day: ${jd} (must be finite)`);
+    }
 
     const result = this.eph.swe_calc_ut(jd, planetId, Constants.SEFLG_SPEED);
 
@@ -235,7 +241,7 @@ export class EphemerisCalculator {
     if (startJD >= endJD) {
       throw new Error(`Invalid interval: startJD (${startJD}) must be < endJD (${endJD})`);
     }
-    if (tolerance <= 0) {
+    if (!Number.isFinite(tolerance) || tolerance <= 0) {
       throw new Error(`Invalid tolerance: ${tolerance} (must be > 0)`);
     }
 
