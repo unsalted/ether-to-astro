@@ -31,15 +31,34 @@ The agent will call `set_natal_chart` with:
   "year": 1985,
   "month": 1,
   "day": 15,
-  "hour": 22,
+  "hour": 14,
   "minute": 30,
   "latitude": 34.0522,
   "longitude": -118.2437,
-  "timezone": "America/Los_Angeles"
+  "timezone": "America/Los_Angeles",
+  "house_system": "P"
 }
 ```
 
-Note: Hour should be in UTC (PST is UTC-8, so 14:30 PST = 22:30 UTC)
+**Note:** Hour is in LOCAL time (14:30 = 2:30 PM). The server converts to UTC automatically.
+
+The server responds with verification:
+```
+Natal chart saved for Jane
+
+Birth Details:
+- Local Time: 1/15/1985 14:30 (America/Los_Angeles)
+- UTC Time: 1/15/1985 22:30 UTC
+- Location: 34.05°N, -118.24°W
+
+Chart Angles:
+- Sun: 25° Capricorn
+- Moon: 12° Gemini
+- Ascendant: 8° Taurus
+- MC: 15° Capricorn
+
+House System: Placidus
+```
 
 ## Daily Transit Queries
 

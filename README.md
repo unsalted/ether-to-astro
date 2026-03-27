@@ -112,9 +112,10 @@ The server automatically uses Whole Sign for polar latitudes (>66°) where Placi
 ```
 Use the set_natal_chart tool with:
 - name: "Your Name"
-- year, month, day, hour, minute (birth time in UTC)
+- year, month, day, hour, minute (birth time in LOCAL time)
 - latitude, longitude (birth location)
-- timezone (e.g., "America/Los_Angeles")
+- timezone (e.g., "America/New_York", "Europe/London")
+- house_system (optional): "P" (Placidus), "W" (Whole Sign), "K" (Koch), "E" (Equal)
 ```
 
 ### 2. Query Transits
