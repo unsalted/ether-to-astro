@@ -123,15 +123,30 @@ export class InternalValidationAdapter {
   }
 
   canComputeRiseSet(): boolean {
-    return typeof (this.ephem.eph as Record<string, unknown> | null)?.swe_rise_trans === 'function';
+    try {
+      const probeJd = this.ephem.dateToJulianDay(new Date('2024-03-26T12:00:00Z'));
+      this.riseSetCalc.calculateRiseSet(probeJd, 0, 34.0522, -118.2437);
+      return true;
+    } catch (error) {
+      return !String(error).includes('is not a function');
+    }
   }
 
   canComputeEclipses(): boolean {
-    const eph = this.ephem.eph as Record<string, unknown> | null;
-    return (
-      typeof eph?.swe_sol_eclipse_when_glob === 'function' &&
-      typeof eph?.swe_lun_eclipse_when === 'function'
-    );
+    try {
+      const probeJd = this.ephem.dateToJulianDay(new Date('2024-03-26T00:00:00Z'));
+      const eph = this.ephem.eph as
+        | {
+            swe_sol_eclipse_when_glob: (jd: number, iflag: number, ifltype: number, backwards: boolean) => unknown;
+            swe_lun_eclipse_when: (jd: number, iflag: number, ifltype: number, backwards: boolean) => unknown;
+          }
+        | null;
+      eph?.swe_sol_eclipse_when_glob(probeJd, 0, 0, false);
+      eph?.swe_lun_eclipse_when(probeJd, 0, 0, false);
+      return true;
+    } catch (error) {
+      return !String(error).includes('is not a function');
+    }
   }
 
   normalizeBody(p: PlanetPosition): NormalizedBody {

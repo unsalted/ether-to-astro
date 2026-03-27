@@ -6,11 +6,16 @@ export interface ValidationMismatch {
   delta: number | string | null;
   tolerance: number | string;
   message: string;
+  capability?: 'available' | 'unavailable';
+  validation?: 'executed' | 'skipped_intentionally';
+  details?: unknown;
 }
 
 export class ValidationReport {
   readonly hardFailures: ValidationMismatch[] = [];
   readonly warnings: ValidationMismatch[] = [];
+  generatedAtTestClock?: string;
+  generatedAtWallClock?: string;
 
   addHard(mismatch: ValidationMismatch): void {
     this.hardFailures.push(mismatch);
@@ -30,11 +35,13 @@ export class ValidationReport {
   }
 
   toJson(): string {
+    const wallClockIso = new Date(Date.now()).toISOString();
     return JSON.stringify(
       {
         hardFailures: this.hardFailures,
         warnings: this.warnings,
-        generatedAt: new Date().toISOString(),
+        generatedAtTestClock: this.generatedAtTestClock ?? new Date().toISOString(),
+        generatedAtWallClock: this.generatedAtWallClock ?? wallClockIso,
       },
       null,
       2

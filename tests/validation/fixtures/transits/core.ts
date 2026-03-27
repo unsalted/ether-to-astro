@@ -1,0 +1,61 @@
+import { PLANETS } from '../../../../src/types.js';
+import type { TransitFixture } from '../../utils/fixtureTypes.js';
+
+export const transitFixtures: TransitFixture[] = [
+  {
+    name: 'applying-square-policy',
+    currentIsoUtc: '2024-03-15T00:00:00Z',
+    transitingPlanetId: PLANETS.MARS,
+    natalPlanetId: PLANETS.VENUS,
+    natalOffsetDegrees: 92,
+    expectedAspect: 'square',
+    expectedIsApplying: true,
+    expectExactTimeStatus: 'within_preview',
+  },
+  {
+    name: 'separating-square-policy',
+    currentIsoUtc: '2024-03-15T00:00:00Z',
+    transitingPlanetId: PLANETS.MARS,
+    natalPlanetId: PLANETS.VENUS,
+    natalOffsetDegrees: 88,
+    expectedAspect: 'square',
+    expectedIsApplying: false,
+    expectExactTimeStatus: 'within_preview',
+  },
+  {
+    name: 'orb-too-wide-status-undefined',
+    currentIsoUtc: '2024-03-15T00:00:00Z',
+    transitingPlanetId: PLANETS.MARS,
+    natalPlanetId: PLANETS.VENUS,
+    natalOffsetDegrees: 3,
+    expectedAspect: 'conjunction',
+    expectExactTimeStatus: 'undefined',
+  },
+  {
+    name: 'dual-target-trine',
+    currentIsoUtc: '2024-03-15T00:00:00Z',
+    transitingPlanetId: PLANETS.JUPITER,
+    natalPlanetId: PLANETS.SUN,
+    natalOffsetDegrees: 120,
+    expectedAspect: 'trine',
+    expectExactTimeStatus: 'within_preview',
+  },
+  {
+    name: 'dual-target-sextile',
+    currentIsoUtc: '2024-03-15T00:00:00Z',
+    transitingPlanetId: PLANETS.MARS,
+    natalPlanetId: PLANETS.SUN,
+    natalOffsetDegrees: 60,
+    expectedAspect: 'sextile',
+    expectExactTimeStatus: 'within_preview',
+  },
+  {
+    name: 'opposition-case',
+    currentIsoUtc: '2024-03-15T00:00:00Z',
+    transitingPlanetId: PLANETS.JUPITER,
+    natalPlanetId: PLANETS.MARS,
+    natalOffsetDegrees: 180,
+    expectedAspect: 'opposition',
+    expectExactTimeStatus: 'within_preview',
+  },
+];

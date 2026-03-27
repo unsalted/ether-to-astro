@@ -2,7 +2,28 @@ import { TOLERANCES, minutesToDays } from './tolerances.js';
 
 interface Sample {
   jd: number;
-  diff: number;
+  longitude: number;
+  shortestDiff: number;
+  phi: number; // Unwrapped raw phase (longitude - target), continuous over interval.
+}
+
+export interface OracleDebugInfo {
+  toleranceDeg: number;
+  sampleStepDays: number;
+  dedupeEpsilonDays: number;
+  samples: Array<{
+    jd: number;
+    isoUtc?: string;
+    longitude: number;
+    shortestDiff: number;
+    phi: number;
+  }>;
+  crossings: Array<{
+    k: number;
+    startJD: number;
+    endJD: number;
+  }>;
+  sanityWarnings: string[];
 }
 
 interface OracleOptions {
@@ -10,6 +31,7 @@ interface OracleOptions {
   maxStepDays?: number;
   dedupeEpsilonDays?: number;
   maxIterations?: number;
+  toIsoUtc?: (jd: number) => string;
 }
 
 function normalizeAngle(angle: number): number {
@@ -34,6 +56,27 @@ function dedupeSortedRoots(roots: number[], epsilonDays: number): number[] {
   return deduped;
 }
 
+function unwrapNextPhi(prevPhi: number, rawPhase: number): number {
+  let candidate = rawPhase;
+  while (candidate - prevPhi > 180) candidate -= 360;
+  while (candidate - prevPhi < -180) candidate += 360;
+  return candidate;
+}
+
+function enumerateCrossingKs(a: number, b: number): number[] {
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  const startK = Math.ceil(lo / 360);
+  const endK = Math.floor(hi / 360);
+  if (startK > endK) return [];
+
+  const ks: number[] = [];
+  for (let k = startK; k <= endK; k++) {
+    ks.push(k);
+  }
+  return ks;
+}
+
 export function denseScanRootOracle(
   getLongitudeAtJd: (jd: number) => number,
   targetLongitude: number,
@@ -41,6 +84,22 @@ export function denseScanRootOracle(
   endJD: number,
   options: OracleOptions = {}
 ): number[] {
+  return denseScanRootOracleWithDebug(
+    getLongitudeAtJd,
+    targetLongitude,
+    startJD,
+    endJD,
+    options
+  ).roots;
+}
+
+export function denseScanRootOracleWithDebug(
+  getLongitudeAtJd: (jd: number) => number,
+  targetLongitude: number,
+  startJD: number,
+  endJD: number,
+  options: OracleOptions = {}
+): { roots: number[]; debug: OracleDebugInfo } {
   const toleranceDeg = options.toleranceDeg ?? 0.01;
   const maxStepDays = options.maxStepDays ?? 0.125; // 3h
   const dedupeEpsilonDays = options.dedupeEpsilonDays ?? minutesToDays(TOLERANCES.dedupeMinutes);
@@ -52,76 +111,114 @@ export function denseScanRootOracle(
 
   const spanDays = endJD - startJD;
   const sampleCount = Math.max(16, Math.ceil(spanDays / maxStepDays));
-  const step = spanDays / sampleCount;
+  const stepDays = spanDays / sampleCount;
 
   const samples: Sample[] = [];
+  const sanityWarnings: string[] = [];
+  let prevPhi: number | null = null;
   for (let i = 0; i <= sampleCount; i++) {
-    const jd = startJD + i * step;
-    samples.push({ jd, diff: signedShortestDiff(getLongitudeAtJd(jd), targetLongitude) });
+    const jd = startJD + i * stepDays;
+    const longitude = getLongitudeAtJd(jd);
+    const rawPhase = longitude - targetLongitude;
+    const phi = prevPhi == null ? rawPhase : unwrapNextPhi(prevPhi, rawPhase);
+    const shortestDiff = signedShortestDiff(longitude, targetLongitude);
+
+    // Coarse sanity guard against sampling pathologies in test harness.
+    if (prevPhi != null && Math.abs(phi - prevPhi) > 40) {
+      sanityWarnings.push(
+        `Large phase jump at sample ${i} (Δphi=${(phi - prevPhi).toFixed(3)}° over ${stepDays.toFixed(6)}d)`
+      );
+    }
+
+    samples.push({ jd, longitude, shortestDiff, phi });
+    prevPhi = phi;
   }
 
   const roots: number[] = [];
+  const crossings: OracleDebugInfo['crossings'] = [];
 
-  // Endpoint and near-zero sampled roots.
-  for (const s of samples) {
-    if (Math.abs(s.diff) <= toleranceDeg * 2) {
-      roots.push(s.jd);
-    }
+  // Endpoint near-zero roots only (avoid over-counting sampled interior points).
+  const startSample = samples[0];
+  const endSample = samples[samples.length - 1];
+  if (Math.abs(startSample.shortestDiff) <= toleranceDeg * 2) {
+    roots.push(startSample.jd);
+  }
+  if (Math.abs(endSample.shortestDiff) <= toleranceDeg * 2) {
+    roots.push(endSample.jd);
   }
 
-  // Sign-change intervals => bisection refinement.
+  // Enumerate all k*360 crossings in each sampled interval.
   for (let i = 0; i < samples.length - 1; i++) {
     let left = samples[i];
     let right = samples[i + 1];
+    const ks = enumerateCrossingKs(left.phi, right.phi);
+    if (ks.length === 0) continue;
 
-    if (left.diff === 0) {
-      roots.push(left.jd);
-      continue;
-    }
-    if (right.diff === 0) {
-      roots.push(right.jd);
-      continue;
-    }
+    for (const k of ks) {
+      const targetPhase = k * 360;
+      crossings.push({ k, startJD: left.jd, endJD: right.jd });
 
-    const hasSignChange = (left.diff > 0 && right.diff < 0) || (left.diff < 0 && right.diff > 0);
-    if (!hasSignChange) {
-      continue;
-    }
-
-    let iterations = 0;
-    while (iterations < maxIterations && (right.jd - left.jd) > dedupeEpsilonDays / 4) {
-      const midJD = (left.jd + right.jd) / 2;
-      const midDiff = signedShortestDiff(getLongitudeAtJd(midJD), targetLongitude);
-      if (Math.abs(midDiff) <= toleranceDeg) {
-        roots.push(midJD);
-        break;
+      // If bracket endpoint is already exact, keep a single endpoint root.
+      if (Math.abs(left.shortestDiff) <= toleranceDeg) {
+        roots.push(left.jd);
+        continue;
       }
-      if ((left.diff > 0 && midDiff > 0) || (left.diff < 0 && midDiff < 0)) {
-        left = { jd: midJD, diff: midDiff };
-      } else {
-        right = { jd: midJD, diff: midDiff };
+      if (Math.abs(right.shortestDiff) <= toleranceDeg) {
+        roots.push(right.jd);
+        continue;
       }
-      iterations++;
-    }
 
-    roots.push((left.jd + right.jd) / 2);
+      let bLeft = left;
+      let bRight = right;
+      let iterations = 0;
+      let found = false;
+      while (iterations < maxIterations && (bRight.jd - bLeft.jd) > dedupeEpsilonDays / 4) {
+        const midJD = (bLeft.jd + bRight.jd) / 2;
+        const midLongitude = getLongitudeAtJd(midJD);
+        const midRawPhase = midLongitude - targetLongitude;
+        const midPhi = unwrapNextPhi(bLeft.phi, midRawPhase);
+        const midShortestDiff = signedShortestDiff(midLongitude, targetLongitude);
+
+        if (Math.abs(midShortestDiff) <= toleranceDeg) {
+          roots.push(midJD);
+          found = true;
+          break;
+        }
+
+        if ((bLeft.phi - targetPhase) * (midPhi - targetPhase) <= 0) {
+          bRight = { jd: midJD, longitude: midLongitude, shortestDiff: midShortestDiff, phi: midPhi };
+        } else {
+          bLeft = { jd: midJD, longitude: midLongitude, shortestDiff: midShortestDiff, phi: midPhi };
+        }
+        iterations++;
+      }
+
+      if (!found) {
+        roots.push((bLeft.jd + bRight.jd) / 2);
+      }
+    }
   }
 
-  // Local minima in |diff| catch tangential roots without sign changes.
+  // Tangential fallback (no crossing required).
   for (let i = 1; i < samples.length - 1; i++) {
     const prev = samples[i - 1];
     const curr = samples[i];
     const next = samples[i + 1];
-    const prevAbs = Math.abs(prev.diff);
-    const currAbs = Math.abs(curr.diff);
-    const nextAbs = Math.abs(next.diff);
+    const prevAbs = Math.abs(prev.shortestDiff);
+    const currAbs = Math.abs(curr.shortestDiff);
+    const nextAbs = Math.abs(next.shortestDiff);
 
-    const isLocalMin = currAbs <= prevAbs && currAbs <= nextAbs && (currAbs < prevAbs || currAbs < nextAbs);
-    if (!isLocalMin) {
-      continue;
-    }
+    const isLocalMin =
+      currAbs <= prevAbs &&
+      currAbs <= nextAbs &&
+      (currAbs < prevAbs || currAbs < nextAbs);
+    if (!isLocalMin) continue;
 
-    // Ternary refinement on |diff| in a small interval around local minimum.
+    const hasPhaseCrossingHere = enumerateCrossingKs(prev.phi, next.phi).length > 0;
+    if (hasPhaseCrossingHere) continue;
+
+    if (currAbs > toleranceDeg * 20) continue;
+
     let leftJD = prev.jd;
     let rightJD = next.jd;
     let iterations = 0;
@@ -146,5 +243,22 @@ export function denseScanRootOracle(
   }
 
   roots.sort((a, b) => a - b);
-  return dedupeSortedRoots(roots, dedupeEpsilonDays);
+  const dedupedRoots = dedupeSortedRoots(roots, dedupeEpsilonDays);
+
+  const debug: OracleDebugInfo = {
+    toleranceDeg,
+    sampleStepDays: stepDays,
+    dedupeEpsilonDays,
+    sanityWarnings,
+    crossings,
+    samples: samples.map((s) => ({
+      jd: s.jd,
+      isoUtc: options.toIsoUtc ? options.toIsoUtc(s.jd) : undefined,
+      longitude: s.longitude,
+      shortestDiff: s.shortestDiff,
+      phi: s.phi,
+    })),
+  };
+
+  return { roots: dedupedRoots, debug };
 }
