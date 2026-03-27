@@ -2,6 +2,7 @@ import Chart from '@astrodraw/astrochart';
 import { JSDOM } from 'jsdom';
 import sharp from 'sharp';
 import {
+  type AstroChartConstructor,
   type AstroChartData,
   type AstroChartSettings,
   type ChartFormat,
@@ -29,10 +30,12 @@ export class ChartRenderer {
 
   private setupGlobals(): void {
     // Set global document and window for astrochart
-    (global as any).document = this.dom.window.document;
-    (global as any).window = this.dom.window;
-    (global as any).SVGElement = this.dom.window.SVGElement;
-    (global as any).self = this.dom.window; // Required by astrochart library
+    // Note: Required by astrochart library which expects browser globals
+    const g = global as typeof globalThis;
+    (g as any).document = this.dom.window.document;
+    (g as any).window = this.dom.window;
+    (g as any).SVGElement = this.dom.window.SVGElement;
+    (g as any).self = this.dom.window;
   }
 
   private clearContainer(): void {
@@ -92,13 +95,13 @@ export class ChartRenderer {
       STROKE_ONLY: false,
       ...getThemeSettings(theme, false),
     };
-    const ChartClass = (Chart as any).default || Chart;
+    const ChartClass = ((Chart as unknown as AstroChartConstructor).default || Chart) as AstroChartConstructor;
     const chart = new ChartClass('chart-container', 800, 800, settings);
 
     // Generate SVG
     const radix = chart.radix(data);
     radix.aspects();
-    const svgString = this.extractSVG(radix);
+    const svgString = this.extractSVG();
 
     // Convert to requested format
     if (format === 'svg') {
@@ -171,14 +174,14 @@ export class ChartRenderer {
       STROKE_ONLY: false,
       ...getThemeSettings(theme, false),
     };
-    const ChartClass = (Chart as any).default || Chart;
+    const ChartClass = ((Chart as unknown as AstroChartConstructor).default || Chart) as AstroChartConstructor;
     const chart = new ChartClass('chart-container', 800, 800, settings);
 
     // Create radix chart and overlay transits
     const radix = chart.radix(natalData);
     radix.aspects();
     radix.transit(transitData);
-    const svgString = this.extractSVG(radix);
+    const svgString = this.extractSVG();
 
     // Convert to requested format
     if (format === 'svg') {
@@ -207,7 +210,7 @@ export class ChartRenderer {
     return mapping[planetName] || null;
   }
 
-  private extractSVG(_chartObject: any): string {
+  private extractSVG(): string {
     // Get the SVG element from the virtual DOM
     const container = this.dom.window.document.getElementById('chart-container');
     if (container) {

@@ -33,6 +33,9 @@ const server = new Server(
 );
 
 // In-memory natal chart storage (scoped to server instance lifetime)
+// Thread safety: Each MCP client connection spawns a separate Node.js process
+// via stdio transport, so this global variable is isolated per client.
+// No synchronization needed as requests are serialized within a single process.
 let natalChart: NatalChart | null = null;
 
 const ephem = new EphemerisCalculator();

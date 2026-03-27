@@ -5,6 +5,7 @@ import { ASPECTS, type NatalChart, type PlanetPosition, type Transit } from './t
 const EXACT_TIME_ORB_THRESHOLD = 2; // degrees - only calculate exact times within this orb
 const EXACT_TIME_SEARCH_WINDOW = 5; // days - search window for exact transit time
 const UPCOMING_TRANSITS_ORB_FILTER = 2; // degrees - filter for upcoming transits
+const DEFAULT_UPCOMING_DAYS = 7; // days - default lookahead for upcoming transits
 
 export class TransitCalculator {
   private ephem: EphemerisCalculator;
@@ -109,7 +110,7 @@ export class TransitCalculator {
   getUpcomingTransits(
     transitingPlanetIds: number[],
     natalChart: NatalChart,
-    daysAhead: number = 7
+    daysAhead: number = DEFAULT_UPCOMING_DAYS
   ): Transit[] {
     const now = new Date();
     const allTransits: Transit[] = [];

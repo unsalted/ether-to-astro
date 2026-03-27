@@ -6,6 +6,21 @@ import {
   LIGHT_THEME_COLORS,
 } from './constants.js';
 
+// Type for AstroChart library
+export interface AstroChartConstructor {
+  new (elementId: string, width: number, height: number, settings: Partial<AstroChartSettings>): AstroChartInstance;
+  default?: AstroChartConstructor;
+}
+
+export interface AstroChartInstance {
+  radix(data: AstroChartData): RadixChart;
+}
+
+export interface RadixChart {
+  aspects(): void;
+  transit(data: AstroChartData): void;
+}
+
 export interface AstroChartData {
   planets: AstroChartPlanets;
   cusps: number[];

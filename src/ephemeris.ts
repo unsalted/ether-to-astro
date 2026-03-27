@@ -5,8 +5,13 @@ import { Constants, load, type SwissEph } from '@fusionstrings/swiss-eph/wasi';
 import { logger } from './logger.js';
 import { PLANET_NAMES, type PlanetPosition, ZODIAC_SIGNS } from './types.js';
 
+// Constants for exact transit time calculation
+const DEFAULT_EXACT_TIME_TOLERANCE = 0.01; // degrees
+const MAX_EXACT_TIME_ITERATIONS = 50;
+const TOLERANCE_TO_MINUTES_RATIO = 1440; // Convert tolerance to minutes (1 day = 1440 minutes)
+
 export class EphemerisCalculator {
-  private eph: SwissEph | null = null;
+  public eph: SwissEph | null = null;
 
   async init(): Promise<void> {
     if (!this.eph) {
@@ -117,15 +122,14 @@ export class EphemerisCalculator {
     targetLongitude: number,
     startJD: number,
     endJD: number,
-    tolerance: number = 0.01
+    tolerance: number = DEFAULT_EXACT_TIME_TOLERANCE
   ): number | null {
     let jd1 = startJD;
     let jd2 = endJD;
 
-    const maxIterations = 50;
     let iteration = 0;
 
-    while (iteration < maxIterations && jd2 - jd1 > tolerance / 1440) {
+    while (iteration < MAX_EXACT_TIME_ITERATIONS && jd2 - jd1 > tolerance / TOLERANCE_TO_MINUTES_RATIO) {
       const jdMid = (jd1 + jd2) / 2;
       const pos = this.getPlanetPosition(planetId, jdMid);
 

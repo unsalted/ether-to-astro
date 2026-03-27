@@ -32,8 +32,8 @@ export class HouseCalculator {
       // For polar regions, use equal house system as fallback
       // or return zero-based cusps if that also fails
       return {
-        ascendant: result.ascmc?.[0] || 0,
-        mc: result.ascmc?.[1] || 90,
+        ascendant: result.ascmc?.[0] ?? 0,
+        mc: result.ascmc?.[1] ?? 90,
         cusps: result.cusps ? Array.from(result.cusps) : Array(13).fill(0),
         system: houseSystem,
       };
