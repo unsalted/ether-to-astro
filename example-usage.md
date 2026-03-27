@@ -1,5 +1,9 @@
 # Example Usage
 
+This document shows how to use the Astro MCP server with an AI agent like Claude.
+
+**Note:** The natal chart is stored in memory for the duration of your session. If you disconnect and reconnect, you'll need to call `set_natal_chart` again.
+
 ## Setting Up Your Wife's Natal Chart
 
 First, she needs to provide her birth data. Ask your AI agent:

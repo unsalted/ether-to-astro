@@ -10,7 +10,6 @@ import { TimeFormatter } from './formatter.js';
 import { HouseCalculator } from './houses.js';
 import { logger } from './logger.js';
 import { RiseSetCalculator } from './riseset.js';
-import { ChartStorage } from './storage.js';
 import { TransitCalculator } from './transits.js';
 import {
   ASTEROIDS,
@@ -33,9 +32,11 @@ const server = new Server(
   }
 );
 
+// In-memory natal chart storage (scoped to server instance lifetime)
+let natalChart: NatalChart | null = null;
+
 const ephem = new EphemerisCalculator();
 const transitCalc = new TransitCalculator(ephem);
-const storage = new ChartStorage(ephem);
 const houseCalc = new HouseCalculator(ephem);
 const riseSetCalc = new RiseSetCalculator(ephem);
 const eclipseCalc = new EclipseCalculator(ephem);
@@ -263,12 +264,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             timezone: args.timezone as string,
           },
         };
-        await storage.saveNatalChart(chart);
+
+        // Calculate planet positions for the natal chart
+        const birthDate = new Date(
+          Date.UTC(
+            chart.birthDate.year,
+            chart.birthDate.month - 1,
+            chart.birthDate.day,
+            chart.birthDate.hour,
+            chart.birthDate.minute
+          )
+        );
+        const jd = ephem.dateToJulianDay(birthDate);
+        const planetIds = Object.values(PLANETS);
+        const positions = ephem.getAllPlanets(jd, planetIds);
+
+        // Store chart with calculated positions in memory
+        natalChart = { ...chart, planets: positions };
+
         return {
           content: [
             {
               type: 'text',
-              text: `Natal chart saved for ${chart.name}. Birth chart calculated and stored.`,
+              text: `Natal chart saved for ${chart.name}. Birth chart calculated and stored in memory.`,
             },
           ],
         };
@@ -280,7 +298,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const planetIds = Object.values(PLANETS);
         const positions = ephem.getAllPlanets(jd, planetIds);
 
-        const natalChart = await storage.loadNatalChart();
         const timezone = natalChart?.location.timezone || 'UTC';
         const dateStr = TimeFormatter.formatDateOnly(now, timezone);
 
@@ -299,7 +316,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'get_moon_transits': {
-        const natalChart = await storage.loadNatalChart();
         if (!natalChart) {
           return {
             content: [
@@ -340,7 +356,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'get_personal_planet_transits': {
-        const natalChart = await storage.loadNatalChart();
         if (!natalChart) {
           return {
             content: [
@@ -381,7 +396,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'get_outer_planet_transits': {
-        const natalChart = await storage.loadNatalChart();
         if (!natalChart) {
           return {
             content: [
@@ -422,7 +436,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'get_upcoming_transits': {
-        const natalChart = await storage.loadNatalChart();
         if (!natalChart) {
           return {
             content: [
@@ -463,7 +476,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'get_exact_transit_times': {
-        const natalChart = await storage.loadNatalChart();
         if (!natalChart) {
           return {
             content: [
@@ -508,7 +520,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'get_houses': {
-        const natalChart = await storage.loadNatalChart();
         if (!natalChart) {
           return {
             content: [
@@ -581,7 +592,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'get_rise_set_times': {
-        const natalChart = await storage.loadNatalChart();
         if (!natalChart) {
           return {
             content: [
@@ -661,7 +671,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const solarEclipse = eclipseCalc.findNextSolarEclipse(jd);
         const lunarEclipse = eclipseCalc.findNextLunarEclipse(jd);
 
-        const natalChart = await storage.loadNatalChart();
         const timezone = natalChart?.location.timezone || 'UTC';
 
         const output = [];
@@ -690,7 +699,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'generate_natal_chart': {
-        const natalChart = await storage.loadNatalChart();
         if (!natalChart) {
           return {
             content: [
@@ -745,7 +753,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'generate_transit_chart': {
-        const natalChart = await storage.loadNatalChart();
         if (!natalChart) {
           return {
             content: [

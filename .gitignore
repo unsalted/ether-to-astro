@@ -3,10 +3,6 @@ dist/
 *.log
 .DS_Store
 
-# Natal chart storage
-natal-chart.json
-test-natal-chart.json
-
 # Ephemeris data files
 data/ephemeris/*.se1
 

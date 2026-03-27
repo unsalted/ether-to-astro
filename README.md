@@ -72,6 +72,17 @@ npm run build
 }
 ```
 
+## How It Works
+
+The MCP server uses **in-memory storage** for natal chart data:
+- Each client connection gets its own Node.js process instance
+- Natal chart is stored in RAM for the duration of the connection
+- When you disconnect, the process exits and memory is automatically freed
+- No files are created or persisted to disk
+- Simply call `set_natal_chart` again when reconnecting
+
+This design is **MCP-compliant** for stdio transport and ensures complete isolation between different clients.
+
 ## Usage
 
 ### 1. Set Natal Chart (First Time)
