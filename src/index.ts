@@ -11,6 +11,7 @@ import { HouseCalculator } from './houses.js';
 import { logger } from './logger.js';
 import { RiseSetCalculator } from './riseset.js';
 import { TransitCalculator } from './transits.js';
+import { missingNatalChart } from './tool-result.js';
 import {
   ASTEROIDS,
   type NatalChart,
@@ -364,12 +365,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'get_transits': {
         if (!natalChart) {
+          const error = missingNatalChart();
           return {
             content: [
-              {
-                type: 'text',
-                text: 'No natal chart found. Please set natal chart first using set_natal_chart.',
-              },
+              { type: 'text', text: JSON.stringify({ ok: false, error }, null, 2) },
             ],
           };
         }
@@ -513,12 +512,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'get_houses': {
         if (!natalChart) {
+          const error = missingNatalChart();
           return {
             content: [
-              {
-                type: 'text',
-                text: 'No natal chart found. Please set natal chart first using set_natal_chart.',
-              },
+              { type: 'text', text: JSON.stringify({ ok: false, error }, null, 2) },
             ],
           };
         }
@@ -631,11 +628,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (sunTimes.set) {
           output.push(`Sunset: ${TimeFormatter.formatInTimezone(sunTimes.set, timezone)}`);
         }
+        if (sunTimes.upperMeridianTransit) {
+          output.push(`Solar Noon: ${TimeFormatter.formatInTimezone(sunTimes.upperMeridianTransit, timezone)}`);
+        }
         if (moonTimes.rise) {
           output.push(`Moonrise: ${TimeFormatter.formatInTimezone(moonTimes.rise, timezone)}`);
         }
         if (moonTimes.set) {
           output.push(`Moonset: ${TimeFormatter.formatInTimezone(moonTimes.set, timezone)}`);
+        }
+        if (moonTimes.upperMeridianTransit) {
+          output.push(`Lunar Culmination: ${TimeFormatter.formatInTimezone(moonTimes.upperMeridianTransit, timezone)}`);
         }
 
         return {

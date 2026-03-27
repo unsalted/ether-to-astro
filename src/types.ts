@@ -170,7 +170,8 @@ export interface RiseSetTime {
   planet: string;
   rise?: Date;
   set?: Date;
-  transit?: Date;
+  upperMeridianTransit?: Date; // Upper meridian crossing (highest point)
+  lowerMeridianTransit?: Date; // Lower meridian crossing (lowest point)
 }
 
 export interface EclipseInfo {
