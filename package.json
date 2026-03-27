@@ -1,0 +1,47 @@
+{
+  "name": "ether-to-astro-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for astrology calculations using Swiss Ephemeris",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "ether-to-astro-mcp": "./dist/loader.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "dev:watch": "tsx watch src/loader.ts",
+    "start": "node dist/loader.js",
+    "postinstall": "node scripts/download-ephemeris.js",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "calculate-expected": "tsx tests/fixtures/calculate-expected.ts"
+  },
+  "keywords": [
+    "mcp",
+    "astrology",
+    "swiss-ephemeris",
+    "transits"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@astrodraw/astrochart": "^3.0.2",
+    "@fusionstrings/swiss-eph": "npm:@jsr/fusionstrings__swiss-eph@^0.2.1",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@std/datetime": "npm:@jsr/std__datetime@^0.225.7",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^28.0.1",
+    "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^4.1.2",
+    "@vitest/ui": "^4.1.2",
+    "happy-dom": "^20.8.9",
+    "jsdom": "^29.0.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.2"
+  }
+}

@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astro Chart Color Picker</title>
+    <script src="https://cdn.jsdelivr.net/npm/@astrodraw/astrochart@3/dist/astrochart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { margin-bottom: 20px; color: #333; }
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .color-control {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .color-control label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+        }
+        .color-inputs {
+            display: flex;
+            gap: 5px;
+        }
+        .color-inputs input[type="color"] {
+            width: 60px;
+            height: 40px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .color-inputs input[type="text"] {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Monaco', monospace;
+            font-size: 12px;
+        }
+        .theme-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .theme-btn {
+            padding: 8px 16px;
+            border: 2px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .theme-btn.active {
+            background: #8b5cf6;
+            color: white;
+            border-color: #8b5cf6;
+        }
+        .charts {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .chart-block {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .chart-block.dark {
+            background: #282c34;
+        }
+        .chart-block h2 {
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        .chart-block.dark h2 {
+            color: #abb2bf;
+        }
+        #chart-light, #chart-dark {
+            width: 100%;
+            height: 500px;
+        }
+        .export-btn {
+            padding: 12px 24px;
+            background: #8b5cf6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .export-btn:hover {
+            background: #7c3aed;
+        }
+        .output {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            font-family: 'Monaco', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            display: none;
+        }
+        .output.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌟 Astro Chart Color Picker</h1>
+        
+        <div class="controls">
+            <div class="theme-toggle">
+                <button class="theme-btn active" data-theme="light">Light Colors</button>
+                <button class="theme-btn" data-theme="dark">Dark Colors</button>
+            </div>
+
+            <div class="color-grid">
+                <div class="color-control">
+                    <label>🔥 Fire (Aries/Leo/Sag)</label>
+                    <div class="color-inputs">
+                        <input type="color" id="fire-light" value="#FF4500">
+                        <input type="text" id="fire-light-hex" value="#FF4500">
+                    </div>
+                </div>
+                <div class="color-control">
+                    <label>🌍 Earth (Taurus/Virgo/Cap)</label>
+                    <div class="color-inputs">
+                        <input type="color" id="earth-light" value="#8B4513">
+                        <input type="text" id="earth-light-hex" value="#8B4513">
+                    </div>
+                </div>
+                <div class="color-control">
+                    <label>🌬️ Air (Gemini/Libra/Aquarius)</label>
+                    <div class="color-inputs">
+                        <input type="color" id="air-light" value="#87CEEB">
+                        <input type="text" id="air-light-hex" value="#87CEEB">
+                    </div>
+                </div>
+                <div class="color-control">
+                    <label>💧 Water (Cancer/Scorpio/Pisces)</label>
+                    <div class="color-inputs">
+                        <input type="color" id="water-light" value="#27AE60">
+                        <input type="text" id="water-light-hex" value="#27AE60">
+                    </div>
+                </div>
+            </div>
+
+            <div class="color-grid" style="display: none;" id="dark-colors">
+                <div class="color-control">
+                    <label>🔥 Fire (Aries/Leo/Sag)</label>
+                    <div class="color-inputs">
+                        <input type="color" id="fire-dark" value="#FF4500">
+                        <input type="text" id="fire-dark-hex" value="#FF4500">
+                    </div>
+                </div>
+                <div class="color-control">
+                    <label>🌍 Earth (Taurus/Virgo/Cap)</label>
+                    <div class="color-inputs">
+                        <input type="color" id="earth-dark" value="#8B4513">
+                        <input type="text" id="earth-dark-hex" value="#8B4513">
+                    </div>
+                </div>
+                <div class="color-control">
+                    <label>🌬️ Air (Gemini/Libra/Aquarius)</label>
+                    <div class="color-inputs">
+                        <input type="color" id="air-dark" value="#87CEEB">
+                        <input type="text" id="air-dark-hex" value="#87CEEB">
+                    </div>
+                </div>
+                <div class="color-control">
+                    <label>💧 Water (Cancer/Scorpio/Pisces)</label>
+                    <div class="color-inputs">
+                        <input type="color" id="water-dark" value="#27AE60">
+                        <input type="text" id="water-dark-hex" value="#27AE60">
+                    </div>
+                </div>
+            </div>
+
+            <button class="export-btn" onclick="exportColors()">📋 Export Colors</button>
+            <div class="output" id="output"></div>
+        </div>
+
+        <div class="charts">
+            <div class="chart-block">
+                <h2>☀️ Light Theme</h2>
+                <div id="chart-light"></div>
+            </div>
+            <div class="chart-block dark">
+                <h2>🌙 Dark Theme</h2>
+                <div id="chart-dark"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const data = {
+            planets: {
+                Sun: [281],
+                Moon: [268],
+                Mercury: [312],
+                Venus: [330],
+                Mars: [210],
+                Jupiter: [192],
+                Saturn: [201],
+                Uranus: [318],
+                Neptune: [110],
+                Pluto: [63]
+            },
+            cusps: [296, 350, 30, 56, 75, 94, 116, 170, 210, 236, 255, 274]
+        };
+
+        let lightChart, darkChart;
+
+        function getColors(theme) {
+            const prefix = theme === 'light' ? 'light' : 'dark';
+            const fire = document.getElementById(`fire-${prefix}`).value;
+            const earth = document.getElementById(`earth-${prefix}`).value;
+            const air = document.getElementById(`air-${prefix}`).value;
+            const water = document.getElementById(`water-${prefix}`).value;
+            
+            return [
+                fire,    // Aries
+                earth,   // Taurus
+                air,     // Gemini
+                water,   // Cancer
+                fire,    // Leo
+                earth,   // Virgo
+                air,     // Libra
+                water,   // Scorpio
+                fire,    // Sagittarius
+                earth,   // Capricorn
+                air,     // Aquarius
+                water    // Pisces
+            ];
+        }
+
+        function renderCharts() {
+            const lightColors = getColors('light');
+            const darkColors = getColors('dark');
+
+            document.getElementById('chart-light').innerHTML = '';
+            document.getElementById('chart-dark').innerHTML = '';
+
+            const lightSettings = {
+                COLOR_BACKGROUND: '#ffffff',
+                CIRCLE_COLOR: '#333333',
+                LINE_COLOR: '#333333',
+                POINTS_COLOR: '#000000',
+                SIGNS_COLOR: '#000000',
+                CUSPS_FONT_COLOR: '#000000',
+                SYMBOL_AXIS_FONT_COLOR: '#333333',
+                COLOR_ARIES: lightColors[0],
+                COLOR_TAURUS: lightColors[1],
+                COLOR_GEMINI: lightColors[2],
+                COLOR_CANCER: lightColors[3],
+                COLOR_LEO: lightColors[4],
+                COLOR_VIRGO: lightColors[5],
+                COLOR_LIBRA: lightColors[6],
+                COLOR_SCORPIO: lightColors[7],
+                COLOR_SAGITTARIUS: lightColors[8],
+                COLOR_CAPRICORN: lightColors[9],
+                COLOR_AQUARIUS: lightColors[10],
+                COLOR_PISCES: lightColors[11]
+            };
+
+            const darkSettings = {
+                COLOR_BACKGROUND: '#282c34',
+                CIRCLE_COLOR: '#4b5263',
+                LINE_COLOR: '#4b5263',
+                POINTS_COLOR: '#abb2bf',
+                SIGNS_COLOR: '#d7dae0',
+                CUSPS_FONT_COLOR: '#abb2bf',
+                SYMBOL_AXIS_FONT_COLOR: '#abb2bf',
+                COLOR_ARIES: darkColors[0],
+                COLOR_TAURUS: darkColors[1],
+                COLOR_GEMINI: darkColors[2],
+                COLOR_CANCER: darkColors[3],
+                COLOR_LEO: darkColors[4],
+                COLOR_VIRGO: darkColors[5],
+                COLOR_LIBRA: darkColors[6],
+                COLOR_SCORPIO: darkColors[7],
+                COLOR_SAGITTARIUS: darkColors[8],
+                COLOR_CAPRICORN: darkColors[9],
+                COLOR_AQUARIUS: darkColors[10],
+                COLOR_PISCES: darkColors[11]
+            };
+
+            if (typeof astrochart !== 'undefined') {
+                lightChart = new astrochart.Chart('chart-light', 500, 500, lightSettings);
+                lightChart.radix(data);
+
+                darkChart = new astrochart.Chart('chart-dark', 500, 500, darkSettings);
+                darkChart.radix(data);
+            } else {
+                console.error('AstroChart library not loaded');
+                document.getElementById('chart-light').innerHTML = '<p style="color: red; padding: 20px;">⚠️ Chart library loading...</p>';
+                document.getElementById('chart-dark').innerHTML = '<p style="color: #abb2bf; padding: 20px;">⚠️ Chart library loading...</p>';
+            }
+        }
+
+        function syncColorInputs(id) {
+            const colorInput = document.getElementById(id);
+            const hexInput = document.getElementById(id + '-hex');
+            
+            colorInput.addEventListener('input', (e) => {
+                hexInput.value = e.target.value;
+                renderCharts();
+            });
+            
+            hexInput.addEventListener('input', (e) => {
+                colorInput.value = e.target.value;
+                renderCharts();
+            });
+        }
+
+        function exportColors() {
+            const lightColors = getColors('light');
+            const darkColors = getColors('dark');
+            
+            const output = `LIGHT_THEME_COLORS:
+  Fire:  ${lightColors[0]}
+  Earth: ${lightColors[1]}
+  Air:   ${lightColors[2]}
+  Water: ${lightColors[3]}
+
+DARK_THEME_COLORS:
+  Fire:  ${darkColors[0]}
+  Earth: ${darkColors[1]}
+  Air:   ${darkColors[2]}
+  Water: ${darkColors[3]}`;
+            
+            const outputEl = document.getElementById('output');
+            outputEl.textContent = output;
+            outputEl.classList.add('show');
+            
+            navigator.clipboard.writeText(output);
+            alert('Colors copied to clipboard!');
+        }
+
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                const theme = btn.dataset.theme;
+                if (theme === 'dark') {
+                    document.getElementById('dark-colors').style.display = 'grid';
+                    document.querySelectorAll('.color-grid')[0].style.display = 'none';
+                } else {
+                    document.getElementById('dark-colors').style.display = 'none';
+                    document.querySelectorAll('.color-grid')[0].style.display = 'grid';
+                }
+            });
+        });
+
+        ['fire-light', 'earth-light', 'air-light', 'water-light',
+         'fire-dark', 'earth-dark', 'air-dark', 'water-dark'].forEach(syncColorInputs);
+
+        window.addEventListener('load', () => {
+            setTimeout(renderCharts, 500);
+        });
+    </script>
+</body>
+</html>
