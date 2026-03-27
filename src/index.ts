@@ -18,6 +18,9 @@ import {
   OUTER_PLANETS,
   PERSONAL_PLANETS,
   PLANETS,
+  type TransitResponse,
+  type TransitData,
+  type PlanetPositionResponse,
   ZODIAC_SIGNS,
 } from './types.js';
 
@@ -147,7 +150,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'get_houses',
         description:
-          'Calculate house cusps, Ascendant, and Midheaven for current time or natal chart',
+          'Calculate house cusps, Ascendant, and Midheaven for the natal chart using the specified house system',
         inputSchema: {
           type: 'object',
           properties: {
@@ -334,13 +337,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           E: 'Equal',
         };
         
+        // Format location with correct hemisphere directions
+        const latDir = chart.location.latitude >= 0 ? 'N' : 'S';
+        const lonDir = chart.location.longitude >= 0 ? 'E' : 'W';
+        const latAbs = Math.abs(chart.location.latitude);
+        const lonAbs = Math.abs(chart.location.longitude);
+        
         const feedback = [
           `Natal chart saved for ${chart.name}`,
           '',
           'Birth Details:',
           `- Local Time: ${localTimeStr} (${chart.location.timezone})`,
           `- UTC Time: ${utcTimeStr}`,
-          `- Location: ${chart.location.latitude.toFixed(2)}°N, ${chart.location.longitude.toFixed(2)}°W`,
+          `- Location: ${latAbs.toFixed(2)}°${latDir}, ${lonAbs.toFixed(2)}°${lonDir}`,
           '',
           'Chart Angles:',
           `- Sun: ${formatDegree(sun?.longitude || 0)}`,
@@ -413,7 +422,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         const timezone = natalChart.location.timezone;
-        const output = transits
+        
+        // Build structured response
+        const structuredData: TransitResponse = {
+          date: now.toISOString().split('T')[0],
+          timezone,
+          transits: transits.map(t => ({
+            transitingPlanet: t.transitingPlanet,
+            aspect: t.aspect,
+            natalPlanet: t.natalPlanet,
+            orb: Number.parseFloat(t.orb.toFixed(2)),
+            isApplying: t.isApplying,
+            exactTime: t.exactTime?.toISOString(),
+            transitLongitude: t.transitLongitude,
+            natalLongitude: t.natalLongitude,
+          })),
+        };
+        
+        // Build human-readable text
+        const humanText = transits
           .map((t) => {
             const exactStr = t.exactTime
               ? ` - Exact: ${TimeFormatter.formatInTimezone(t.exactTime, timezone)}`
@@ -424,7 +451,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           .join('\n');
 
         return {
-          content: [{ type: 'text', text: `Moon Transits:\n\n${output}` }],
+          content: [
+            { type: 'text', text: JSON.stringify(structuredData, null, 2) },
+            { type: 'text', text: `\n\nMoon Transits:\n\n${humanText}` },
+          ],
         };
       }
 
@@ -453,7 +483,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         const timezone = natalChart.location.timezone;
-        const output = transits
+        
+        // Build structured response
+        const structuredData: TransitResponse = {
+          date: now.toISOString().split('T')[0],
+          timezone,
+          transits: transits.map(t => ({
+            transitingPlanet: t.transitingPlanet,
+            aspect: t.aspect,
+            natalPlanet: t.natalPlanet,
+            orb: Number.parseFloat(t.orb.toFixed(2)),
+            isApplying: t.isApplying,
+            exactTime: t.exactTime?.toISOString(),
+            transitLongitude: t.transitLongitude,
+            natalLongitude: t.natalLongitude,
+          })),
+        };
+        
+        // Build human-readable text
+        const humanText = transits
           .map((t) => {
             const exactStr = t.exactTime
               ? ` - Exact: ${TimeFormatter.formatInTimezone(t.exactTime, timezone)}`
@@ -464,7 +512,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           .join('\n');
 
         return {
-          content: [{ type: 'text', text: `Personal Planet Transits:\n\n${output}` }],
+          content: [
+            { type: 'text', text: JSON.stringify(structuredData, null, 2) },
+            { type: 'text', text: `\n\nPersonal Planet Transits:\n\n${humanText}` },
+          ],
         };
       }
 
@@ -493,7 +544,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         const timezone = natalChart.location.timezone;
-        const output = transits
+        
+        // Build structured response
+        const structuredData: TransitResponse = {
+          date: now.toISOString().split('T')[0],
+          timezone,
+          transits: transits.map(t => ({
+            transitingPlanet: t.transitingPlanet,
+            aspect: t.aspect,
+            natalPlanet: t.natalPlanet,
+            orb: Number.parseFloat(t.orb.toFixed(2)),
+            isApplying: t.isApplying,
+            exactTime: t.exactTime?.toISOString(),
+            transitLongitude: t.transitLongitude,
+            natalLongitude: t.natalLongitude,
+          })),
+        };
+        
+        // Build human-readable text
+        const humanText = transits
           .map((t) => {
             const exactStr = t.exactTime
               ? ` - Exact: ${TimeFormatter.formatInTimezone(t.exactTime, timezone)}`
@@ -504,7 +573,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           .join('\n');
 
         return {
-          content: [{ type: 'text', text: `Outer Planet Transits:\n\n${output}` }],
+          content: [
+            { type: 'text', text: JSON.stringify(structuredData, null, 2) },
+            { type: 'text', text: `\n\nOuter Planet Transits:\n\n${humanText}` },
+          ],
         };
       }
 
@@ -522,7 +594,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         const days = (args.days as number) || 7;
         const allPlanetIds = Object.values(PLANETS);
-        const upcomingTransits = transitCalc.getUpcomingTransits(allPlanetIds, natalChart, days);
+        const upcomingTransits = transitCalc.getUpcomingTransits(
+          Object.values(PLANETS),
+          natalChart,
+          days
+        );
 
         if (upcomingTransits.length === 0) {
           return {
@@ -533,7 +609,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         const timezone = natalChart.location.timezone;
-        const output = upcomingTransits
+        const now = new Date();
+        
+        // Build structured response
+        const structuredData: TransitResponse = {
+          date: now.toISOString().split('T')[0],
+          timezone,
+          transits: upcomingTransits.map(t => ({
+            transitingPlanet: t.transitingPlanet,
+            aspect: t.aspect,
+            natalPlanet: t.natalPlanet,
+            orb: Number.parseFloat(t.orb.toFixed(2)),
+            isApplying: t.isApplying,
+            exactTime: t.exactTime?.toISOString(),
+            transitLongitude: t.transitLongitude,
+            natalLongitude: t.natalLongitude,
+          })),
+        };
+        
+        // Build human-readable text
+        const humanText = upcomingTransits
           .map((t) => {
             const exactStr = t.exactTime
               ? ` - Exact: ${TimeFormatter.formatInTimezone(t.exactTime, timezone)}`
@@ -544,7 +639,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           .join('\n');
 
         return {
-          content: [{ type: 'text', text: `Upcoming Transits (next ${days} days):\n\n${output}` }],
+          content: [
+            { type: 'text', text: JSON.stringify(structuredData, null, 2) },
+            { type: 'text', text: `\n\nUpcoming Transits (next ${days} days):\n\n${humanText}` },
+          ],
         };
       }
 
@@ -580,15 +678,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         const timezone = natalChart.location.timezone;
-        const output = exactTransits
+        
+        // Build structured response
+        const structuredData: TransitResponse = {
+          date: now.toISOString().split('T')[0],
+          timezone,
+          transits: exactTransits.map(t => ({
+            transitingPlanet: t.transitingPlanet,
+            aspect: t.aspect,
+            natalPlanet: t.natalPlanet,
+            orb: Number.parseFloat(t.orb.toFixed(2)),
+            isApplying: t.isApplying,
+            exactTime: t.exactTime!.toISOString(),
+            transitLongitude: t.transitLongitude,
+            natalLongitude: t.natalLongitude,
+          })),
+        };
+        
+        // Build human-readable text
+        const humanText = exactTransits
           .map((t) => {
+            const exactStr = TimeFormatter.formatInTimezone(t.exactTime!, timezone);
             const applyStr = t.isApplying ? '(applying)' : '(separating)';
-            return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: Exact at ${TimeFormatter.formatInTimezone(t.exactTime!, timezone)} ${applyStr}`;
+            return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: Exact at ${exactStr} ${applyStr}`;
           })
           .join('\n');
 
         return {
-          content: [{ type: 'text', text: `Exact Transit Times:\n\n${output}` }],
+          content: [
+            { type: 'text', text: JSON.stringify(structuredData, null, 2) },
+            { type: 'text', text: `\n\nExact Transit Times:\n\n${humanText}` },
+          ],
         };
       }
 
@@ -793,7 +913,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        const theme = (args.theme as 'light' | 'dark') || getDefaultTheme();
+        const theme = (args.theme as 'light' | 'dark') || getDefaultTheme(natalChart.location.timezone);
         const format = (args.format as 'svg' | 'png' | 'webp') || 'svg';
         const outputPath = args.output_path as string | undefined;
         const chart = await chartRenderer.generateNatalChart(natalChart, theme, format);
@@ -847,8 +967,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        const transitDate = args.date ? new Date(args.date as string) : undefined;
-        const theme = (args.theme as 'light' | 'dark') || getDefaultTheme();
+        // Parse date string as UTC noon to avoid timezone shifts
+        // Date-only ISO strings like "2026-03-27" can parse as local midnight
+        const transitDate = args.date 
+          ? new Date((args.date as string) + 'T12:00:00Z')
+          : undefined;
+        const theme = (args.theme as 'light' | 'dark') || getDefaultTheme(natalChart.location.timezone);
         const format = (args.format as 'svg' | 'png' | 'webp') || 'svg';
         const outputPath = args.output_path as string | undefined;
         const chart = await chartRenderer.generateTransitChart(

@@ -48,6 +48,29 @@ export interface Transit {
   natalLongitude: number;
 }
 
+export interface TransitData {
+  transitingPlanet: string;
+  aspect: AspectType;
+  natalPlanet: string;
+  orb: number;
+  isApplying: boolean;
+  exactTime?: string; // ISO timestamp
+  transitLongitude: number;
+  natalLongitude: number;
+}
+
+export interface TransitResponse {
+  date: string; // ISO date
+  timezone: string;
+  transits: TransitData[];
+}
+
+export interface PlanetPositionResponse {
+  date: string; // ISO date
+  timezone: string;
+  positions: PlanetPosition[];
+}
+
 export type AspectType = 'conjunction' | 'opposition' | 'square' | 'trine' | 'sextile';
 
 export const ASPECTS: Array<{ name: AspectType; angle: number; orb: number }> = [
