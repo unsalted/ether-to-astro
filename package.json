@@ -16,7 +16,10 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "calculate-expected": "tsx tests/fixtures/calculate-expected.ts"
+    "calculate-expected": "tsx tests/fixtures/calculate-expected.ts",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write ."
   },
   "keywords": [
     "mcp",
@@ -34,6 +37,7 @@
     "sharp": "^0.34.5"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.9",
     "@types/jsdom": "^28.0.1",
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^4.1.2",

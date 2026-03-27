@@ -1,5 +1,5 @@
-import { EphemerisCalculator } from './ephemeris.js';
-import { Transit, ASPECTS, PlanetPosition, NatalChart } from './types.js';
+import type { EphemerisCalculator } from './ephemeris.js';
+import { ASPECTS, type NatalChart, type PlanetPosition, type Transit } from './types.js';
 
 // Constants for transit calculations
 const EXACT_TIME_ORB_THRESHOLD = 2; // degrees - only calculate exact times within this orb
@@ -29,7 +29,7 @@ export class TransitCalculator {
 
         for (const aspect of ASPECTS) {
           const orb = Math.abs(angle - aspect.angle);
-          
+
           if (orb <= aspect.orb) {
             const isApplying = this.isApplying(
               transitPlanet.longitude,
@@ -40,10 +40,7 @@ export class TransitCalculator {
 
             let exactTime: Date | undefined;
             if (orb < EXACT_TIME_ORB_THRESHOLD) {
-              const targetLon = this.calculateTargetLongitude(
-                natalPlanet.longitude,
-                aspect.angle
-              );
+              const targetLon = this.calculateTargetLongitude(natalPlanet.longitude, aspect.angle);
               const exactJD = this.ephem.findExactTransitTime(
                 this.getPlanetIdByName(transitPlanet.planet),
                 targetLon,
@@ -63,7 +60,7 @@ export class TransitCalculator {
               exactTime,
               isApplying,
               transitLongitude: transitPlanet.longitude,
-              natalLongitude: natalPlanet.longitude
+              natalLongitude: natalPlanet.longitude,
             });
           }
         }
@@ -80,10 +77,10 @@ export class TransitCalculator {
     aspectAngle: number
   ): boolean {
     if (speed === 0) return false;
-    
+
     const currentAngle = this.ephem.calculateAspectAngle(transitLon, natalLon);
     const futureAngle = this.ephem.calculateAspectAngle(transitLon + speed, natalLon);
-    
+
     return Math.abs(futureAngle - aspectAngle) < Math.abs(currentAngle - aspectAngle);
   }
 
@@ -95,8 +92,16 @@ export class TransitCalculator {
 
   private getPlanetIdByName(name: string): number {
     const planetMap: { [key: string]: number } = {
-      'Sun': 0, 'Moon': 1, 'Mercury': 2, 'Venus': 3, 'Mars': 4,
-      'Jupiter': 5, 'Saturn': 6, 'Uranus': 7, 'Neptune': 8, 'Pluto': 9
+      Sun: 0,
+      Moon: 1,
+      Mercury: 2,
+      Venus: 3,
+      Mars: 4,
+      Jupiter: 5,
+      Saturn: 6,
+      Uranus: 7,
+      Neptune: 8,
+      Pluto: 9,
     };
     return planetMap[name] || 0;
   }
@@ -113,20 +118,20 @@ export class TransitCalculator {
       const date = new Date(now);
       date.setDate(date.getDate() + day);
       const jd = this.ephem.dateToJulianDay(date);
-      
+
       const transitingPlanets = this.ephem.getAllPlanets(jd, transitingPlanetIds);
       const transits = this.findTransits(transitingPlanets, natalChart.planets || [], jd);
-      
+
       allTransits.push(...transits);
     }
 
     const uniqueTransits = this.deduplicateTransits(allTransits);
-    return uniqueTransits.filter(t => t.orb <= UPCOMING_TRANSITS_ORB_FILTER);
+    return uniqueTransits.filter((t) => t.orb <= UPCOMING_TRANSITS_ORB_FILTER);
   }
 
   private deduplicateTransits(transits: Transit[]): Transit[] {
     const seen = new Set<string>();
-    return transits.filter(t => {
+    return transits.filter((t) => {
       const key = `${t.transitingPlanet}-${t.natalPlanet}-${t.aspect}`;
       if (seen.has(key)) return false;
       seen.add(key);

@@ -13,7 +13,7 @@ export default defineConfig({
         lines: 80,
         functions: 80,
         branches: 80,
-        statements: 80
+        statements: 80,
       },
       exclude: [
         'node_modules/',
@@ -23,8 +23,8 @@ export default defineConfig({
         'src/loader.ts',
         'src/logger.ts',
         'scripts/',
-        'color-picker.html'
-      ]
-    }
-  }
+        'color-picker.html',
+      ],
+    },
+  },
 });

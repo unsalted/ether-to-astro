@@ -1,9 +1,9 @@
-import { readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
-import { resolve, dirname, join } from 'path';
+import { readFile, writeFile } from 'fs/promises';
+import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
-import { NatalChart, PlanetPosition, PLANETS, PLANET_NAMES } from './types.js';
-import { EphemerisCalculator } from './ephemeris.js';
+import type { EphemerisCalculator } from './ephemeris.js';
+import { type NatalChart, PLANET_NAMES, PLANETS, PlanetPosition } from './types.js';
 
 // Get project root (dist/ -> project/)
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -34,13 +34,13 @@ export class ChartStorage {
     const { year, month, day, hour, minute, second = 0 } = chart.birthDate;
     const birthDate = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
     const jd = this.ephem.dateToJulianDay(birthDate);
-    
+
     const planetIds = Object.values(PLANETS);
     const planets = this.ephem.getAllPlanets(jd, planetIds);
-    
+
     return {
       ...chart,
-      planets
+      planets,
     };
   }
 

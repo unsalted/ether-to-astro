@@ -1,8 +1,8 @@
 import { Constants } from '@fusionstrings/swiss-eph/wasi';
-import { EphemerisCalculator } from './ephemeris.js';
-import { logger } from './logger.js';
 import { ErrorCategory } from './constants.js';
-import { EclipseInfo } from './types.js';
+import type { EphemerisCalculator } from './ephemeris.js';
+import { logger } from './logger.js';
+import type { EclipseInfo } from './types.js';
 
 export class EclipseCalculator {
   private ephem: EphemerisCalculator;
@@ -34,7 +34,7 @@ export class EclipseCalculator {
         type: 'solar',
         date: this.ephem.julianDayToDate(result.tret[0]),
         eclipseType,
-        maxTime: this.ephem.julianDayToDate(result.tret[0])
+        maxTime: this.ephem.julianDayToDate(result.tret[0]),
       };
     } catch (e) {
       logger.error(
@@ -69,7 +69,7 @@ export class EclipseCalculator {
         type: 'lunar',
         date: this.ephem.julianDayToDate(result.tret[0]),
         eclipseType,
-        maxTime: this.ephem.julianDayToDate(result.tret[0])
+        maxTime: this.ephem.julianDayToDate(result.tret[0]),
       };
     } catch (e) {
       logger.error(

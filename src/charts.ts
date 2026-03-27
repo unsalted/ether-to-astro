@@ -1,10 +1,16 @@
 import Chart from '@astrodraw/astrochart';
 import { JSDOM } from 'jsdom';
 import sharp from 'sharp';
-import { EphemerisCalculator } from './ephemeris.js';
-import { HouseCalculator } from './houses.js';
-import { NatalChart, PLANETS, ASTEROIDS, NODES } from './types.js';
-import { AstroChartData, AstroChartSettings, ChartTheme, ChartFormat, getThemeSettings } from './chart-types.js';
+import {
+  type AstroChartData,
+  type AstroChartSettings,
+  type ChartFormat,
+  type ChartTheme,
+  getThemeSettings,
+} from './chart-types.js';
+import type { EphemerisCalculator } from './ephemeris.js';
+import type { HouseCalculator } from './houses.js';
+import { ASTEROIDS, type NatalChart, NODES, PLANETS } from './types.js';
 
 export class ChartRenderer {
   private ephem: EphemerisCalculator;
@@ -14,9 +20,11 @@ export class ChartRenderer {
   constructor(ephem: EphemerisCalculator, houseCalc: HouseCalculator) {
     this.ephem = ephem;
     this.houseCalc = houseCalc;
-    
+
     // Create virtual DOM
-    this.dom = new JSDOM('<!DOCTYPE html><html><body><div id="chart-container"></div></body></html>');
+    this.dom = new JSDOM(
+      '<!DOCTYPE html><html><body><div id="chart-container"></div></body></html>'
+    );
   }
 
   private setupGlobals(): void {
@@ -34,10 +42,14 @@ export class ChartRenderer {
     }
   }
 
-  async generateNatalChart(natalChart: NatalChart, theme: ChartTheme = 'light', format: ChartFormat = 'svg'): Promise<string | Buffer> {
+  async generateNatalChart(
+    natalChart: NatalChart,
+    theme: ChartTheme = 'light',
+    format: ChartFormat = 'svg'
+  ): Promise<string | Buffer> {
     this.setupGlobals();
     this.clearContainer();
-    
+
     const birthDate = new Date(
       natalChart.birthDate.year,
       natalChart.birthDate.month - 1,
@@ -47,7 +59,7 @@ export class ChartRenderer {
     );
 
     const jd = this.ephem.dateToJulianDay(birthDate);
-    
+
     // Get all planet positions
     const allPlanetIds = [...Object.values(PLANETS), ...ASTEROIDS, ...NODES];
     const positions = this.ephem.getAllPlanets(jd, allPlanetIds);
@@ -63,11 +75,11 @@ export class ChartRenderer {
     // Convert to AstroChart format
     const data: AstroChartData = {
       planets: {},
-      cusps: Array.from(houses.cusps).slice(1, 13) // Houses 1-12
+      cusps: Array.from(houses.cusps).slice(1, 13), // Houses 1-12
     };
 
     // Map planet positions
-    positions.forEach(p => {
+    positions.forEach((p) => {
       const planetKey = this.getPlanetKey(p.planet);
       if (planetKey) {
         data.planets[planetKey] = [p.longitude];
@@ -78,7 +90,7 @@ export class ChartRenderer {
     const settings: AstroChartSettings = {
       SYMBOL_SCALE: 1.2,
       STROKE_ONLY: false,
-      ...getThemeSettings(theme, false)
+      ...getThemeSettings(theme, false),
     };
     const ChartClass = (Chart as any).default || Chart;
     const chart = new ChartClass('chart-container', 800, 800, settings);
@@ -87,7 +99,7 @@ export class ChartRenderer {
     const radix = chart.radix(data);
     radix.aspects();
     const svgString = this.extractSVG(radix);
-    
+
     // Convert to requested format
     if (format === 'svg') {
       return svgString;
@@ -95,10 +107,15 @@ export class ChartRenderer {
     return this.convertToImage(svgString, format, theme);
   }
 
-  async generateTransitChart(natalChart: NatalChart, transitDate?: Date, theme: ChartTheme = 'light', format: ChartFormat = 'svg'): Promise<string | Buffer> {
+  async generateTransitChart(
+    natalChart: NatalChart,
+    transitDate?: Date,
+    theme: ChartTheme = 'light',
+    format: ChartFormat = 'svg'
+  ): Promise<string | Buffer> {
     this.setupGlobals();
     this.clearContainer();
-    
+
     const birthDate = new Date(
       natalChart.birthDate.year,
       natalChart.birthDate.month - 1,
@@ -126,22 +143,22 @@ export class ChartRenderer {
     // Convert to AstroChart format
     const natalData: AstroChartData = {
       planets: {},
-      cusps: Array.from(houses.cusps).slice(1, 13)
+      cusps: Array.from(houses.cusps).slice(1, 13),
     };
 
     const transitData: AstroChartData = {
       planets: {},
-      cusps: Array.from(houses.cusps).slice(1, 13) // Use natal cusps for transit overlay
+      cusps: Array.from(houses.cusps).slice(1, 13), // Use natal cusps for transit overlay
     };
 
-    natalPositions.forEach(p => {
+    natalPositions.forEach((p) => {
       const planetKey = this.getPlanetKey(p.planet);
       if (planetKey) {
         natalData.planets[planetKey] = [p.longitude];
       }
     });
 
-    transitPositions.forEach(p => {
+    transitPositions.forEach((p) => {
       const planetKey = this.getPlanetKey(p.planet);
       if (planetKey) {
         transitData.planets[planetKey] = [p.longitude];
@@ -152,7 +169,7 @@ export class ChartRenderer {
     const settings: AstroChartSettings = {
       SYMBOL_SCALE: 1.2,
       STROKE_ONLY: false,
-      ...getThemeSettings(theme, false)
+      ...getThemeSettings(theme, false),
     };
     const ChartClass = (Chart as any).default || Chart;
     const chart = new ChartClass('chart-container', 800, 800, settings);
@@ -162,7 +179,7 @@ export class ChartRenderer {
     radix.aspects();
     radix.transit(transitData);
     const svgString = this.extractSVG(radix);
-    
+
     // Convert to requested format
     if (format === 'svg') {
       return svgString;
@@ -172,19 +189,19 @@ export class ChartRenderer {
 
   private getPlanetKey(planetName: string): string | null {
     const mapping: { [key: string]: string } = {
-      'Sun': 'Sun',
-      'Moon': 'Moon',
-      'Mercury': 'Mercury',
-      'Venus': 'Venus',
-      'Mars': 'Mars',
-      'Jupiter': 'Jupiter',
-      'Saturn': 'Saturn',
-      'Uranus': 'Uranus',
-      'Neptune': 'Neptune',
-      'Pluto': 'Pluto',
-      'Chiron': 'Chiron',
+      Sun: 'Sun',
+      Moon: 'Moon',
+      Mercury: 'Mercury',
+      Venus: 'Venus',
+      Mars: 'Mars',
+      Jupiter: 'Jupiter',
+      Saturn: 'Saturn',
+      Uranus: 'Uranus',
+      Neptune: 'Neptune',
+      Pluto: 'Pluto',
+      Chiron: 'Chiron',
       'North Node (Mean)': 'NNode',
-      'North Node (True)': 'NNode'
+      'North Node (True)': 'NNode',
     };
 
     return mapping[planetName] || null;
@@ -199,7 +216,7 @@ export class ChartRenderer {
         return svg.outerHTML;
       }
     }
-    
+
     // Fallback: return a simple SVG placeholder
     return `<svg width="800" height="800" xmlns="http://www.w3.org/2000/svg">
       <circle cx="400" cy="400" r="300" fill="none" stroke="#333" stroke-width="2"/>
@@ -207,21 +224,26 @@ export class ChartRenderer {
     </svg>`;
   }
 
-  private async convertToImage(svgString: string, format: 'png' | 'webp', theme: ChartTheme = 'light'): Promise<Buffer> {
+  private async convertToImage(
+    svgString: string,
+    format: 'png' | 'webp',
+    theme: ChartTheme = 'light'
+  ): Promise<Buffer> {
     const buffer = Buffer.from(svgString);
-    
+
     // Use theme-appropriate background color
-    const bgColor = theme === 'dark' 
-      ? { r: 40, g: 44, b: 52, alpha: 1 }  // #282c34
-      : { r: 255, g: 255, b: 255, alpha: 1 }; // #ffffff
-    
+    const bgColor =
+      theme === 'dark'
+        ? { r: 40, g: 44, b: 52, alpha: 1 } // #282c34
+        : { r: 255, g: 255, b: 255, alpha: 1 }; // #ffffff
+
     if (format === 'png') {
       return sharp(buffer)
         .flatten({ background: bgColor })
         .png({ quality: 100, compressionLevel: 6 })
         .toBuffer();
     }
-    
+
     // WebP
     return sharp(buffer)
       .flatten({ background: bgColor })

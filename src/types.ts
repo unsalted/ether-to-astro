@@ -45,7 +45,7 @@ export const ASPECTS: Array<{ name: AspectType; angle: number; orb: number }> = 
   { name: 'opposition', angle: 180, orb: 8 },
   { name: 'square', angle: 90, orb: 7 },
   { name: 'trine', angle: 120, orb: 7 },
-  { name: 'sextile', angle: 60, orb: 6 }
+  { name: 'sextile', angle: 60, orb: 6 },
 ];
 
 export const PLANETS = {
@@ -65,7 +65,7 @@ export const PLANETS = {
   CERES: 17,
   PALLAS: 18,
   JUNO: 19,
-  VESTA: 20
+  VESTA: 20,
 };
 
 export const PLANET_NAMES: { [key: number]: string } = {
@@ -85,17 +85,45 @@ export const PLANET_NAMES: { [key: number]: string } = {
   17: 'Ceres',
   18: 'Pallas',
   19: 'Juno',
-  20: 'Vesta'
+  20: 'Vesta',
 };
 
-export const PERSONAL_PLANETS = [PLANETS.SUN, PLANETS.MOON, PLANETS.MERCURY, PLANETS.VENUS, PLANETS.MARS];
-export const OUTER_PLANETS = [PLANETS.JUPITER, PLANETS.SATURN, PLANETS.URANUS, PLANETS.NEPTUNE, PLANETS.PLUTO];
-export const ASTEROIDS = [PLANETS.CHIRON, PLANETS.CERES, PLANETS.PALLAS, PLANETS.JUNO, PLANETS.VESTA];
+export const PERSONAL_PLANETS = [
+  PLANETS.SUN,
+  PLANETS.MOON,
+  PLANETS.MERCURY,
+  PLANETS.VENUS,
+  PLANETS.MARS,
+];
+export const OUTER_PLANETS = [
+  PLANETS.JUPITER,
+  PLANETS.SATURN,
+  PLANETS.URANUS,
+  PLANETS.NEPTUNE,
+  PLANETS.PLUTO,
+];
+export const ASTEROIDS = [
+  PLANETS.CHIRON,
+  PLANETS.CERES,
+  PLANETS.PALLAS,
+  PLANETS.JUNO,
+  PLANETS.VESTA,
+];
 export const NODES = [PLANETS.MEAN_NODE, PLANETS.TRUE_NODE];
 
 export const ZODIAC_SIGNS = [
-  'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
-  'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'
+  'Aries',
+  'Taurus',
+  'Gemini',
+  'Cancer',
+  'Leo',
+  'Virgo',
+  'Libra',
+  'Scorpio',
+  'Sagittarius',
+  'Capricorn',
+  'Aquarius',
+  'Pisces',
 ];
 
 export interface HouseData {

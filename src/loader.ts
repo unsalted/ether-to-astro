@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
+import { readFile } from 'fs/promises';
 // Set up browser globals for astrochart library BEFORE any imports
 import { JSDOM } from 'jsdom';
-import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
@@ -13,14 +13,15 @@ const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
 
 // Polyfill fetch for file:// URLs (needed for Swiss Ephemeris WASM loading)
 const originalFetch = globalThis.fetch;
-(globalThis as any).fetch = async function(url: string | URL, ...args: any[]) {
+(globalThis as any).fetch = async (url: string | URL, ...args: any[]) => {
   const urlStr = url.toString();
   if (urlStr.startsWith('file://')) {
     const filePath = fileURLToPath(urlStr);
     const buffer = await readFile(filePath);
     return {
       ok: true,
-      arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+      arrayBuffer: async () =>
+        buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
     };
   }
   return originalFetch(url, ...args);

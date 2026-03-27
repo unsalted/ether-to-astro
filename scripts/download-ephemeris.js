@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { writeFile, mkdir, access } from 'fs/promises';
-import { join, dirname } from 'path';
+import { access, mkdir, writeFile } from 'fs/promises';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -14,13 +14,13 @@ const VERSION = (process.env.EPHEMERIS_VERSION || 'long').toLowerCase();
 const SHORT_FILES = [
   { name: 'sepl_18.se1', desc: 'Main planets (Sun-Pluto) [600yr]' },
   { name: 'semo_18.se1', desc: 'High-precision Moon [600yr]' },
-  { name: 'seas_18.se1', desc: 'Asteroids [600yr]' }
+  { name: 'seas_18.se1', desc: 'Asteroids [600yr]' },
 ];
 
 const LONG_FILES = [
   { name: 'sepl_18.se1', desc: 'Main planets (Sun-Pluto) [6000yr]' },
   { name: 'semo_18.se1', desc: 'High-precision Moon [6000yr]' },
-  { name: 'seas_18.se1', desc: 'Asteroids [6000yr]' }
+  { name: 'seas_18.se1', desc: 'Asteroids [6000yr]' },
 ];
 
 const BASE_URL_SHORT = 'https://raw.githubusercontent.com/aloistr/swisseph/master/ephe';
@@ -37,7 +37,7 @@ async function fileExists(path) {
 
 async function downloadFile(filename, description, baseUrl) {
   const filePath = join(DATA_DIR, filename);
-  
+
   if (await fileExists(filePath)) {
     console.log(`✓ ${description} already exists`);
     return true;
@@ -45,16 +45,16 @@ async function downloadFile(filename, description, baseUrl) {
 
   const url = `${baseUrl}/${filename}`;
   console.log(`Downloading ${description}...`);
-  
+
   try {
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    
+
     const buffer = await response.arrayBuffer();
     await writeFile(filePath, Buffer.from(buffer));
-    
+
     const sizeMB = (buffer.byteLength / 1024 / 1024).toFixed(2);
     console.log(`✓ Downloaded ${description} (${sizeMB}MB)`);
     return true;
@@ -66,24 +66,24 @@ async function downloadFile(filename, description, baseUrl) {
 
 async function main() {
   console.log(`Setting up Swiss Ephemeris data files (${VERSION} version)...\n`);
-  
+
   // Moshier mode - skip downloads entirely
   if (VERSION === 'moshier') {
     console.log('✓ Using Moshier ephemeris (built-in approximation, no downloads)');
     console.log('  Lower precision but works offline\n');
     process.exit(0);
   }
-  
+
   // Determine which files to download
   const FILES = VERSION === 'short' ? SHORT_FILES : LONG_FILES;
   const BASE_URL = VERSION === 'short' ? BASE_URL_SHORT : BASE_URL_LONG;
-  
+
   if (!['short', 'long'].includes(VERSION)) {
     console.warn(`⚠ Unknown EPHEMERIS_VERSION: "${VERSION}"`);
     console.warn('Valid options: short, long (default), moshier');
     console.warn('Defaulting to long version...\n');
   }
-  
+
   try {
     await mkdir(DATA_DIR, { recursive: true });
   } catch (error) {
@@ -98,7 +98,7 @@ async function main() {
   }
 
   console.log(`\n${successCount}/${FILES.length} ephemeris files ready`);
-  
+
   if (successCount === 0) {
     console.warn('\n⚠ Warning: No ephemeris files downloaded.');
     console.warn('The server will use Moshier ephemeris (lower precision).');
@@ -108,7 +108,7 @@ async function main() {
     const rangeDesc = VERSION === 'short' ? '1800-2400 AD' : '3000 BC - 3000 AD';
     console.log(`Date range: ${rangeDesc}\n`);
   }
-  
+
   process.exit(0);
 }
 

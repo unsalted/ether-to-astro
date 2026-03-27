@@ -1,4 +1,4 @@
-import { LogLevel, LogLevelType, ErrorCategory, ErrorCategoryType } from './constants.js';
+import { ErrorCategory, type ErrorCategoryType, LogLevel, type LogLevelType } from './constants.js';
 
 export interface LogEntry {
   timestamp: string;
@@ -23,22 +23,22 @@ class Logger {
 
   private formatEntry(entry: LogEntry | ErrorLogEntry): string {
     const base = `[${entry.timestamp}] ${entry.level}: ${entry.message}`;
-    
+
     if ('category' in entry) {
       return `${base} (${entry.category})${entry.context ? ' ' + JSON.stringify(entry.context) : ''}`;
     }
-    
+
     return `${base}${entry.context ? ' ' + JSON.stringify(entry.context) : ''}`;
   }
 
   private log(entry: LogEntry | ErrorLogEntry): void {
     if (!this.shouldLog(entry.level)) return;
-    
+
     const output = this.formatEntry(entry);
-    
+
     // MCP servers use stderr for logging (stdout is for protocol)
     console.error(output);
-    
+
     if ('error' in entry && entry.error) {
       console.error(entry.error);
     }

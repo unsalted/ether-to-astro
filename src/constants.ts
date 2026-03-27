@@ -6,7 +6,7 @@ export const LogLevel = {
   ERROR: 'ERROR',
 } as const;
 
-export type LogLevelType = typeof LogLevel[keyof typeof LogLevel];
+export type LogLevelType = (typeof LogLevel)[keyof typeof LogLevel];
 
 // Error categories
 export const ErrorCategory = {
@@ -18,7 +18,7 @@ export const ErrorCategory = {
   SERVER: 'SERVER',
 } as const;
 
-export type ErrorCategoryType = typeof ErrorCategory[keyof typeof ErrorCategory];
+export type ErrorCategoryType = (typeof ErrorCategory)[keyof typeof ErrorCategory];
 
 // Chart theme colors
 export const LIGHT_THEME_COLORS = [
@@ -33,7 +33,7 @@ export const LIGHT_THEME_COLORS = [
   '#ffffff', // Sagittarius - White (fire)
   '#c1e6d1', // Capricorn - Mint (earth)
   '#ffffff', // Aquarius - White (air)
-  '#c1e6d1'  // Pisces - Mint (water)
+  '#c1e6d1', // Pisces - Mint (water)
 ];
 
 export const DARK_THEME_COLORS = [
@@ -48,25 +48,25 @@ export const DARK_THEME_COLORS = [
   '#282c34', // Sagittarius - Dark (fire)
   '#8545b0', // Capricorn - Purple (earth)
   '#282c34', // Aquarius - Dark (air)
-  '#8545b0'  // Pisces - Purple (water)
+  '#8545b0', // Pisces - Purple (water)
 ];
 
 // Aspect colors for light theme
 export const LIGHT_ASPECT_COLORS = {
   conjunction: { degree: 0, orbit: 10, color: 'transparent' },
-  square: { degree: 90, orbit: 8, color: '#fb923c' },      // Orange
-  trine: { degree: 120, orbit: 8, color: '#34d399' },      // Emerald
+  square: { degree: 90, orbit: 8, color: '#fb923c' }, // Orange
+  trine: { degree: 120, orbit: 8, color: '#34d399' }, // Emerald
   opposition: { degree: 180, orbit: 10, color: '#a78bfa' }, // Purple
-  sextile: { degree: 60, orbit: 6, color: '#22d3ee' }       // Cyan
+  sextile: { degree: 60, orbit: 6, color: '#22d3ee' }, // Cyan
 };
 
 // Aspect colors for dark theme
 export const DARK_ASPECT_COLORS = {
   conjunction: { degree: 0, orbit: 10, color: 'transparent' },
-  square: { degree: 90, orbit: 8, color: '#f97316' },      // Orange
-  trine: { degree: 120, orbit: 8, color: '#10b981' },      // Emerald
+  square: { degree: 90, orbit: 8, color: '#f97316' }, // Orange
+  trine: { degree: 120, orbit: 8, color: '#10b981' }, // Emerald
   opposition: { degree: 180, orbit: 10, color: '#8b5cf6' }, // Purple
-  sextile: { degree: 60, orbit: 6, color: '#06b6d4' }       // Cyan
+  sextile: { degree: 60, orbit: 6, color: '#06b6d4' }, // Cyan
 };
 
 /**
@@ -76,5 +76,5 @@ export const DARK_ASPECT_COLORS = {
  */
 export function getDefaultTheme(): 'light' | 'dark' {
   const hour = new Date().getHours();
-  return (hour >= 18 || hour < 6) ? 'dark' : 'light';
+  return hour >= 18 || hour < 6 ? 'dark' : 'light';
 }

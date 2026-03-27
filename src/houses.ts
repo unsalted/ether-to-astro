@@ -1,6 +1,6 @@
 import { Constants } from '@fusionstrings/swiss-eph/wasi';
-import { EphemerisCalculator } from './ephemeris.js';
-import { HouseData, ZODIAC_SIGNS } from './types.js';
+import type { EphemerisCalculator } from './ephemeris.js';
+import { type HouseData, ZODIAC_SIGNS } from './types.js';
 
 export class HouseCalculator {
   private ephem: EphemerisCalculator;
@@ -34,7 +34,7 @@ export class HouseCalculator {
       ascendant: result.ascmc[0],
       mc: result.ascmc[1],
       cusps: Array.from(result.cusps),
-      system: houseSystem
+      system: houseSystem,
     };
   }
 

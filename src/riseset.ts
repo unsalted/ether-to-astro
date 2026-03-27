@@ -1,7 +1,7 @@
 import { Constants } from '@fusionstrings/swiss-eph/wasi';
-import { EphemerisCalculator } from './ephemeris.js';
-import { RiseSetTime, PLANET_NAMES } from './types.js';
+import type { EphemerisCalculator } from './ephemeris.js';
 import { logger } from './logger.js';
+import { PLANET_NAMES, type RiseSetTime } from './types.js';
 
 export class RiseSetCalculator {
   private ephem: EphemerisCalculator;
@@ -27,7 +27,7 @@ export class RiseSetCalculator {
     }
 
     const result: RiseSetTime = {
-      planet: planetName
+      planet: planetName,
     };
 
     try {
@@ -46,9 +46,9 @@ export class RiseSetCalculator {
       }
     } catch (e) {
       // Rise time not available - this is normal for some planets/locations
-      logger.debug(`Rise time not available for ${planetName}`, { 
+      logger.debug(`Rise time not available for ${planetName}`, {
         planet: planetName,
-        error: e instanceof Error ? e.message : String(e)
+        error: e instanceof Error ? e.message : String(e),
       });
     }
 
@@ -70,7 +70,7 @@ export class RiseSetCalculator {
       // Set time not available - this is normal for some planets/locations
       logger.debug(`Set time not available for ${planetName}`, {
         planet: planetName,
-        error: e instanceof Error ? e.message : String(e)
+        error: e instanceof Error ? e.message : String(e),
       });
     }
 
@@ -92,7 +92,7 @@ export class RiseSetCalculator {
       // Transit time not available - this is normal for some planets/locations
       logger.debug(`Transit time not available for ${planetName}`, {
         planet: planetName,
-        error: e instanceof Error ? e.message : String(e)
+        error: e instanceof Error ? e.message : String(e),
       });
     }
 

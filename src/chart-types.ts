@@ -1,9 +1,9 @@
 // Type definitions for AstroChart library data structures
-import { 
-  LIGHT_THEME_COLORS, 
-  DARK_THEME_COLORS, 
-  LIGHT_ASPECT_COLORS, 
-  DARK_ASPECT_COLORS 
+import {
+  DARK_ASPECT_COLORS,
+  DARK_THEME_COLORS,
+  LIGHT_ASPECT_COLORS,
+  LIGHT_THEME_COLORS,
 } from './constants.js';
 
 export interface AstroChartData {
@@ -50,7 +50,10 @@ export interface AstroChartSettings {
 export type ChartTheme = 'light' | 'dark';
 export type ChartFormat = 'svg' | 'png' | 'webp';
 
-export function getThemeSettings(theme: ChartTheme, transparent = false): Partial<AstroChartSettings> {
+export function getThemeSettings(
+  theme: ChartTheme,
+  transparent = false
+): Partial<AstroChartSettings> {
   if (theme === 'dark') {
     return {
       COLOR_BACKGROUND: transparent ? 'transparent' : '#282c34',
@@ -72,10 +75,10 @@ export function getThemeSettings(theme: ChartTheme, transparent = false): Partia
       COLOR_SAGITTARIUS: DARK_THEME_COLORS[8],
       COLOR_CAPRICORN: DARK_THEME_COLORS[9],
       COLOR_AQUARIUS: DARK_THEME_COLORS[10],
-      COLOR_PISCES: DARK_THEME_COLORS[11]
+      COLOR_PISCES: DARK_THEME_COLORS[11],
     };
   }
-  
+
   // Light theme (defaults)
   return {
     COLOR_BACKGROUND: transparent ? 'transparent' : '#ffffff',
@@ -97,6 +100,6 @@ export function getThemeSettings(theme: ChartTheme, transparent = false): Partia
     COLOR_SAGITTARIUS: LIGHT_THEME_COLORS[8],
     COLOR_CAPRICORN: LIGHT_THEME_COLORS[9],
     COLOR_AQUARIUS: LIGHT_THEME_COLORS[10],
-    COLOR_PISCES: LIGHT_THEME_COLORS[11]
+    COLOR_PISCES: LIGHT_THEME_COLORS[11],
   };
 }

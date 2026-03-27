@@ -11,21 +11,25 @@ export async function calculateExpectedResults() {
   await ephem.init();
 
   // Calculate Bowen Yang's natal positions
-  const birthDate = new Date(Date.UTC(
-    bowenYangChart.birthDate.year,
-    bowenYangChart.birthDate.month - 1,
-    bowenYangChart.birthDate.day,
-    bowenYangChart.birthDate.hour,
-    bowenYangChart.birthDate.minute
-  ));
-  
+  const birthDate = new Date(
+    Date.UTC(
+      bowenYangChart.birthDate.year,
+      bowenYangChart.birthDate.month - 1,
+      bowenYangChart.birthDate.day,
+      bowenYangChart.birthDate.hour,
+      bowenYangChart.birthDate.minute
+    )
+  );
+
   const birthJD = ephem.dateToJulianDay(birthDate);
   const natalPlanets = ephem.getAllPlanets(birthJD, Object.values(PLANETS));
 
   console.log('Bowen Yang Natal Positions (Nov 6, 1990, 01:30 UTC):');
   console.log('='.repeat(60));
-  natalPlanets.forEach(planet => {
-    console.log(`${planet.planet.padEnd(10)} ${planet.longitude.toFixed(4)}° (${planet.sign} ${planet.degree.toFixed(2)}°) Speed: ${planet.speed.toFixed(4)}`);
+  natalPlanets.forEach((planet) => {
+    console.log(
+      `${planet.planet.padEnd(10)} ${planet.longitude.toFixed(4)}° (${planet.sign} ${planet.degree.toFixed(2)}°) Speed: ${planet.speed.toFixed(4)}`
+    );
   });
 
   // Calculate positions for fixed test date (March 26, 2024, 12:00 UTC)
@@ -35,15 +39,17 @@ export async function calculateExpectedResults() {
 
   console.log('\nCurrent Positions (March 26, 2024, 12:00 UTC):');
   console.log('='.repeat(60));
-  testPlanets.forEach(planet => {
-    console.log(`${planet.planet.padEnd(10)} ${planet.longitude.toFixed(4)}° (${planet.sign} ${planet.degree.toFixed(2)}°) Speed: ${planet.speed.toFixed(4)}`);
+  testPlanets.forEach((planet) => {
+    console.log(
+      `${planet.planet.padEnd(10)} ${planet.longitude.toFixed(4)}° (${planet.sign} ${planet.degree.toFixed(2)}°) Speed: ${planet.speed.toFixed(4)}`
+    );
   });
 
   return {
     natal: natalPlanets,
     current: testPlanets,
     birthJD,
-    testJD
+    testJD,
   };
 }
 
@@ -55,19 +61,21 @@ export const EXPECTED_NATAL_POSITIONS = {
   moon: { sign: 'Taurus' },
   mercury: { sign: 'Scorpio' },
   venus: { sign: 'Libra' },
-  mars: { sign: 'Gemini' }
+  mars: { sign: 'Gemini' },
 };
 
 export const EXPECTED_CURRENT_POSITIONS = {
   // March 26, 2024, 12:00 UTC positions
   // These will be calculated and filled in
   sun: { sign: 'Aries' },
-  moon: { sign: 'Gemini' }
+  moon: { sign: 'Gemini' },
 };
 
 // Run this if executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  calculateExpectedResults().then(() => {
-    console.log('\nCopy these values into expected-results.ts');
-  }).catch(console.error);
+  calculateExpectedResults()
+    .then(() => {
+      console.log('\nCopy these values into expected-results.ts');
+    })
+    .catch(console.error);
 }
