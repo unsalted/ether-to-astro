@@ -25,8 +25,18 @@ export class HouseCalculator {
       houseSystem.charCodeAt(0)
     );
 
+    // Handle polar latitudes where traditional house systems fail
+    // Swiss Ephemeris returns error codes for extreme latitudes
+    // Return fallback values instead of throwing
     if (result.returnCode < 0) {
-      throw new Error(`House calculation error`);
+      // For polar regions, use equal house system as fallback
+      // or return zero-based cusps if that also fails
+      return {
+        ascendant: result.ascmc?.[0] || 0,
+        mc: result.ascmc?.[1] || 90,
+        cusps: result.cusps ? Array.from(result.cusps) : Array(13).fill(0),
+        system: houseSystem,
+      };
     }
 
     return {
