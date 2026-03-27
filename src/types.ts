@@ -14,6 +14,16 @@ export interface NatalChart {
     timezone: string;
   };
   planets?: PlanetPosition[];
+  julianDay?: number; // Cached Julian Day for birth time (UTC)
+  houseSystem?: string; // Preferred house system (P, W, K, E)
+  utcDateTime?: { // UTC equivalent of birth time
+    year: number;
+    month: number;
+    day: number;
+    hour: number;
+    minute: number;
+    second?: number;
+  };
 }
 
 export interface PlanetPosition {

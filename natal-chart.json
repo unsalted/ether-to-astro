@@ -1,0 +1,187 @@
+{
+  "name": "User Whole Sign",
+  "birthDate": {
+    "year": 1977,
+    "month": 10,
+    "day": 17,
+    "hour": 13,
+    "minute": 6
+  },
+  "location": {
+    "latitude": 40.7526,
+    "longitude": -80.3198,
+    "timezone": "America/New_York"
+  },
+  "planets": [
+    {
+      "planet": "Sun",
+      "longitude": 204.05218050976873,
+      "latitude": 0.0001615388556612532,
+      "distance": 0.9964210583337456,
+      "speed": 0.9928259050042711,
+      "sign": "Libra",
+      "degree": 24.052180509768732,
+      "isRetrograde": false
+    },
+    {
+      "planet": "Moon",
+      "longitude": 267.7474069899507,
+      "latitude": 5.03828787700736,
+      "distance": 0.0024531797587498657,
+      "speed": 14.457512480190383,
+      "sign": "Sagittarius",
+      "degree": 27.74740698995072,
+      "isRetrograde": false
+    },
+    {
+      "planet": "Mercury",
+      "longitude": 203.05615113717954,
+      "latitude": 0.956300075310156,
+      "distance": 1.4134856844175427,
+      "speed": 1.7001421021313727,
+      "sign": "Libra",
+      "degree": 23.05615113717954,
+      "isRetrograde": false
+    },
+    {
+      "planet": "Venus",
+      "longitude": 180.59233174758765,
+      "latitude": 1.520411261036414,
+      "distance": 1.5124130040316783,
+      "speed": 1.2383468359522916,
+      "sign": "Libra",
+      "degree": 0.5923317475876502,
+      "isRetrograde": false
+    },
+    {
+      "planet": "Mars",
+      "longitude": 115.83306761812116,
+      "latitude": 1.0377403010723354,
+      "distance": 1.1984622765651196,
+      "speed": 0.47310831677259674,
+      "sign": "Cancer",
+      "degree": 25.833067618121163,
+      "isRetrograde": false
+    },
+    {
+      "planet": "Jupiter",
+      "longitude": 96.06324009530363,
+      "latitude": -0.3624170362523381,
+      "distance": 4.715321463223517,
+      "speed": 0.022806312817944503,
+      "sign": "Cancer",
+      "degree": 6.063240095303627,
+      "isRetrograde": false
+    },
+    {
+      "planet": "Saturn",
+      "longitude": 147.9183963947238,
+      "latitude": 1.1514198531366935,
+      "distance": 9.71241768931636,
+      "speed": 0.08930814127132901,
+      "sign": "Leo",
+      "degree": 27.9183963947238,
+      "isRetrograde": false
+    },
+    {
+      "planet": "Uranus",
+      "longitude": 220.99220136598956,
+      "latitude": 0.39006096397372564,
+      "distance": 19.547124554119833,
+      "speed": 0.06054899513110079,
+      "sign": "Scorpio",
+      "degree": 10.992201365989558,
+      "isRetrograde": false
+    },
+    {
+      "planet": "Neptune",
+      "longitude": 254.1099953294147,
+      "latitude": 1.4392507913670756,
+      "distance": 30.91780788606139,
+      "speed": 0.026698768271311017,
+      "sign": "Sagittarius",
+      "degree": 14.109995329414687,
+      "isRetrograde": false
+    },
+    {
+      "planet": "Pluto",
+      "longitude": 194.47902308697212,
+      "latitude": 16.530727897276424,
+      "distance": 31.37683977306858,
+      "speed": 0.038963569772553476,
+      "sign": "Libra",
+      "degree": 14.47902308697212,
+      "isRetrograde": false
+    },
+    {
+      "planet": "North Node (Mean)",
+      "longitude": 194.5511103273211,
+      "latitude": 0,
+      "distance": 0.0025695552897999903,
+      "speed": -0.05293530033441037,
+      "sign": "Libra",
+      "degree": 14.551110327321112,
+      "isRetrograde": true
+    },
+    {
+      "planet": "North Node (True)",
+      "longitude": 195.2274831010368,
+      "latitude": 0,
+      "distance": 0.0024556133228558225,
+      "speed": -0.013109185725915731,
+      "sign": "Libra",
+      "degree": 15.227483101036796,
+      "isRetrograde": true
+    },
+    {
+      "planet": "Chiron",
+      "longitude": 33.86707264166279,
+      "latitude": -0.5386594883172258,
+      "distance": 16.867648288381556,
+      "speed": -0.046728100146171576,
+      "sign": "Taurus",
+      "degree": 3.867072641662787,
+      "isRetrograde": true
+    },
+    {
+      "planet": "Ceres",
+      "longitude": 225.17925484526404,
+      "latitude": 3.722322777056521,
+      "distance": 3.6128220583215915,
+      "speed": 0.42320521586905213,
+      "sign": "Scorpio",
+      "degree": 15.17925484526404,
+      "isRetrograde": false
+    },
+    {
+      "planet": "Pallas",
+      "longitude": 204.86164458449048,
+      "latitude": 14.672306160015758,
+      "distance": 3.548347696867575,
+      "speed": 0.4450325558858604,
+      "sign": "Libra",
+      "degree": 24.861644584490477,
+      "isRetrograde": false
+    },
+    {
+      "planet": "Juno",
+      "longitude": 243.42276981356122,
+      "latitude": 10.664052131434042,
+      "distance": 3.9911632546316698,
+      "speed": 0.313194206647786,
+      "sign": "Sagittarius",
+      "degree": 3.4227698135612172,
+      "isRetrograde": false
+    },
+    {
+      "planet": "Vesta",
+      "longitude": 188.4269007577168,
+      "latitude": 4.9410232440203075,
+      "distance": 3.2207217522128566,
+      "speed": 0.5021548471029085,
+      "sign": "Libra",
+      "degree": 8.426900757716794,
+      "isRetrograde": false
+    }
+  ]
+}
