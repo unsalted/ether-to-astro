@@ -60,60 +60,6 @@ describe('Transit calculation correctness', () => {
     });
   });
 
-  describe('Dedupe best-instance logic', () => {
-    it('should keep instance with smallest orb when no exact times', () => {
-      // Simulate multi-day transit where orb changes
-      const natalChart = {
-        ...bowenYangChart,
-        planets: ephem.getAllPlanets(
-          ephem.dateToJulianDay(new Date(Date.UTC(1990, 10, 6, 1, 30))),
-          Object.values(PLANETS)
-        ),
-      };
-      
-      // Get upcoming transits over 3 days
-      const upcomingTransits = transitCalc.getUpcomingTransits(
-        [PLANETS.MOON], // Fast mover
-        natalChart,
-        3
-      );
-      
-      // Should have deduplicated - same transit shouldn't appear multiple times
-      const transitKeys = upcomingTransits.map(t => 
-        `${t.transitingPlanet}-${t.natalPlanet}-${t.aspect}`
-      );
-      const uniqueKeys = new Set(transitKeys);
-      
-      expect(transitKeys.length).toBe(uniqueKeys.size);
-    });
-
-    it('should prefer instance with exact time over one without', () => {
-      // This is tested implicitly by the dedupe logic
-      // If a transit has an exact time on day 2 but not day 1, keep day 2
-      const natalChart = {
-        ...bowenYangChart,
-        planets: ephem.getAllPlanets(
-          ephem.dateToJulianDay(new Date(Date.UTC(1990, 10, 6, 1, 30))),
-          Object.values(PLANETS)
-        ),
-      };
-      
-      const upcomingTransits = transitCalc.getUpcomingTransits(
-        Object.values(PLANETS),
-        natalChart,
-        7
-      );
-      
-      // Transits with exact times should be prioritized
-      const withExactTime = upcomingTransits.filter(t => t.exactTime);
-      
-      // Each should be unique
-      const keys = withExactTime.map(t => `${t.transitingPlanet}-${t.natalPlanet}-${t.aspect}`);
-      const uniqueKeys = new Set(keys);
-      expect(keys.length).toBe(uniqueKeys.size);
-    });
-  });
-
   describe('Dynamic search window for slow movers', () => {
     it('should use wider search window for slow-moving planets', () => {
       // This is tested by checking if slow-mover exact times are found

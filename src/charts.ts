@@ -206,44 +206,45 @@ export class ChartRenderer {
       cusps: Array.from(houses.cusps).slice(1, 13), // Houses 1-12
     };
 
-    // Add natal planets
-    if (natalChart.planets) {
-      natalChart.planets.forEach((p) => {
-        const planetKey = this.getPlanetKey(p.planet);
-        if (planetKey) {
-          data.planets[planetKey] = [p.longitude];
-        }
-      });
-    }
+    // Define renderable planets for charts
+    const renderablePlanetIds = [
+      PLANETS.SUN,
+      PLANETS.MOON,
+      PLANETS.MERCURY,
+      PLANETS.VENUS,
+      PLANETS.MARS,
+      PLANETS.JUPITER,
+      PLANETS.SATURN,
+      PLANETS.URANUS,
+      PLANETS.NEPTUNE,
+      PLANETS.PLUTO,
+      PLANETS.CHIRON,
+      PLANETS.MEAN_NODE,
+    ];
+
+    // Prefill natal planets from julianDay to ensure all renderable planets have positions
+    // This avoids fake 0° placeholders for planets missing from natalChart.planets
+    const natalPositions = this.ephem.getAllPlanets(jd, renderablePlanetIds);
+    natalPositions.forEach((p) => {
+      const planetKey = this.getPlanetKey(p.planet);
+      if (planetKey) {
+        data.planets[planetKey] = [p.longitude];
+      }
+    });
 
     // Add transit planets if transit date provided
     if (transitDate) {
       const transitJD = this.ephem.dateToJulianDay(transitDate);
-      const renderablePlanetIds = [
-        PLANETS.SUN,
-        PLANETS.MOON,
-        PLANETS.MERCURY,
-        PLANETS.VENUS,
-        PLANETS.MARS,
-        PLANETS.JUPITER,
-        PLANETS.SATURN,
-        PLANETS.URANUS,
-        PLANETS.NEPTUNE,
-        PLANETS.PLUTO,
-        PLANETS.CHIRON,
-        PLANETS.MEAN_NODE,
-      ];
       const transitPositions = this.ephem.getAllPlanets(transitJD, renderablePlanetIds);
       
       transitPositions.forEach((p) => {
         const planetKey = this.getPlanetKey(p.planet);
         if (planetKey) {
           // Add transit position as second element in array
+          // Natal position already exists from prefill above
           const current = data.planets[planetKey];
           if (current) {
             data.planets[planetKey] = [current[0], p.longitude];
-          } else {
-            data.planets[planetKey] = [0, p.longitude]; // Use 0 as placeholder for missing natal position
           }
         }
       });

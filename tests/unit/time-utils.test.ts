@@ -134,12 +134,13 @@ describe('Time conversion utility', () => {
       expect(isValidTimezone('Europe/London')).toBe(true);
       expect(isValidTimezone('Australia/Sydney')).toBe(true);
       expect(isValidTimezone('UTC')).toBe(true);
+      expect(isValidTimezone('EST')).toBe(true);
+      expect(isValidTimezone('GMT')).toBe(true);
     });
 
     it('should reject invalid timezone strings', () => {
       expect(isValidTimezone('Invalid/Timezone')).toBe(false);
-      expect(isValidTimezone('EST')).toBe(false); // Abbreviations not valid
-      expect(isValidTimezone('GMT')).toBe(false);
+      expect(isValidTimezone('NotAZone')).toBe(false);
       expect(isValidTimezone('')).toBe(false);
     });
   });

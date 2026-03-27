@@ -162,28 +162,30 @@ describe('Given an astrologer wants to calculate planetary positions', () => {
   describe('When finding exact transit times', () => {
     it('should find when a planet reaches a specific longitude', () => {
       const startJD = 2451545.0; // J2000
+      const endJD = startJD + 365;
       const targetLongitude = 0; // 0° Aries
       
       // Find when Sun reaches 0° Aries (Spring Equinox ~March 20)
-      const exactJD = ephem.findExactTransitTime(
+      const exactJDs = ephem.findExactTransitTimes(
         PLANETS.SUN,
         targetLongitude,
         startJD,
-        startJD + 365
+        endJD
       );
+      const exactJD = exactJDs[0]; // Get first (earliest) crossing
 
       // May return null if no crossing in interval (new bracketing check)
       // This is correct behavior - not all intervals contain a crossing
       if (exactJD !== null) {
         expect(exactJD).toBeGreaterThan(startJD);
-        expect(exactJD).toBeLessThan(startJD + 365);
+        expect(exactJD).toBeLessThan(endJD);
       }
       // Test passes either way - we're validating it doesn't throw
       
       // Verify the planet is actually at target longitude
       if (exactJD !== null) {
         const positions = ephem.getAllPlanets(exactJD, [PLANETS.SUN]);
-        expect(positions[0].longitude).toBeCloseTo(targetLongitude, 1);
+        expect(ephem.calculateAspectAngle(positions[0].longitude, targetLongitude)).toBeLessThan(0.1);
       }
     });
   });

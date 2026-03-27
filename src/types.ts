@@ -86,6 +86,8 @@ export interface NatalChart {
  * latitude is celestial latitude (distance from ecliptic).
  */
 export interface PlanetPosition {
+  /** Swiss Ephemeris planet ID */
+  planetId: number;
   /** Planet name (e.g., 'Sun', 'Moon', 'Mercury') */
   planet: PlanetName;
   /** 
@@ -147,6 +149,8 @@ interface BaseTransit {
    * false = separating (moving away from exact)
    */
   isApplying: boolean;
+  /** Status of exact time lookup for this transit */
+  exactTimeStatus?: 'within_preview' | 'outside_preview' | 'not_found' | 'unsupported_body';
   /** Current longitude of transiting planet */
   transitLongitude: number;
   /** Longitude of natal planet at birth time */

@@ -32,6 +32,7 @@
   "dependencies": {
     "@astrodraw/astrochart": "^3.0.2",
     "@fusionstrings/swiss-eph": "npm:@jsr/fusionstrings__swiss-eph@^0.2.1",
+    "@js-temporal/polyfill": "^0.5.1",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@std/datetime": "npm:@jsr/std__datetime@^0.225.7",
     "sharp": "^0.34.5"

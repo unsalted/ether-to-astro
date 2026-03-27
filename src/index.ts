@@ -16,6 +16,7 @@ import { writeFile } from 'node:fs/promises';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { Temporal } from '@js-temporal/polyfill';
 import { ChartRenderer } from './charts.js';
 import { getDefaultTheme } from './constants.js';
 import { EclipseCalculator } from './eclipses.js';
@@ -24,8 +25,9 @@ import { TimeFormatter } from './formatter.js';
 import { HouseCalculator } from './houses.js';
 import { logger } from './logger.js';
 import { RiseSetCalculator } from './riseset.js';
-import { TransitCalculator } from './transits.js';
-import { missingNatalChart } from './tool-result.js';
+import { TransitCalculator, deduplicateTransits } from './transits.js';
+import { missingNatalChart, mcpResult, mcpError } from './tool-result.js';
+import { localToUTC, utcToLocal, addLocalDays, type Disambiguation } from './time-utils.js';
 import {
   ASTEROIDS,
   type HouseSystem,
@@ -52,10 +54,56 @@ const server = new Server(
   }
 );
 
-// In-memory natal chart storage (scoped to server instance lifetime)
-// Thread safety: Each MCP client connection spawns a separate Node.js process
-// via stdio transport, so this global variable is isolated per client.
-// No synchronization needed as requests are serialized within a single process.
+/**
+ * Parse and validate a date-only string in YYYY-MM-DD format
+ * @param dateStr - Date string to parse
+ * @returns LocalDateTime at noon
+ * @throws Error if format is invalid or date is not a real calendar date
+ */
+function parseDateOnlyInput(dateStr: string): { year: number; month: number; day: number; hour: number; minute: number } {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!match) {
+    throw new Error(`Invalid date format: expected YYYY-MM-DD, got "${dateStr}"`);
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  // Validate ranges
+  if (month < 1 || month > 12) {
+    throw new Error(`Invalid month: ${month} (must be 1-12)`);
+  }
+  if (day < 1 || day > 31) {
+    throw new Error(`Invalid day: ${day} (must be 1-31)`);
+  }
+
+  // Validate it's a real calendar date by attempting to create it with Temporal
+  try {
+    Temporal.PlainDate.from({ year, month, day });
+  } catch {
+    throw new Error(`Invalid calendar date: ${dateStr}`);
+  }
+
+  return { year, month, day, hour: 12, minute: 0 };
+}
+
+/**
+ * In-memory natal chart — the server's sole piece of mutable state.
+ *
+ * Lifecycle:
+ *  - Starts as `null` when the process launches.
+ *  - Set by `set_natal_chart`; overwritten on each call.
+ *  - Persists for the lifetime of this stdio process (one per MCP client).
+ *  - Tools that require it (`get_transits`, `get_houses`, `get_rise_set_times`,
+ *    `generate_natal_chart`, `generate_transit_chart`) return a structured
+ *    MISSING_NATAL_CHART error if it is null.
+ *  - Use `get_server_status` to inspect whether a chart is loaded.
+ *
+ * Thread safety: Each MCP client connection spawns a separate Node.js process
+ * via stdio transport, so this variable is isolated per client.
+ * No synchronization needed as requests are serialized within a single process.
+ */
 let natalChart: NatalChart | null = null;
 
 // Calculator instances (initialized on demand)
@@ -72,7 +120,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'set_natal_chart',
         description:
-          'Store natal chart data for transit calculations. Birth time should be LOCAL time at the birth location (not UTC). The server will convert to UTC using the timezone parameter and return verification details including Sun, Moon, Ascendant, and MC positions.',
+          'Store natal chart data for transit calculations. Birth time should be LOCAL time at the birth location (not UTC). The server converts to UTC using the timezone parameter. Optional birth_time_disambiguation handles DST overlap/gap edge cases (default: reject).',
         inputSchema: {
           type: 'object',
           properties: {
@@ -88,6 +136,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             latitude: { type: 'number', description: 'Birth location latitude' },
             longitude: { type: 'number', description: 'Birth location longitude' },
             timezone: { type: 'string', description: 'Timezone (e.g., America/New_York, Europe/London)' },
+            birth_time_disambiguation: {
+              type: 'string',
+              enum: ['compatible', 'earlier', 'later', 'reject'],
+              description: 'How to handle DST-ambiguous or nonexistent local birth times. Default: reject.',
+            },
             house_system: {
               type: 'string',
               description: 'House system preference: P=Placidus (default), W=Whole Sign, K=Koch, E=Equal',
@@ -110,7 +163,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'get_transits',
         description:
-          'Unified transit query with flexible filtering. Get transits between current/future planets and natal chart, with control over planet categories, date range, orb, and aspect filtering. This is the recommended tool for most transit queries.',
+          'Get transits (aspects between current/future planets and natal chart). Returns aspects within orb, with exact timing when close. Date defaults to today at local noon in the natal chart timezone.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -160,6 +213,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             system: {
               type: 'string',
+              enum: ['P', 'K', 'W', 'E'],
               description: 'House system: P=Placidus (default), K=Koch, W=Whole Sign, E=Equal',
               default: 'P',
             },
@@ -200,6 +254,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: 'get_server_status',
+        description:
+          'Inspect the current server state: whether a natal chart is loaded, its name and timezone, and the server version. Call this before making assumptions about loaded context.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
         name: 'generate_natal_chart',
         description:
           'Generate a visual natal chart wheel with planets, houses, and aspects. Supports SVG, PNG, and WebP formats. Theme defaults to dark (6pm-6am) or light (6am-6pm) based on current time, but can be overridden with the theme parameter.',
@@ -228,7 +291,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'generate_transit_chart',
         description:
-          'Generate a visual chart showing current transits overlaid on natal chart. Supports SVG, PNG, and WebP formats. Theme defaults to dark (6pm-6am) or light (6am-6pm) based on current time, but can be overridden with the theme parameter.',
+          'Generate a visual transit chart showing current transits overlaid on the natal chart. Date defaults to today at local noon in the natal chart timezone. Supports SVG, PNG, and WebP formats with light or dark themes.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -284,9 +347,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
          * and stores the chart with all calculated data.
          * Returns verification details including key positions.
          */
-        // Import time-utils at runtime to avoid circular dependencies
-        const { localToUTC, utcToLocal } = await import('./time-utils.js');
-        
+        // Capture requested house system before any mutation
+        const requestedHouseSystem = (args.house_system as HouseSystem | undefined) ?? null;
+
         const chart: NatalChart = {
           name: args.name as string,
           birthDate: {
@@ -303,8 +366,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         };
 
-        // Convert local birth time to UTC
-        const utcDate = localToUTC(chart.birthDate, chart.location.timezone);
+        const birthTimeDisambiguation =
+          (args.birth_time_disambiguation as Disambiguation | undefined) ?? 'reject';
+
+        // Convert local birth time to UTC with strict disambiguation
+        // Birth times should reject ambiguous/nonexistent times rather than guess
+        let utcDate: Date;
+        try {
+          utcDate = localToUTC(chart.birthDate, chart.location.timezone, birthTimeDisambiguation);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          return mcpError({
+            code: 'INVALID_INPUT',
+            message: `${message}. For DST overlap/gap birth times, retry set_natal_chart with birth_time_disambiguation='earlier' or 'later'.`,
+            retryable: true,
+            suggestedFix: "Pass birth_time_disambiguation: 'earlier' or 'later' in set_natal_chart.",
+          });
+        }
         const utcComponents = utcToLocal(utcDate, 'UTC');
         
         // Calculate Julian Day from UTC time
@@ -315,12 +393,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const positions = ephem.getAllPlanets(jd, planetIds);
         
         // Determine house system (default to Placidus, or Whole Sign for polar latitudes)
-        let houseSystem: HouseSystem = (args.house_system as HouseSystem) || 'P';
         const isPolar = Math.abs(chart.location.latitude) > 66;
-        
-        // For polar latitudes, suggest Whole Sign if not specified
-        if (isPolar && !args.house_system) {
-          houseSystem = 'W'; // Whole Sign works at all latitudes
+        let houseSystem: HouseSystem = requestedHouseSystem || 'P';
+        if (isPolar && houseSystem === 'P') {
+          houseSystem = 'W'; // Fallback to Whole Sign for polar latitudes
         }
         
         // Calculate houses for verification
@@ -332,11 +408,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         );
 
         // Store chart with all calculated data
+        // Use the actual house system that was used (may differ from requested if fallback occurred)
         natalChart = {
           ...chart,
           planets: positions,
           julianDay: jd,
-          houseSystem,
+          houseSystem: houses.system,
           utcDateTime: utcComponents,
         };
         
@@ -344,8 +421,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const sun = positions.find(p => p.planet === 'Sun');
         const moon = positions.find(p => p.planet === 'Moon');
         
-        const formatDegree = (lon: number | undefined) => {
-          if (lon === undefined) return 'N/A';
+        if (!sun || !moon) {
+          throw new Error('Ephemeris failed to compute Sun/Moon positions for natal chart.');
+        }
+        
+        const formatDegree = (lon: number) => {
           const sign = ZODIAC_SIGNS[Math.floor(lon / 30)];
           const degree = lon % 30;
           return `${degree.toFixed(0)}° ${sign}`;
@@ -376,44 +456,66 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           `- Location: ${latAbs.toFixed(2)}°${latDir}, ${lonAbs.toFixed(2)}°${lonDir}`,
           '',
           'Chart Angles:',
-          `- Sun: ${formatDegree(sun?.longitude)}`,
-          `- Moon: ${formatDegree(moon?.longitude)}`,
+          `- Sun: ${formatDegree(sun.longitude)}`,
+          `- Moon: ${formatDegree(moon.longitude)}`,
           `- Ascendant: ${formatDegree(houses.ascendant)}`,
           `- MC: ${formatDegree(houses.mc)}`,
           '',
-          `House System: ${systemNames[houseSystem] || houseSystem}`,
+          `House System: ${systemNames[houses.system] || houses.system}`,
         ];
         
-        if (isPolar) {
-          feedback.push('', `Note: Polar latitude detected (${chart.location.latitude.toFixed(1)}°). Using ${systemNames[houseSystem]} house system.`);
+        if (isPolar && houses.system !== houseSystem) {
+          feedback.push('', `Note: Polar latitude detected (${chart.location.latitude.toFixed(1)}°). Requested ${systemNames[houseSystem]}, using ${systemNames[houses.system]} instead.`);
+        } else if (isPolar) {
+          feedback.push('', `Note: Polar latitude detected (${chart.location.latitude.toFixed(1)}°). Using ${systemNames[houses.system]} house system.`);
         }
 
-        return {
-          content: [
-            {
-              type: 'text',
-              text: feedback.join('\n'),
-            },
-          ],
+        const structuredData = {
+          name: chart.name,
+          birthTime: {
+            local: localTimeStr,
+            utc: utcTimeStr,
+            timezone: chart.location.timezone,
+          },
+          location: {
+            latitude: chart.location.latitude,
+            longitude: chart.location.longitude,
+          },
+          julianDay: jd,
+          requestedHouseSystem, // What user asked for (or null if omitted)
+          resolvedHouseSystem: houses.system, // What was actually used
+          angles: {
+            sun: formatDegree(sun.longitude),
+            moon: formatDegree(moon.longitude),
+            ascendant: formatDegree(houses.ascendant),
+            mc: formatDegree(houses.mc),
+          },
+          isPolar,
         };
+
+        return mcpResult(structuredData, feedback.join('\n'));
       }
 
       case 'get_transits': {
         if (!natalChart) {
-          const error = missingNatalChart();
-          return {
-            content: [{ type: 'text', text: JSON.stringify({ ok: false, error }, null, 2) }],
-            isError: true,
-          };
+          return mcpError(missingNatalChart());
         }
 
         const dateStr = args.date as string | undefined;
-        const categories = (args.categories as string[]) || ['all'];
-        const includeMundane = (args.include_mundane as boolean) || false;
-        const daysAhead = (args.days_ahead as number) || 0;
-        const maxOrb = (args.max_orb as number) || 8;
-        const exactOnly = (args.exact_only as boolean) || false;
-        const applyingOnly = (args.applying_only as boolean) || false;
+        const categories = (args.categories as string[]) ?? ['all'];
+        const includeMundane = (args.include_mundane as boolean) ?? false;
+        const daysAhead = (args.days_ahead as number | undefined) ?? 0;
+        const maxOrb = (args.max_orb as number | undefined) ?? 8;
+        const exactOnly = (args.exact_only as boolean) ?? false;
+        const applyingOnly = (args.applying_only as boolean) ?? false;
+
+        // Validate numeric inputs
+        if (daysAhead < 0) {
+          return mcpError({ code: 'INVALID_INPUT', message: 'days_ahead must be >= 0', retryable: false });
+        }
+        if (maxOrb < 0) {
+          return mcpError({ code: 'INVALID_INPUT', message: 'max_orb must be >= 0', retryable: false });
+        }
 
         // Build planet list from categories
         let transitingPlanetIds: number[] = [];
@@ -431,29 +533,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
         }
 
-        const targetDate = dateStr
-          ? new Date(dateStr + 'T12:00:00Z')
-          : new Date();
+        const timezone = natalChart.location.timezone;
+
+        // Date-only input is interpreted as noon in the natal chart's timezone
+        // For consistency, omitted date also uses today at local noon (not current instant)
+        let targetDate: Date;
+        if (dateStr) {
+          try {
+            const parsed = parseDateOnlyInput(dateStr);
+            targetDate = localToUTC(parsed, timezone);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Invalid date format';
+            return mcpError({ code: 'INVALID_INPUT', message, retryable: false });
+          }
+        } else {
+          // No date provided: use today at local noon for reproducibility
+          const now = new Date();
+          const localNow = utcToLocal(now, timezone);
+          const localNoon = { ...localNow, hour: 12, minute: 0, second: 0 };
+          targetDate = localToUTC(localNoon, timezone);
+        }
 
         // Collect transits across date range
+        // Use timezone-aware calendar addition to handle month/year rollovers and DST
         const allTransits: Transit[] = [];
+        const startLocal = utcToLocal(targetDate, timezone);
         for (let day = 0; day <= daysAhead; day++) {
-          const date = new Date(targetDate);
-          date.setDate(date.getDate() + day);
-          const jd = ephem.dateToJulianDay(date);
+          // Add N calendar days using proper Temporal-based addition
+          const dayUTC = addLocalDays(startLocal, timezone, day);
+          const jd = ephem.dateToJulianDay(dayUTC);
           const transitingPlanets = ephem.getAllPlanets(jd, transitingPlanetIds);
           const transits = transitCalc.findTransits(transitingPlanets, natalChart.planets || [], jd);
           allTransits.push(...transits);
         }
 
-        // Deduplicate
-        const seen = new Set<string>();
-        let filteredTransits = allTransits.filter((t) => {
-          const key = `${t.transitingPlanet}-${t.natalPlanet}-${t.aspect}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
+        // Deduplicate: keep best hit per aspect (exact > smallest orb > earliest)
+        let filteredTransits = deduplicateTransits(allTransits);
 
         // Apply filters
         filteredTransits = filteredTransits.filter(t => t.orb <= maxOrb);
@@ -465,10 +580,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
         filteredTransits.sort((a, b) => a.orb - b.orb);
 
-        const timezone = natalChart.location.timezone;
+        const localDate = utcToLocal(targetDate, timezone);
+        const dateLabel = `${localDate.year}-${String(localDate.month).padStart(2, '0')}-${String(localDate.day).padStart(2, '0')}`;
 
         const structuredData: TransitResponse = {
-          date: targetDate.toISOString().split('T')[0],
+          date: dateLabel,
           timezone,
           transits: filteredTransits.map(t => ({
             transitingPlanet: t.transitingPlanet,
@@ -482,14 +598,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           })),
         };
 
-        let responseData: any = structuredData;
+        let responseData: Record<string, unknown> = structuredData as unknown as Record<string, unknown>;
         let mundaneText = '';
 
         if (includeMundane) {
           const currentJD = ephem.dateToJulianDay(targetDate);
           const currentPositions = ephem.getAllPlanets(currentJD, transitingPlanetIds);
           const mundaneData: PlanetPositionResponse = {
-            date: targetDate.toISOString().split('T')[0],
+            date: dateLabel,
             timezone,
             positions: currentPositions,
           };
@@ -499,16 +615,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             .join('\n');
         }
 
-        if (filteredTransits.length === 0 && !includeMundane) {
-          return {
-            content: [
-              { type: 'text', text: JSON.stringify(structuredData, null, 2) },
-              { type: 'text', text: '\n\nNo transits found matching the specified criteria.' },
-            ],
-          };
-        }
-
-        const humanText = filteredTransits
+        const humanLines = filteredTransits
           .map((t) => {
             const exactStr = t.exactTime
               ? ` - Exact: ${TimeFormatter.formatInTimezone(t.exactTime, timezone)}`
@@ -519,27 +626,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           .join('\n');
 
         const rangeStr = daysAhead > 0 ? ` (next ${daysAhead + 1} days)` : '';
-        const transitHeader = filteredTransits.length > 0 ? `\n\nTransits${rangeStr}:\n\n${humanText}` : '';
+        const transitHeader = filteredTransits.length > 0
+          ? `Transits${rangeStr}:\n\n${humanLines}`
+          : 'No transits found matching the specified criteria.';
 
-        return {
-          content: [
-            { type: 'text', text: JSON.stringify(responseData, null, 2) },
-            { type: 'text', text: transitHeader + mundaneText },
-          ],
-        };
+        return mcpResult(responseData, transitHeader + mundaneText);
       }
 
       case 'get_houses': {
         if (!natalChart) {
-          const error = missingNatalChart();
-          return {
-            content: [{ type: 'text', text: JSON.stringify({ ok: false, error }, null, 2) }],
-            isError: true,
-          };
+          return mcpError(missingNatalChart());
         }
 
         const system = (args.system as string) || natalChart.houseSystem || 'P';
-        const jd = natalChart.julianDay || ephem.dateToJulianDay(new Date());
+        if (!natalChart.julianDay) {
+          return mcpError({
+            code: 'INVALID_INPUT',
+            message: 'Natal chart is missing julianDay. Re-run set_natal_chart to fix.',
+            retryable: true,
+            suggestedFix: 'Call set_natal_chart again with birth details.',
+          });
+        }
+        const jd = natalChart.julianDay;
 
         const houses = houseCalc.calculateHouses(
           jd,
@@ -548,9 +656,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           system
         );
 
-        return {
-          content: [{ type: 'text', text: JSON.stringify(houses, null, 2) }],
-        };
+        const humanLines = houses.cusps
+          .slice(1) // skip unused index 0
+          .map((deg: number, i: number) => {
+            const sign = ZODIAC_SIGNS[Math.floor(deg / 30)];
+            return `House ${i + 1}: ${(deg % 30).toFixed(2)}° ${sign}`;
+          })
+          .join('\n');
+        const humanText = `Houses (${houses.system}):\nAsc: ${houses.ascendant.toFixed(2)}° | MC: ${houses.mc.toFixed(2)}°\n\n${humanLines}`;
+
+        return mcpResult(houses, humanText);
       }
 
       case 'get_retrograde_planets': {
@@ -560,47 +675,62 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const positions = ephem.getAllPlanets(jd, allPlanetIds);
         const retrograde = positions.filter(p => p.isRetrograde);
 
-        if (retrograde.length === 0) {
-          return {
-            content: [{ type: 'text', text: 'No planets are currently retrograde.' }],
-          };
-        }
+        const timezone = natalChart?.location.timezone ?? 'UTC';
+        const localNow = utcToLocal(now, timezone);
+        const dateLabel = `${localNow.year}-${String(localNow.month).padStart(2, '0')}-${String(localNow.day).padStart(2, '0')}`;
 
-        const output = retrograde
-          .map(p => `${p.planet}: ${p.degree.toFixed(2)}° ${p.sign}`)
-          .join('\n');
-
-        return {
-          content: [{ type: 'text', text: `Retrograde Planets:\n\n${output}` }],
+        const structuredData = {
+          date: dateLabel,
+          timezone,
+          planets: retrograde,
         };
+
+        const humanText = retrograde.length === 0
+          ? 'No planets are currently retrograde.'
+          : `Retrograde Planets:\n\n${retrograde.map(p => `${p.planet}: ${p.degree.toFixed(2)}° ${p.sign}`).join('\n')}`;
+
+        return mcpResult(structuredData, humanText);
       }
 
       case 'get_rise_set_times': {
         if (!natalChart) {
-          const error = missingNatalChart();
-          return {
-            content: [{ type: 'text', text: JSON.stringify({ ok: false, error }, null, 2) }],
-            isError: true,
-          };
+          return mcpError(missingNatalChart());
         }
 
+        const timezone = natalChart.location.timezone;
+        
+        // Get today's date in natal chart timezone and anchor at midnight
+        // This ensures we get today's rise/set events, not "next events after now"
         const now = new Date();
+        const localNow = utcToLocal(now, timezone);
+        const localMidnight = { year: localNow.year, month: localNow.month, day: localNow.day, hour: 0, minute: 0, second: 0 };
+        const midnightUTC = localToUTC(localMidnight, timezone);
+        
+        const dateLabel = `${localNow.year}-${String(localNow.month).padStart(2, '0')}-${String(localNow.day).padStart(2, '0')}`;
+
         const results = await riseSetCalc.getAllRiseSet(
-          now,
+          midnightUTC,
           natalChart.location.latitude,
           natalChart.location.longitude
         );
 
-        const timezone = natalChart.location.timezone;
-        const output = results.map(r => {
+        const structuredData = {
+          date: dateLabel,
+          timezone,
+          times: results.map(r => ({
+            planet: r.planet,
+            rise: r.rise?.toISOString() ?? null,
+            set: r.set?.toISOString() ?? null,
+          })),
+        };
+
+        const humanText = `Rise/Set Times:\n\n${results.map(r => {
           const rise = r.rise ? TimeFormatter.formatInTimezone(r.rise, timezone) : 'none';
           const set = r.set ? TimeFormatter.formatInTimezone(r.set, timezone) : 'none';
           return `${r.planet}: Rise ${rise}, Set ${set}`;
-        }).join('\n');
+        }).join('\n')}`;
 
-        return {
-          content: [{ type: 'text', text: `Rise/Set Times:\n\n${output}` }],
-        };
+        return mcpResult(structuredData, humanText);
       }
 
       case 'get_asteroid_positions': {
@@ -609,16 +739,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const asteroidIds = [...ASTEROIDS, ...NODES];
         const positions = ephem.getAllPlanets(jd, asteroidIds);
 
-        const output = positions
+        const timezone = natalChart?.location.timezone ?? 'UTC';
+        const localNow = utcToLocal(now, timezone);
+        const dateLabel = `${localNow.year}-${String(localNow.month).padStart(2, '0')}-${String(localNow.day).padStart(2, '0')}`;
+
+        const structuredData = {
+          date: dateLabel,
+          timezone,
+          positions,
+        };
+
+        const humanText = 'Asteroid & Node Positions:\n\n' + positions
           .map((p) => {
             const rx = p.isRetrograde ? ' Rx' : '';
             return `${p.planet}: ${p.degree.toFixed(2)}° ${p.sign}${rx}`;
           })
           .join('\n');
 
-        return {
-          content: [{ type: 'text', text: `Asteroid & Node Positions:\n\n${output}` }],
-        };
+        return mcpResult(structuredData, humanText);
       }
 
       case 'get_next_eclipses': {
@@ -629,37 +767,59 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const lunarEclipse = eclipseCalc.findNextLunarEclipse(jd);
 
         const timezone = natalChart?.location.timezone || 'UTC';
-        const output = [];
+
+        const eclipses = [];
+        const humanLines = [];
 
         if (solarEclipse) {
-          output.push(
-            `Next Solar Eclipse: ${TimeFormatter.formatInTimezone(solarEclipse.date, timezone)} (${solarEclipse.eclipseType})`
+          eclipses.push({
+            type: solarEclipse.type,
+            eclipseType: solarEclipse.eclipseType,
+            maxTime: solarEclipse.maxTime.toISOString(),
+          });
+          humanLines.push(
+            `Next Solar Eclipse: ${TimeFormatter.formatInTimezone(solarEclipse.maxTime, timezone)} (${solarEclipse.eclipseType})`
           );
         }
         if (lunarEclipse) {
-          output.push(
-            `Next Lunar Eclipse: ${TimeFormatter.formatInTimezone(lunarEclipse.date, timezone)} (${lunarEclipse.eclipseType})`
+          eclipses.push({
+            type: lunarEclipse.type,
+            eclipseType: lunarEclipse.eclipseType,
+            maxTime: lunarEclipse.maxTime.toISOString(),
+          });
+          humanLines.push(
+            `Next Lunar Eclipse: ${TimeFormatter.formatInTimezone(lunarEclipse.maxTime, timezone)} (${lunarEclipse.eclipseType})`
           );
         }
 
-        if (output.length === 0) {
-          return {
-            content: [{ type: 'text', text: 'No eclipses found in the near future.' }],
-          };
-        }
+        const structuredData = { timezone, eclipses };
+        const humanText = eclipses.length === 0
+          ? 'No eclipses found in the near future.'
+          : `Upcoming Eclipses:\n\n${humanLines.join('\n')}`;
 
-        return {
-          content: [{ type: 'text', text: `Upcoming Eclipses:\n\n${output.join('\n')}` }],
+        return mcpResult(structuredData, humanText);
+      }
+
+      case 'get_server_status': {
+        const statusData = {
+          serverVersion: '1.0.0',
+          hasNatalChart: natalChart !== null,
+          natalChartName: natalChart?.name ?? null,
+          natalChartTimezone: natalChart?.location.timezone ?? null,
+          ephemerisInitialized: !!ephem.eph,
+          stateModel: 'stateful-per-process',
         };
+
+        const humanText = natalChart
+          ? `Server ready. Natal chart loaded: ${natalChart.name} (${natalChart.location.timezone})`
+          : 'Server ready. No natal chart loaded — call set_natal_chart first.';
+
+        return mcpResult(statusData, humanText);
       }
 
       case 'generate_natal_chart': {
         if (!natalChart) {
-          const error = missingNatalChart();
-          return {
-            content: [{ type: 'text', text: JSON.stringify({ ok: false, error }, null, 2) }],
-            isError: true,
-          };
+          return mcpError(missingNatalChart());
         }
 
         const theme = (args.theme as 'light' | 'dark') || getDefaultTheme(natalChart.location.timezone);
@@ -706,31 +866,40 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'generate_transit_chart': {
         if (!natalChart) {
-          const error = missingNatalChart();
-          return {
-            content: [{ type: 'text', text: JSON.stringify({ ok: false, error }, null, 2) }],
-            isError: true,
-          };
+          return mcpError(missingNatalChart());
         }
 
-        // Parse date string as UTC noon to avoid timezone shifts
-        // Date-only ISO strings like "2026-03-27" can parse as local midnight
-        const transitDate = args.date 
-          ? new Date((args.date as string) + 'T12:00:00Z')
-          : undefined;
-        const theme = (args.theme as 'light' | 'dark') || getDefaultTheme(natalChart.location.timezone);
-        const format = (args.format as 'svg' | 'png' | 'webp') || 'svg';
+        const dateStr = args.date as string | undefined;
+        const theme = (args.theme as 'light' | 'dark' | undefined) ?? getDefaultTheme(natalChart.location.timezone);
+        const format = (args.format as 'svg' | 'png' | 'webp' | undefined) ?? 'svg';
+
+        let targetDate: Date;
+        if (dateStr) {
+          try {
+            const parsed = parseDateOnlyInput(dateStr);
+            targetDate = localToUTC(parsed, natalChart.location.timezone);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Invalid date format';
+            return mcpError({ code: 'INVALID_INPUT', message, retryable: false });
+          }
+        } else {
+          // No date provided: use today at local noon for consistency with date-only workflows
+          const now = new Date();
+          const localNow = utcToLocal(now, natalChart.location.timezone);
+          const localNoon = { ...localNow, hour: 12, minute: 0, second: 0 };
+          targetDate = localToUTC(localNoon, natalChart.location.timezone);
+        }
+
         const outputPath = args.output_path as string | undefined;
         const chart = await chartRenderer.generateTransitChart(
           natalChart,
-          transitDate || new Date(),
+          targetDate,
           theme,
           format
         );
 
-        const dateStr = transitDate
-          ? TimeFormatter.formatDateOnly(transitDate, natalChart.location.timezone)
-          : 'Current';
+        // Format date label for output
+        const dateLabel = TimeFormatter.formatDateOnly(targetDate, natalChart.location.timezone);
 
         // Save to file if path provided
         if (outputPath) {
@@ -743,16 +912,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             content: [
               {
                 type: 'text',
-                text: `Transit Chart for ${natalChart.name} (${dateStr}) saved to: ${outputPath}`,
+                text: `Transit Chart for ${natalChart.name} (${dateLabel}) saved to ${outputPath}`,
               },
             ],
           };
         }
 
+        // Return chart based on format
         if (format === 'svg') {
           return {
             content: [
-              { type: 'text', text: `Transit Chart for ${natalChart.name} (${dateStr}):` },
+              {
+                type: 'text',
+                text: `Transit Chart for ${natalChart.name} (${dateLabel})`,
+              },
               { type: 'text', text: chart as string },
             ],
           };
@@ -765,7 +938,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           content: [
             {
               type: 'text',
-              text: `Transit Chart for ${natalChart.name} (${dateStr}, ${theme} theme, ${format.toUpperCase()} format):`,
+              text: `Transit Chart for ${natalChart.name} (${dateLabel}, ${theme} theme, ${format.toUpperCase()} format):`,
             },
             { type: 'image', data: base64, mimeType },
           ],
@@ -773,18 +946,38 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       default:
-        return {
-          content: [{ type: 'text', text: `Unknown tool: ${name}` }],
-          isError: true,
-        };
+        return mcpError({
+          code: 'INVALID_INPUT',
+          message: `Unknown tool: ${name}`,
+          retryable: false,
+          suggestedFix: 'Check the tool name against the list returned by ListTools.',
+        });
     }
   } catch (error) {
-    return {
-      content: [
-        { type: 'text', text: `Error: ${error instanceof Error ? error.message : String(error)}` },
-      ],
-      isError: true,
-    };
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // Map known error patterns to appropriate codes
+    let code: import('./tool-result.js').ToolIssueCode;
+    if (errorMessage.includes('Invalid timezone') || errorMessage.includes('timezone')) {
+      code = 'INVALID_TIMEZONE';
+    } else if (errorMessage.includes('Invalid house system')) {
+      code = 'INVALID_HOUSE_SYSTEM';
+    } else if (errorMessage.includes('Ephemeris') || errorMessage.includes('ephemeris')) {
+      code = 'EPHEMERIS_COMPUTE_FAILED';
+    } else if (errorMessage.includes('write') || errorMessage.includes('ENOENT') || errorMessage.includes('EACCES')) {
+      code = 'FILE_WRITE_FAILED';
+    } else if (errorMessage.includes('render') || errorMessage.includes('chart')) {
+      code = 'CHART_RENDER_FAILED';
+    } else {
+      code = 'INTERNAL_ERROR';
+    }
+    
+    return mcpError({
+      code,
+      message: errorMessage,
+      retryable: code === 'EPHEMERIS_COMPUTE_FAILED' || code === 'FILE_WRITE_FAILED',
+      details: { tool: name },
+    });
   }
 });
 

@@ -44,13 +44,13 @@ export class RiseSetCalculator {
    * - -1: Calculation error (hard failure)
    * - -2: No event exists (circumpolar object)
    * 
-   * @param julianDay - Julian Day for calculation
+   * @param julianDay - Julian Day to start search from (typically midnight of target date)
    * @param planetId - Swiss Ephemeris planet ID
-   * @param latitude - Observer latitude in degrees
-   * @param longitude - Observer longitude in degrees  
+   * @param latitude - Observer latitude in degrees (-90 to 90)
+   * @param longitude - Observer longitude in degrees
    * @param altitude - Observer altitude in meters (default: 0 = sea level)
    * @returns Rise/set/transit times, or undefined fields if event doesn't occur
-   * @throws {Error} If ephemeris not initialized or hard calculation error
+   * @throws {Error} If ephemeris not initialized, invalid inputs, or hard calculation error
    */
   calculateRiseSet(
     julianDay: number,
@@ -63,6 +63,20 @@ export class RiseSetCalculator {
       throw new Error('Ephemeris not initialized');
     }
 
+    // Input validation
+    if (!Number.isFinite(julianDay)) {
+      throw new Error('Invalid Julian Day: must be a finite number');
+    }
+    if (latitude < -90 || latitude > 90) {
+      throw new Error(`Invalid latitude: ${latitude} (must be -90 to 90)`);
+    }
+    if (!Number.isFinite(longitude)) {
+      throw new Error('Invalid longitude: must be a finite number');
+    }
+    if (!Number.isFinite(altitude)) {
+      throw new Error('Invalid altitude: must be a finite number');
+    }
+
     const planetName = PLANET_NAMES[planetId];
     if (!planetName) {
       throw new Error(`Unknown planet ID: ${planetId}`);
@@ -72,138 +86,58 @@ export class RiseSetCalculator {
       planet: planetName,
     };
 
-    const riseResult = this.ephem.eph.swe_rise_trans(
-      julianDay,
-      planetId,
-      null,
-      Constants.SEFLG_SWIEPH,
-      Constants.SE_CALC_RISE,
-      [longitude, latitude, altitude],
-      0, // atpress: 0 = auto-estimate from altitude
-      0  // attemp: 0°C
-    );
-    
-    // Handle return codes explicitly
-    if (riseResult.returnCode === -1) {
-      // Hard error - throw
-      throw new Error(`Rise calculation failed for ${planetName}: ${riseResult.error || 'Unknown error'}`);
-    } else if (riseResult.returnCode === -2) {
-      // No rise event (circumpolar) - leave field undefined
-      logger.debug(`No rise event for ${planetName} (circumpolar or below horizon)`, {
-        planet: planetName,
-        latitude,
-      });
-    } else if (riseResult.tret) {
-      // Success - convert to date
-      result.rise = this.ephem.julianDayToDate(riseResult.tret);
-    }
+    // Helper to call swe_rise_trans and handle return codes
+    const calculateEvent = (eventType: number, eventName: string): Date | undefined => {
+      const eventResult = this.ephem.eph!.swe_rise_trans(
+        julianDay,
+        planetId,
+        null,
+        Constants.SEFLG_SWIEPH,
+        eventType,
+        [longitude, latitude, altitude],
+        0, // atpress: 0 = auto-estimate from altitude
+        0  // attemp: 0°C
+      );
 
-    const setResult = this.ephem.eph.swe_rise_trans(
-      julianDay,
-      planetId,
-      null,
-      Constants.SEFLG_SWIEPH,
-      Constants.SE_CALC_SET,
-      [longitude, latitude, altitude],
-      0, // atpress: 0 = auto-estimate from altitude
-      0  // attemp: 0°C
-    );
-    
-    // Handle return codes explicitly
-    if (setResult.returnCode === -1) {
-      // Hard error - throw
-      throw new Error(`Set calculation failed for ${planetName}: ${setResult.error || 'Unknown error'}`);
-    } else if (setResult.returnCode === -2) {
-      // No set event (circumpolar) - leave field undefined
-      logger.debug(`No set event for ${planetName} (circumpolar or always above horizon)`, {
-        planet: planetName,
-        latitude,
-      });
-    } else if (setResult.tret) {
-      // Success - convert to date
-      result.set = this.ephem.julianDayToDate(setResult.tret);
-    }
+      if (eventResult.returnCode === -1) {
+        throw new Error(`${eventName} calculation failed for ${planetName}: ${eventResult.error || 'Unknown error'}`);
+      } else if (eventResult.returnCode === -2) {
+        logger.debug(`No ${eventName} for ${planetName} (circumpolar or no event)`, {
+          planet: planetName,
+          latitude,
+        });
+        return undefined;
+      } else if (eventResult.tret) {
+        return this.ephem.julianDayToDate(eventResult.tret);
+      }
+      return undefined;
+    };
 
-    // Upper meridian transit (culmination - highest point)
-    const upperTransitResult = this.ephem.eph.swe_rise_trans(
-      julianDay,
-      planetId,
-      null,
-      Constants.SEFLG_SWIEPH,
-      Constants.SE_CALC_MTRANSIT,
-      [longitude, latitude, altitude],
-      0, // atpress: 0 = auto-estimate from altitude
-      0  // attemp: 0°C
-    );
-    
-    // Handle return codes explicitly
-    if (upperTransitResult.returnCode === -1) {
-      // Hard error - throw
-      throw new Error(`Upper meridian calculation failed for ${planetName}: ${upperTransitResult.error || 'Unknown error'}`);
-    } else if (upperTransitResult.returnCode === -2) {
-      // No event - leave field undefined
-      logger.debug(`No upper meridian transit for ${planetName}`, { planet: planetName, latitude });
-    } else if (upperTransitResult.tret) {
-      // Success
-      result.upperMeridianTransit = this.ephem.julianDayToDate(upperTransitResult.tret);
-    }
-    
-    // Lower meridian transit (anti-culmination - lowest point)
-    const lowerTransitResult = this.ephem.eph.swe_rise_trans(
-      julianDay,
-      planetId,
-      null,
-      Constants.SEFLG_SWIEPH,
-      Constants.SE_CALC_ITRANSIT,
-      [longitude, latitude, altitude],
-      0, // atpress: 0 = auto-estimate from altitude
-      0  // attemp: 0°C
-    );
-    
-    // Handle return codes explicitly
-    if (lowerTransitResult.returnCode === -1) {
-      // Hard error - throw
-      throw new Error(`Lower meridian calculation failed for ${planetName}: ${lowerTransitResult.error || 'Unknown error'}`);
-    } else if (lowerTransitResult.returnCode === -2) {
-      // No event - leave field undefined
-      logger.debug(`No lower meridian transit for ${planetName}`, { planet: planetName, latitude });
-    } else if (lowerTransitResult.tret) {
-      // Success
-      result.lowerMeridianTransit = this.ephem.julianDayToDate(lowerTransitResult.tret);
-    }
+    result.rise = calculateEvent(Constants.SE_CALC_RISE, 'rise');
+    result.set = calculateEvent(Constants.SE_CALC_SET, 'set');
+    result.upperMeridianTransit = calculateEvent(Constants.SE_CALC_MTRANSIT, 'upper meridian transit');
+    result.lowerMeridianTransit = calculateEvent(Constants.SE_CALC_ITRANSIT, 'lower meridian transit');
 
     return result;
   }
 
-  /**
-   * Calculate atmospheric pressure from altitude
-   * 
-   * @param altitude - Altitude in meters above sea level
-   * @returns Atmospheric pressure in millibars (hPa)
-   * 
-   * @remarks
-   * Uses barometric formula approximation. At sea level (0m), returns 1013.25 mbar.
-   * Decreases approximately 1 mbar per 8 meters of altitude gain.
-   */
-  private calculatePressure(altitude: number): number {
-    // Barometric formula: P = P0 * (1 - 0.0065*h/T0)^5.255
-    // Simplified approximation: ~1 mbar decrease per 8m altitude
-    return Math.max(0, 1013.25 - altitude * 0.125);
-  }
 
   /**
-   * Get rise/set times for all planets on a given date
+   * Get rise/set times for all planets for a given date
    * 
-   * @param date - Date for calculation
-   * @param latitude - Observer latitude in degrees
+   * @param date - Date/time to use as search anchor (typically current instant or midnight of target date)
+   * @param latitude - Observer latitude in degrees (-90 to 90)
    * @param longitude - Observer longitude in degrees
    * @param altitude - Observer altitude in meters (default: 0)
    * @returns Array of rise/set times for all planets
-   * @throws Error if ephemeris not initialized
+   * @throws Error if ephemeris not initialized or invalid inputs
    * 
    * @remarks
    * Calculates for Sun through Pluto. Some fields may be undefined
    * for circumpolar objects at extreme latitudes.
+   * 
+   * Swiss Ephemeris searches for the NEXT event after the given instant,
+   * so to get events for a specific civil date, pass midnight of that date.
    */
   async getAllRiseSet(
     date: Date,
@@ -211,15 +145,34 @@ export class RiseSetCalculator {
     longitude: number,
     altitude: number = 0
   ): Promise<RiseSetTime[]> {
+    // Validate shared inputs once - these are configuration errors, not planet-specific failures
+    if (!this.ephem.eph) {
+      throw new Error('Ephemeris not initialized');
+    }
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+      throw new Error('Invalid date');
+    }
+    if (latitude < -90 || latitude > 90) {
+      throw new Error(`Invalid latitude: ${latitude} (must be -90 to 90)`);
+    }
+    if (!Number.isFinite(longitude)) {
+      throw new Error('Invalid longitude: must be a finite number');
+    }
+    if (!Number.isFinite(altitude)) {
+      throw new Error('Invalid altitude: must be a finite number');
+    }
+
     const jd = this.ephem.dateToJulianDay(date);
     const results: RiseSetTime[] = [];
 
     // Calculate for Sun through Pluto (0-9)
+    // Only catch planet-specific computation failures (e.g., circumpolar edge cases)
     for (let planetId = 0; planetId <= 9; planetId++) {
       try {
         const riseSet = this.calculateRiseSet(jd, planetId, latitude, longitude, altitude);
         results.push(riseSet);
       } catch (error) {
+        // Planet-specific calculation failure - log and continue with other planets
         logger.warn(`Failed to calculate rise/set for planet ${planetId}`, {
           error: error instanceof Error ? error.message : String(error),
         });
@@ -230,24 +183,40 @@ export class RiseSetCalculator {
   }
 
   /**
-   * Get today's rise/set times for the Sun
+   * Get Sun rise/set times for the current instant
    * 
-   * @param latitude - Observer latitude in degrees
+   * @param latitude - Observer latitude in degrees (-90 to 90)
    * @param longitude - Observer longitude in degrees
    * @param altitude - Observer altitude in meters (default: 0)
    * @returns Rise/set times for the Sun
-   * @throws Error if ephemeris not initialized
+   * @throws Error if ephemeris not initialized or invalid inputs
    * 
    * @remarks
-   * Convenience method for the most common use case - sunrise and sunset.
+   * Searches for the next sunrise/sunset after the current instant.
+   * If called in the afternoon, sunrise will be tomorrow.
+   * For events on a specific civil date, use calculateRiseSet with midnight JD.
    */
   async getSunRiseSet(
     latitude: number,
     longitude: number,
     altitude: number = 0
   ): Promise<RiseSetTime> {
-    const today = new Date();
-    const jd = this.ephem.dateToJulianDay(today);
+    // Validate inputs before calculation
+    if (!this.ephem.eph) {
+      throw new Error('Ephemeris not initialized');
+    }
+    if (latitude < -90 || latitude > 90) {
+      throw new Error(`Invalid latitude: ${latitude} (must be -90 to 90)`);
+    }
+    if (!Number.isFinite(longitude)) {
+      throw new Error('Invalid longitude: must be a finite number');
+    }
+    if (!Number.isFinite(altitude)) {
+      throw new Error('Invalid altitude: must be a finite number');
+    }
+
+    const now = new Date();
+    const jd = this.ephem.dateToJulianDay(now);
     return this.calculateRiseSet(jd, 0, latitude, longitude, altitude); // Sun is planet ID 0
   }
 }

@@ -26,9 +26,13 @@ export type ToolIssueCode =
   | 'EPHEMERIS_NOT_INITIALIZED'
   | 'EPHEMERIS_COMPUTE_FAILED'
   | 'TIMEZONE_ERROR'
+  | 'INVALID_TIMEZONE'
   | 'MISSING_NATAL_CHART'
   | 'INVALID_DATE'
-  | 'INVALID_HOUSE_SYSTEM';
+  | 'INVALID_HOUSE_SYSTEM'
+  | 'FILE_WRITE_FAILED'
+  | 'CHART_RENDER_FAILED'
+  | 'INTERNAL_ERROR';
 
 /**
  * Structured error information for tool operations
@@ -99,6 +103,47 @@ export function success<T>(data: T, warnings?: ToolIssue[]): ToolResult<T> {
  */
 export function failure(error: ToolIssue): ToolResult<never> {
   return { ok: false, error };
+}
+
+/**
+ * Schema version for structured responses.
+ * Increment on breaking changes to response shapes.
+ */
+export const SCHEMA_VERSION = '1.0';
+
+/**
+ * Build a successful MCP tool response with structured data + human text.
+ *
+ * @param data - Structured payload
+ * @param humanText - Human-readable summary
+ * @param warnings - Optional warnings
+ * @returns MCP content array (JSON first, text second)
+ */
+export function mcpResult<T>(data: T, humanText: string, warnings?: ToolIssue[]) {
+  const envelope = warnings
+    ? { ok: true as const, schemaVersion: SCHEMA_VERSION, data, warnings }
+    : { ok: true as const, schemaVersion: SCHEMA_VERSION, data };
+  return {
+    content: [
+      { type: 'text' as const, text: JSON.stringify(envelope, null, 2) },
+      { type: 'text' as const, text: humanText },
+    ],
+  };
+}
+
+/**
+ * Build an error MCP tool response with structured error.
+ *
+ * @param error - Structured error information
+ * @returns MCP content array with isError flag
+ */
+export function mcpError(error: ToolIssue) {
+  return {
+    content: [
+      { type: 'text' as const, text: JSON.stringify({ ok: false, schemaVersion: SCHEMA_VERSION, error }, null, 2) },
+    ],
+    isError: true,
+  };
 }
 
 /**
