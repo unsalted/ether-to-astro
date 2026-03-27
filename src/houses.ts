@@ -163,14 +163,6 @@ export class HouseCalculator {
     // Validate against allowed systems
     const validSystems: HouseSystem[] = ['P', 'W', 'K', 'E', 'O', 'R', 'C', 'A', 'V', 'X', 'H', 'T', 'B'];
     if (!validSystems.includes(normalized as HouseSystem)) {
-      // Check if it's a multi-character name that wasn't mapped
-      if (system.length > 1 && !nameMap[upperSystem]) {
-        throw new Error('Invalid house system');
-      }
-      // Check if it's a single character that's not valid
-      if (system.length === 1 && !validSystems.includes(normalized as HouseSystem)) {
-        throw new Error('Invalid house system');
-      }
       throw new Error(`Invalid house system: ${system}. Valid systems: ${validSystems.join(', ')}`);
     }
     

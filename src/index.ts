@@ -416,30 +416,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        // Parse parameters with defaults
         const dateStr = args.date as string | undefined;
-        const categories = (args.categories as string[]) || ['all'];
-        const includeMundane = (args.include_mundane as boolean) || false;
-        const daysAhead = (args.days_ahead as number) || 0;
-        const maxOrb = (args.max_orb as number) || 8;
-        const exactOnly = (args.exact_only as boolean) || false;
-        const applyingOnly = (args.applying_only as boolean) || false;
-
-        // Determine which planets to include
-        let transitingPlanetIds: number[] = [];
-        if (categories.includes('all')) {
-          transitingPlanetIds = Object.values(PLANETS);
-        } else {
-          if (categories.includes('moon')) {
-            transitingPlanetIds.push(PLANETS.MOON);
-          }
-          if (categories.includes('personal')) {
-            transitingPlanetIds.push(...PERSONAL_PLANETS.filter(p => p !== PLANETS.MOON));
-          }
-          if (categories.includes('outer')) {
-            transitingPlanetIds.push(...OUTER_PLANETS);
-          }
-        }
+        const transitingPlanetIds = [PLANETS.MOON];
+        const daysAhead = 0;
+        const maxOrb = 8;
+        const exactOnly = false;
+        const applyingOnly = false;
+        const includeMundane = false;
 
         // Parse date or use today
         const targetDate = dateStr
@@ -562,13 +545,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
          * Includes zodiac signs, degrees, and retrograde status.
          */
         const dateStr = args.date as string | undefined;
-        const categories = (args.categories as string[]) || ['all'];
-        const includeMundane = (args.include_mundane as boolean) || false;
-        const daysAhead = (args.days_ahead as number) || 0;
-        const maxOrb = (args.max_orb as number) || 8;
+        
+        // Use provided date or current time
+        const targetDate = dateStr
+          ? new Date(dateStr + 'T12:00:00Z')
+          : new Date();
 
-        const now = new Date();
-        const jd = ephem.dateToJulianDay(now);
+        const jd = ephem.dateToJulianDay(targetDate);
         const allPlanetIds = Object.values(PLANETS);
         const positions = ephem.getAllPlanets(jd, allPlanetIds);
 
@@ -601,30 +584,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        // Parse parameters with defaults
         const dateStr = args.date as string | undefined;
-        const categories = (args.categories as string[]) || ['all'];
-        const includeMundane = (args.include_mundane as boolean) || false;
-        const daysAhead = (args.days_ahead as number) || 0;
-        const maxOrb = (args.max_orb as number) || 8;
-        const exactOnly = (args.exact_only as boolean) || false;
-        const applyingOnly = (args.applying_only as boolean) || false;
-
-        // Determine which planets to include
-        let transitingPlanetIds: number[] = [];
-        if (categories.includes('all')) {
-          transitingPlanetIds = Object.values(PLANETS);
-        } else {
-          if (categories.includes('moon')) {
-            transitingPlanetIds.push(PLANETS.MOON);
-          }
-          if (categories.includes('personal')) {
-            transitingPlanetIds.push(...PERSONAL_PLANETS.filter(p => p !== PLANETS.MOON));
-          }
-          if (categories.includes('outer')) {
-            transitingPlanetIds.push(...OUTER_PLANETS);
-          }
-        }
+        const transitingPlanetIds = PERSONAL_PLANETS;
+        const daysAhead = 0;
+        const maxOrb = 8;
+        const exactOnly = false;
+        const applyingOnly = false;
+        const includeMundane = false;
 
         // Parse date or use today
         const targetDate = dateStr
@@ -755,30 +721,56 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        // Parse parameters with defaults
-        const dateStr = args.date as string | undefined;
-        const categories = (args.categories as string[]) || ['all'];
-        const includeMundane = (args.include_mundane as boolean) || false;
-        const daysAhead = (args.days_ahead as number) || 0;
-        const maxOrb = (args.max_orb as number) || 8;
-        const exactOnly = (args.exact_only as boolean) || false;
-        const applyingOnly = (args.applying_only as boolean) || false;
+        const now = new Date();
+        const jd = ephem.dateToJulianDay(now);
+        const allPlanetIds = Object.values(PLANETS);
+        const transitingPlanets = ephem.getAllPlanets(jd, allPlanetIds);
+        const transits = transitCalc.findTransits(transitingPlanets, natalChart.planets || [], jd);
 
-        // Determine which planets to include
-        let transitingPlanetIds: number[] = [];
-        if (categories.includes('all')) {
-          transitingPlanetIds = Object.values(PLANETS);
-        } else {
-          if (categories.includes('moon')) {
-            transitingPlanetIds.push(PLANETS.MOON);
-          }
-          if (categories.includes('personal')) {
-            transitingPlanetIds.push(...PERSONAL_PLANETS.filter(p => p !== PLANETS.MOON));
-          }
-          if (categories.includes('outer')) {
-            transitingPlanetIds.push(...OUTER_PLANETS);
-          }
+        // Filter to only transits with exact times calculated
+        const exactTransits = transits.filter(t => t.exactTime !== undefined);
+
+        const timezone = natalChart.location.timezone;
+        const output = exactTransits
+          .map(t => {
+            const exactStr = t.exactTime 
+              ? TimeFormatter.formatInTimezone(t.exactTime, timezone)
+              : '';
+            return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: ${exactStr}`;
+          })
+          .join('\n');
+
+        return {
+          content: [
+            { type: 'text', text: `Exact Transit Times:\n\n${output}` },
+          ],
+        };
+      }
+
+      case 'get_outer_planet_transits': {
+        /**
+         * Get transits from outer planets
+         * 
+         * @remarks
+         * Includes Jupiter through Pluto transits.
+         * Represents generational, societal themes.
+         */
+        if (!natalChart) {
+          const error = missingNatalChart();
+          return {
+            content: [
+              { type: 'text', text: JSON.stringify({ ok: false, error }, null, 2) },
+            ],
+          };
         }
+
+        const dateStr = args.date as string | undefined;
+        const transitingPlanetIds = OUTER_PLANETS;
+        const daysAhead = 0;
+        const maxOrb = 8;
+        const exactOnly = false;
+        const applyingOnly = false;
+        const includeMundane = false;
 
         // Parse date or use today
         const targetDate = dateStr
