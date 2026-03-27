@@ -53,26 +53,28 @@ export class ChartRenderer {
     this.setupGlobals();
     this.clearContainer();
 
-    const birthDate = new Date(
-      natalChart.birthDate.year,
-      natalChart.birthDate.month - 1,
-      natalChart.birthDate.day,
-      natalChart.birthDate.hour,
-      natalChart.birthDate.minute
-    );
-
-    const jd = this.ephem.dateToJulianDay(birthDate);
+    // Use stored Julian Day if available (avoids recalculation and Date constructor bugs)
+    const jd = natalChart.julianDay || this.ephem.dateToJulianDay(new Date(
+      Date.UTC(
+        natalChart.birthDate.year,
+        natalChart.birthDate.month - 1,
+        natalChart.birthDate.day,
+        natalChart.birthDate.hour,
+        natalChart.birthDate.minute
+      )
+    ));
 
     // Get all planet positions
     const allPlanetIds = [...Object.values(PLANETS), ...ASTEROIDS, ...NODES];
     const positions = this.ephem.getAllPlanets(jd, allPlanetIds);
 
-    // Get houses
+    // Get houses using stored house system preference
+    const houseSystem = natalChart.houseSystem || 'P';
     const houses = this.houseCalc.calculateHouses(
       jd,
       natalChart.location.latitude,
       natalChart.location.longitude,
-      'P'
+      houseSystem
     );
 
     // Convert to AstroChart format
@@ -119,15 +121,16 @@ export class ChartRenderer {
     this.setupGlobals();
     this.clearContainer();
 
-    const birthDate = new Date(
-      natalChart.birthDate.year,
-      natalChart.birthDate.month - 1,
-      natalChart.birthDate.day,
-      natalChart.birthDate.hour,
-      natalChart.birthDate.minute
-    );
-
-    const birthJD = this.ephem.dateToJulianDay(birthDate);
+    // Use stored Julian Day if available
+    const birthJD = natalChart.julianDay || this.ephem.dateToJulianDay(new Date(
+      Date.UTC(
+        natalChart.birthDate.year,
+        natalChart.birthDate.month - 1,
+        natalChart.birthDate.day,
+        natalChart.birthDate.hour,
+        natalChart.birthDate.minute
+      )
+    ));
     const transitJD = this.ephem.dateToJulianDay(transitDate || new Date());
 
     // Get natal positions
@@ -135,12 +138,13 @@ export class ChartRenderer {
     const natalPositions = this.ephem.getAllPlanets(birthJD, allPlanetIds);
     const transitPositions = this.ephem.getAllPlanets(transitJD, allPlanetIds);
 
-    // Get houses
+    // Get houses using stored house system preference
+    const houseSystem = natalChart.houseSystem || 'P';
     const houses = this.houseCalc.calculateHouses(
       birthJD,
       natalChart.location.latitude,
       natalChart.location.longitude,
-      'P'
+      houseSystem
     );
 
     // Convert to AstroChart format

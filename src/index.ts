@@ -18,6 +18,7 @@ import {
   OUTER_PLANETS,
   PERSONAL_PLANETS,
   PLANETS,
+  ZODIAC_SIGNS,
 } from './types.js';
 
 const server = new Server(
@@ -51,7 +52,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'set_natal_chart',
         description:
-          'Store natal chart data for transit calculations. Requires birth date, time, and location.',
+          'Store natal chart data for transit calculations. Birth time should be LOCAL time at the birth location (not UTC). The server will convert to UTC using the timezone parameter and return verification details including Sun, Moon, Ascendant, and MC positions.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -62,11 +63,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             year: { type: 'number', description: 'Birth year' },
             month: { type: 'number', description: 'Birth month (1-12)' },
             day: { type: 'number', description: 'Birth day' },
-            hour: { type: 'number', description: 'Birth hour (0-23, UTC)' },
+            hour: { type: 'number', description: 'Birth hour (0-23, LOCAL TIME at birth location)' },
             minute: { type: 'number', description: 'Birth minute' },
             latitude: { type: 'number', description: 'Birth location latitude' },
             longitude: { type: 'number', description: 'Birth location longitude' },
-            timezone: { type: 'string', description: 'Timezone (e.g., America/Los_Angeles)' },
+            timezone: { type: 'string', description: 'Timezone (e.g., America/New_York, Europe/London)' },
+            house_system: {
+              type: 'string',
+              description: 'House system preference: P=Placidus (default), W=Whole Sign, K=Koch, E=Equal',
+              enum: ['P', 'W', 'K', 'E'],
+            },
           },
           required: [
             'name',
@@ -252,6 +258,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case 'set_natal_chart': {
+        // Import time-utils at runtime to avoid circular dependencies
+        const { localToUTC, utcToLocal } = await import('./time-utils.js');
+        
         const chart: NatalChart = {
           name: args.name as string,
           birthDate: {
@@ -268,28 +277,89 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         };
 
-        // Calculate planet positions for the natal chart
-        const birthDate = new Date(
-          Date.UTC(
-            chart.birthDate.year,
-            chart.birthDate.month - 1,
-            chart.birthDate.day,
-            chart.birthDate.hour,
-            chart.birthDate.minute
-          )
-        );
-        const jd = ephem.dateToJulianDay(birthDate);
+        // Convert local birth time to UTC
+        const utcDate = localToUTC(chart.birthDate, chart.location.timezone);
+        const utcComponents = utcToLocal(utcDate, 'UTC');
+        
+        // Calculate Julian Day from UTC time
+        const jd = ephem.dateToJulianDay(utcDate);
+        
+        // Calculate planet positions
         const planetIds = Object.values(PLANETS);
         const positions = ephem.getAllPlanets(jd, planetIds);
+        
+        // Determine house system (default to Placidus, or Whole Sign for polar latitudes)
+        let houseSystem = (args.house_system as string) || 'P';
+        const isPolar = Math.abs(chart.location.latitude) > 66;
+        
+        // For polar latitudes, suggest Whole Sign if not specified
+        if (isPolar && !args.house_system) {
+          houseSystem = 'W'; // Whole Sign works at all latitudes
+        }
+        
+        // Calculate houses for verification
+        const houses = houseCalc.calculateHouses(
+          jd,
+          chart.location.latitude,
+          chart.location.longitude,
+          houseSystem
+        );
 
-        // Store chart with calculated positions in memory
-        natalChart = { ...chart, planets: positions };
+        // Store chart with all calculated data
+        natalChart = {
+          ...chart,
+          planets: positions,
+          julianDay: jd,
+          houseSystem,
+          utcDateTime: utcComponents,
+        };
+        
+        // Return detailed verification feedback
+        const sun = positions.find(p => p.planet === 'Sun');
+        const moon = positions.find(p => p.planet === 'Moon');
+        
+        const formatDegree = (lon: number) => {
+          const sign = ZODIAC_SIGNS[Math.floor(lon / 30)];
+          const degree = lon % 30;
+          return `${degree.toFixed(0)}° ${sign}`;
+        };
+        
+        const localTimeStr = `${chart.birthDate.month}/${chart.birthDate.day}/${chart.birthDate.year} ${chart.birthDate.hour}:${String(chart.birthDate.minute).padStart(2, '0')}`;
+        const utcTimeStr = `${utcComponents.month}/${utcComponents.day}/${utcComponents.year} ${utcComponents.hour}:${String(utcComponents.minute).padStart(2, '0')} UTC`;
+        
+        const systemNames: { [key: string]: string } = {
+          P: 'Placidus',
+          W: 'Whole Sign',
+          K: 'Koch',
+          E: 'Equal',
+        };
+        
+        const feedback = [
+          `Natal chart saved for ${chart.name}`,
+          '',
+          'Birth Details:',
+          `- Local Time: ${localTimeStr} (${chart.location.timezone})`,
+          `- UTC Time: ${utcTimeStr}`,
+          `- Location: ${chart.location.latitude.toFixed(2)}°N, ${chart.location.longitude.toFixed(2)}°W`,
+          '',
+          'Chart Angles:',
+          `- Sun: ${formatDegree(sun?.longitude || 0)}`,
+          `- Moon: ${formatDegree(moon?.longitude || 0)}`,
+          `- Ascendant: ${formatDegree(houses.ascendant)}`,
+          `- MC: ${formatDegree(houses.mc)}`,
+          '',
+          `House System: ${systemNames[houseSystem] || houseSystem}`,
+        ];
+        
+        if (isPolar) {
+          feedback.push('', `Note: Polar latitude detected (${chart.location.latitude.toFixed(1)}°). Using ${systemNames[houseSystem]} house system.`);
+        }
 
         return {
           content: [
             {
               type: 'text',
-              text: `Natal chart saved for ${chart.name}. Birth chart calculated and stored in memory.`,
+              text: feedback.join('\n'),
             },
           ],
         };
@@ -534,9 +604,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        const now = new Date();
-        const jd = ephem.dateToJulianDay(now);
-        const system = (args.system as string) || 'P';
+        // Use natal chart's birth Julian Day (not current time!)
+        const jd = natalChart.julianDay || ephem.dateToJulianDay(new Date(
+          Date.UTC(
+            natalChart.birthDate.year,
+            natalChart.birthDate.month - 1,
+            natalChart.birthDate.day,
+            natalChart.birthDate.hour,
+            natalChart.birthDate.minute
+          )
+        ));
+        
+        // Use stored house system preference, or allow override
+        const system = (args.system as string) || natalChart.houseSystem || 'P';
 
         const houses = houseCalc.calculateHouses(
           jd,
