@@ -136,63 +136,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: 'get_daily_transits',
-        description: 'Get all current planetary positions (mundane transits) for today. DEPRECATED: Use get_transits with include_mundane=true instead.',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-      {
-        name: 'get_moon_transits',
-        description: 'Get Moon transits to natal chart planets for today. DEPRECATED: Use get_transits with categories=["moon"] instead.',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-      {
-        name: 'get_personal_planet_transits',
-        description:
-          'Get transits from personal planets (Sun, Mercury, Venus, Mars) to natal chart. DEPRECATED: Use get_transits with categories=["personal"] instead.',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-      {
-        name: 'get_outer_planet_transits',
-        description:
-          'Get transits from outer planets (Jupiter, Saturn, Uranus, Neptune, Pluto) to natal chart. DEPRECATED: Use get_transits with categories=["outer"] instead.',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-      {
-        name: 'get_upcoming_transits',
-        description:
-          'Get upcoming transits within orb (approaching within 2 degrees) for the next several days. DEPRECATED: Use get_transits with days_ahead parameter instead.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            days: {
-              type: 'number',
-              description: 'Number of days to look ahead (default: 7)',
-              default: 7,
-            },
-          },
-        },
-      },
-      {
-        name: 'get_exact_transit_times',
-        description: 'Calculate exact times when current transits become exact (0° orb). DEPRECATED: Use get_transits with exact_only=true instead.',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-      {
         name: 'get_houses',
         description:
           'Calculate house cusps, Ascendant, and Midheaven for the natal chart using the specified house system',
@@ -516,8 +459,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           })),
         };
 
+        // If include_mundane, also add current planetary positions
+        let responseData: any = structuredData;
+        let mundaneText = '';
+        
+        if (includeMundane) {
+          const currentJD = ephem.dateToJulianDay(targetDate);
+          const currentPositions = ephem.getAllPlanets(currentJD, transitingPlanetIds);
+          
+          const mundaneData: PlanetPositionResponse = {
+            date: targetDate.toISOString().split('T')[0],
+            timezone,
+            positions: currentPositions,
+          };
+          
+          responseData = { transits: structuredData, mundane: mundaneData };
+          
+          mundaneText = '\n\nCurrent Planetary Positions:\n\n' + currentPositions
+            .map(p => `${p.planet}: ${p.degree.toFixed(1)}° ${p.sign} (${p.isRetrograde ? 'Rx' : 'Direct'})`)
+            .join('\n');
+        }
+
         // Build human-readable text
-        if (filteredTransits.length === 0) {
+        if (filteredTransits.length === 0 && !includeMundane) {
           return {
             content: [
               { type: 'text', text: JSON.stringify(structuredData, null, 2) },
@@ -537,348 +501,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           .join('\n');
 
         const rangeStr = daysAhead > 0 ? ` (next ${daysAhead + 1} days)` : '';
+        const transitHeader = filteredTransits.length > 0 ? `\n\nTransits${rangeStr}:\n\n${humanText}` : '';
+        
         return {
           content: [
-            { type: 'text', text: JSON.stringify(structuredData, null, 2) },
-            { type: 'text', text: `\n\nTransits${rangeStr}:\n\n${humanText}` },
-          ],
-        };
-      }
-
-      case 'get_daily_transits': {
-        const now = new Date();
-        const jd = ephem.dateToJulianDay(now);
-        const planetIds = Object.values(PLANETS);
-        const positions = ephem.getAllPlanets(jd, planetIds);
-
-        const timezone = natalChart?.location.timezone || 'UTC';
-        const dateStr = TimeFormatter.formatDateOnly(now, timezone);
-
-        const output = positions
-          .map((p) => `${p.planet}: ${p.degree.toFixed(2)}° ${p.sign} (${p.longitude.toFixed(2)}°)`)
-          .join('\n');
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Current Planetary Positions (${dateStr}):\n\n${output}`,
-            },
-          ],
-        };
-      }
-
-      case 'get_moon_transits': {
-        if (!natalChart) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: 'No natal chart found. Please set natal chart first using set_natal_chart.',
-              },
-            ],
-          };
-        }
-
-        const now = new Date();
-        const jd = ephem.dateToJulianDay(now);
-        const moonPos = ephem.getPlanetPosition(PLANETS.MOON, jd);
-
-        const transits = transitCalc.findTransits([moonPos], natalChart.planets || [], jd);
-
-        if (transits.length === 0) {
-          return {
-            content: [{ type: 'text', text: 'No Moon transits within orb today.' }],
-          };
-        }
-
-        const timezone = natalChart.location.timezone;
-        
-        // Build structured response
-        const structuredData: TransitResponse = {
-          date: now.toISOString().split('T')[0],
-          timezone,
-          transits: transits.map(t => ({
-            transitingPlanet: t.transitingPlanet,
-            aspect: t.aspect,
-            natalPlanet: t.natalPlanet,
-            orb: Number.parseFloat(t.orb.toFixed(2)),
-            isApplying: t.isApplying,
-            exactTime: t.exactTime?.toISOString(),
-            transitLongitude: t.transitLongitude,
-            natalLongitude: t.natalLongitude,
-          })),
-        };
-        
-        // Build human-readable text
-        const humanText = transits
-          .map((t) => {
-            const exactStr = t.exactTime
-              ? ` - Exact: ${TimeFormatter.formatInTimezone(t.exactTime, timezone)}`
-              : '';
-            const applyStr = t.isApplying ? '(applying)' : '(separating)';
-            return `Moon ${t.aspect} ${t.natalPlanet}: ${t.orb.toFixed(2)}° orb ${applyStr}${exactStr}`;
-          })
-          .join('\n');
-
-        return {
-          content: [
-            { type: 'text', text: JSON.stringify(structuredData, null, 2) },
-            { type: 'text', text: `\n\nMoon Transits:\n\n${humanText}` },
-          ],
-        };
-      }
-
-      case 'get_personal_planet_transits': {
-        if (!natalChart) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: 'No natal chart found. Please set natal chart first using set_natal_chart.',
-              },
-            ],
-          };
-        }
-
-        const now = new Date();
-        const jd = ephem.dateToJulianDay(now);
-        const personalPlanets = ephem.getAllPlanets(jd, PERSONAL_PLANETS);
-
-        const transits = transitCalc.findTransits(personalPlanets, natalChart.planets || [], jd);
-
-        if (transits.length === 0) {
-          return {
-            content: [{ type: 'text', text: 'No personal planet transits within orb today.' }],
-          };
-        }
-
-        const timezone = natalChart.location.timezone;
-        
-        // Build structured response
-        const structuredData: TransitResponse = {
-          date: now.toISOString().split('T')[0],
-          timezone,
-          transits: transits.map(t => ({
-            transitingPlanet: t.transitingPlanet,
-            aspect: t.aspect,
-            natalPlanet: t.natalPlanet,
-            orb: Number.parseFloat(t.orb.toFixed(2)),
-            isApplying: t.isApplying,
-            exactTime: t.exactTime?.toISOString(),
-            transitLongitude: t.transitLongitude,
-            natalLongitude: t.natalLongitude,
-          })),
-        };
-        
-        // Build human-readable text
-        const humanText = transits
-          .map((t) => {
-            const exactStr = t.exactTime
-              ? ` - Exact: ${TimeFormatter.formatInTimezone(t.exactTime, timezone)}`
-              : '';
-            const applyStr = t.isApplying ? '(applying)' : '(separating)';
-            return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: ${t.orb.toFixed(2)}° orb ${applyStr}${exactStr}`;
-          })
-          .join('\n');
-
-        return {
-          content: [
-            { type: 'text', text: JSON.stringify(structuredData, null, 2) },
-            { type: 'text', text: `\n\nPersonal Planet Transits:\n\n${humanText}` },
-          ],
-        };
-      }
-
-      case 'get_outer_planet_transits': {
-        if (!natalChart) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: 'No natal chart found. Please set natal chart first using set_natal_chart.',
-              },
-            ],
-          };
-        }
-
-        const now = new Date();
-        const jd = ephem.dateToJulianDay(now);
-        const outerPlanets = ephem.getAllPlanets(jd, OUTER_PLANETS);
-
-        const transits = transitCalc.findTransits(outerPlanets, natalChart.planets || [], jd);
-
-        if (transits.length === 0) {
-          return {
-            content: [{ type: 'text', text: 'No outer planet transits within orb today.' }],
-          };
-        }
-
-        const timezone = natalChart.location.timezone;
-        
-        // Build structured response
-        const structuredData: TransitResponse = {
-          date: now.toISOString().split('T')[0],
-          timezone,
-          transits: transits.map(t => ({
-            transitingPlanet: t.transitingPlanet,
-            aspect: t.aspect,
-            natalPlanet: t.natalPlanet,
-            orb: Number.parseFloat(t.orb.toFixed(2)),
-            isApplying: t.isApplying,
-            exactTime: t.exactTime?.toISOString(),
-            transitLongitude: t.transitLongitude,
-            natalLongitude: t.natalLongitude,
-          })),
-        };
-        
-        // Build human-readable text
-        const humanText = transits
-          .map((t) => {
-            const exactStr = t.exactTime
-              ? ` - Exact: ${TimeFormatter.formatInTimezone(t.exactTime, timezone)}`
-              : '';
-            const applyStr = t.isApplying ? '(applying)' : '(separating)';
-            return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: ${t.orb.toFixed(2)}° orb ${applyStr}${exactStr}`;
-          })
-          .join('\n');
-
-        return {
-          content: [
-            { type: 'text', text: JSON.stringify(structuredData, null, 2) },
-            { type: 'text', text: `\n\nOuter Planet Transits:\n\n${humanText}` },
-          ],
-        };
-      }
-
-      case 'get_upcoming_transits': {
-        if (!natalChart) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: 'No natal chart found. Please set natal chart first using set_natal_chart.',
-              },
-            ],
-          };
-        }
-
-        const days = (args.days as number) || 7;
-        const allPlanetIds = Object.values(PLANETS);
-        const upcomingTransits = transitCalc.getUpcomingTransits(
-          Object.values(PLANETS),
-          natalChart,
-          days
-        );
-
-        if (upcomingTransits.length === 0) {
-          return {
-            content: [
-              { type: 'text', text: `No transits approaching within 2° in the next ${days} days.` },
-            ],
-          };
-        }
-
-        const timezone = natalChart.location.timezone;
-        const now = new Date();
-        
-        // Build structured response
-        const structuredData: TransitResponse = {
-          date: now.toISOString().split('T')[0],
-          timezone,
-          transits: upcomingTransits.map(t => ({
-            transitingPlanet: t.transitingPlanet,
-            aspect: t.aspect,
-            natalPlanet: t.natalPlanet,
-            orb: Number.parseFloat(t.orb.toFixed(2)),
-            isApplying: t.isApplying,
-            exactTime: t.exactTime?.toISOString(),
-            transitLongitude: t.transitLongitude,
-            natalLongitude: t.natalLongitude,
-          })),
-        };
-        
-        // Build human-readable text
-        const humanText = upcomingTransits
-          .map((t) => {
-            const exactStr = t.exactTime
-              ? ` - Exact: ${TimeFormatter.formatInTimezone(t.exactTime, timezone)}`
-              : '';
-            const applyStr = t.isApplying ? '(applying)' : '(separating)';
-            return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: ${t.orb.toFixed(2)}° orb ${applyStr}${exactStr}`;
-          })
-          .join('\n');
-
-        return {
-          content: [
-            { type: 'text', text: JSON.stringify(structuredData, null, 2) },
-            { type: 'text', text: `\n\nUpcoming Transits (next ${days} days):\n\n${humanText}` },
-          ],
-        };
-      }
-
-      case 'get_exact_transit_times': {
-        if (!natalChart) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: 'No natal chart found. Please set natal chart first using set_natal_chart.',
-              },
-            ],
-          };
-        }
-
-        const now = new Date();
-        const jd = ephem.dateToJulianDay(now);
-        const allPlanetIds = Object.values(PLANETS);
-        const currentPlanets = ephem.getAllPlanets(jd, allPlanetIds);
-
-        const transits = transitCalc.findTransits(currentPlanets, natalChart.planets || [], jd);
-        const exactTransits = transits.filter((t) => t.exactTime !== undefined);
-
-        if (exactTransits.length === 0) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: 'No transits close enough to calculate exact times (must be within 2° orb).',
-              },
-            ],
-          };
-        }
-
-        const timezone = natalChart.location.timezone;
-        
-        // Build structured response
-        const structuredData: TransitResponse = {
-          date: now.toISOString().split('T')[0],
-          timezone,
-          transits: exactTransits.map(t => ({
-            transitingPlanet: t.transitingPlanet,
-            aspect: t.aspect,
-            natalPlanet: t.natalPlanet,
-            orb: Number.parseFloat(t.orb.toFixed(2)),
-            isApplying: t.isApplying,
-            exactTime: t.exactTime!.toISOString(),
-            transitLongitude: t.transitLongitude,
-            natalLongitude: t.natalLongitude,
-          })),
-        };
-        
-        // Build human-readable text
-        const humanText = exactTransits
-          .map((t) => {
-            const exactStr = TimeFormatter.formatInTimezone(t.exactTime!, timezone);
-            const applyStr = t.isApplying ? '(applying)' : '(separating)';
-            return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: Exact at ${exactStr} ${applyStr}`;
-          })
-          .join('\n');
-
-        return {
-          content: [
-            { type: 'text', text: JSON.stringify(structuredData, null, 2) },
-            { type: 'text', text: `\n\nExact Transit Times:\n\n${humanText}` },
+            { type: 'text', text: JSON.stringify(responseData, null, 2) },
+            { type: 'text', text: transitHeader + mundaneText },
           ],
         };
       }

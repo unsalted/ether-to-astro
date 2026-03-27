@@ -41,13 +41,45 @@ export class TransitCalculator {
 
             let exactTime: Date | undefined;
             if (orb < EXACT_TIME_ORB_THRESHOLD) {
-              const targetLon = this.calculateTargetLongitude(natalPlanet.longitude, aspect.angle);
-              const exactJD = this.ephem.findExactTransitTime(
-                this.getPlanetIdByName(transitPlanet.planet),
-                targetLon,
-                currentJD - EXACT_TIME_SEARCH_WINDOW,
-                currentJD + EXACT_TIME_SEARCH_WINDOW
+              // For non-conjunction/opposition aspects, there are 2 possible target longitudes
+              const target1 = (natalPlanet.longitude + aspect.angle) % 360;
+              const target2 = (natalPlanet.longitude - aspect.angle + 360) % 360;
+              
+              const planetId = this.getPlanetIdByName(transitPlanet.planet);
+              
+              // Skip exact time calculation for unknown bodies
+              if (planetId === null) {
+                continue;
+              }
+              
+              // Calculate dynamic search window based on planet speed
+              // Slow movers (Saturn/Uranus/Neptune/Pluto) need wider windows
+              const speed = Math.abs(transitPlanet.speed);
+              const daysToMove2Deg = speed > 0 ? 2 / speed : 30;
+              const searchWindow = Math.min(Math.max(daysToMove2Deg, EXACT_TIME_SEARCH_WINDOW), 90);
+              
+              // Search both targets (for conjunction/opposition, they're the same or opposite)
+              const exactJD1 = this.ephem.findExactTransitTime(
+                planetId, target1,
+                currentJD - searchWindow, currentJD + searchWindow
               );
+              const exactJD2 = aspect.angle !== 0 && aspect.angle !== 180
+                ? this.ephem.findExactTransitTime(
+                    planetId, target2,
+                    currentJD - searchWindow, currentJD + searchWindow
+                  )
+                : null;
+              
+              // Pick the closer one to current JD
+              let exactJD: number | null = null;
+              if (exactJD1 && exactJD2) {
+                exactJD = Math.abs(exactJD1 - currentJD) < Math.abs(exactJD2 - currentJD) 
+                  ? exactJD1 
+                  : exactJD2;
+              } else {
+                exactJD = exactJD1 || exactJD2;
+              }
+              
               if (exactJD) {
                 exactTime = this.ephem.julianDayToDate(exactJD);
               }
@@ -91,7 +123,7 @@ export class TransitCalculator {
     return target;
   }
 
-  private getPlanetIdByName(name: string): number {
+  private getPlanetIdByName(name: string): number | null {
     const planetMap: { [key: string]: number } = {
       Sun: 0,
       Moon: 1,
@@ -103,8 +135,20 @@ export class TransitCalculator {
       Uranus: 7,
       Neptune: 8,
       Pluto: 9,
+      Chiron: 15,
+      Ceres: 17,
+      Pallas: 18,
+      Juno: 19,
+      Vesta: 20,
+      'North Node (Mean)': 10,
+      'North Node (True)': 11,
     };
-    return planetMap[name] || 0;
+    const id = planetMap[name];
+    if (id === undefined) {
+      // Return null for unknown bodies - skip exact time calculation
+      return null;
+    }
+    return id;
   }
 
   getUpcomingTransits(
@@ -131,12 +175,28 @@ export class TransitCalculator {
   }
 
   private deduplicateTransits(transits: Transit[]): Transit[] {
-    const seen = new Set<string>();
-    return transits.filter((t) => {
+    const bestTransits = new Map<string, Transit>();
+    
+    for (const t of transits) {
       const key = `${t.transitingPlanet}-${t.natalPlanet}-${t.aspect}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+      const existing = bestTransits.get(key);
+      
+      if (!existing) {
+        bestTransits.set(key, t);
+      } else {
+        // Keep the better instance:
+        // 1. Prefer exact time if available
+        // 2. Otherwise prefer smaller orb
+        const shouldReplace = 
+          (t.exactTime && !existing.exactTime) ||
+          (!t.exactTime && !existing.exactTime && t.orb < existing.orb);
+        
+        if (shouldReplace) {
+          bestTransits.set(key, t);
+        }
+      }
+    }
+    
+    return Array.from(bestTransits.values());
   }
 }
