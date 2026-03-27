@@ -1,5 +1,6 @@
 export const TOLERANCES = {
   astrologPositionLongitudeDeg: 0.02,
+  astrologHouseDeg: 0.2,
   positionLongitudeDeg: 0.0001,
   positionLatitudeDeg: 0.0001,
   positionSpeedDegPerDay: 0.0001,

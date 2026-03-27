@@ -51,6 +51,12 @@ export interface PositionFixture {
   expected: NormalizedBody[];
 }
 
+export interface AstrologPositionParityFixture {
+  name: string;
+  isoUtc: string;
+  planetIds: number[];
+}
+
 export interface HouseFixture {
   name: string;
   isoUtc: string;
@@ -58,6 +64,15 @@ export interface HouseFixture {
   longitude: number;
   houseSystem: string;
   expected: NormalizedHouseResult;
+}
+
+export interface AstrologHouseParityFixture {
+  name: string;
+  isoUtc: string;
+  latitude: number;
+  longitude: number;
+  houseSystem: 'P' | 'W';
+  expectFallbackToWholeSign?: boolean;
 }
 
 export interface RootFixture {
@@ -85,6 +100,16 @@ export interface TransitFixture {
   expectExactTimeStatus?: 'within_preview' | 'outside_preview' | 'not_found' | 'unsupported_body' | 'undefined';
 }
 
+export interface AstrologTransitSnapshotFixture {
+  name: string;
+  currentIsoUtc: string;
+  transitingPlanetId: number;
+  natalPlanetId: number;
+  natalOffsetDegrees: number;
+  expectedAspect: 'conjunction' | 'opposition' | 'square' | 'trine' | 'sextile';
+  maxOrb: number;
+}
+
 export interface RiseSetFixture {
   name: string;
   isoUtc: string;
@@ -98,4 +123,19 @@ export interface EclipseFixture {
   name: string;
   startIsoUtc: string;
   type: 'solar' | 'lunar';
+}
+
+export interface AstrologEdgeParityFixture {
+  name: string;
+  isoUtc: string;
+  planetIds: number[];
+  local?: {
+    year: number;
+    month: number;
+    day: number;
+    hour: number;
+    minute: number;
+  };
+  timezone?: string;
+  disambiguation?: 'compatible' | 'earlier' | 'later' | 'reject';
 }

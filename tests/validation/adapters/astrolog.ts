@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import type { NormalizedBody } from '../utils/fixtureTypes.js';
+import type { NormalizedBody, NormalizedHouseResult } from '../utils/fixtureTypes.js';
 
 const BODY_NAMES = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto'];
 
@@ -8,6 +8,12 @@ export interface AstrologProbe {
   available: boolean;
   bin: string;
   reason?: string;
+}
+
+interface AstrologRunOptions {
+  longitude?: number;
+  latitude?: number;
+  houseSystem?: 'P' | 'W';
 }
 
 export function probeAstrolog(): AstrologProbe {
@@ -39,7 +45,7 @@ function parsePositionsFromStdout(stdout: string): NormalizedBody[] {
   for (const line of lines) {
     // Common Astrolog table line format:
     // "Sun :  6Ari38 ..."
-    const tableMatch = line.match(/^(Sun|Moon|Merc|Venu|Mars|Jupi|Satu|Uran|Nept|Plut)\s*:\s*([0-9]{1,2})([A-Za-z]{3})([0-9]{1,2})/i);
+    const tableMatch = line.match(/^(Sun|Moon|Merc|Venu|Mars|Jupi|Satu|Uran|Nept|Plut)\s*:\s*([0-9]{1,2})([A-Za-z]{3})([0-9]{1,2})\s*(R?)\s*[+-]/i);
     if (tableMatch) {
       const bodyMap: Record<string, string> = {
         Sun: 'Sun',
@@ -62,6 +68,7 @@ function parsePositionsFromStdout(stdout: string): NormalizedBody[] {
         parsed.push({
           body,
           longitude: signIndex * 30 + degree + minutes / 60,
+          retrograde: tableMatch[5] === 'R',
         });
       }
       continue;
@@ -102,43 +109,146 @@ function parsePositionsFromStdout(stdout: string): NormalizedBody[] {
     .filter((row): row is NormalizedBody => Boolean(row));
 }
 
-export function getAstrologPositions(isoUtc: string, probe: AstrologProbe): { ok: boolean; positions?: NormalizedBody[]; reason?: string } {
+function toAstrologCoord(value: number, positiveHemisphere: string, negativeHemisphere: string): string {
+  const abs = Math.abs(value);
+  let degrees = Math.floor(abs);
+  let minutes = Math.round((abs - degrees) * 60);
+  if (minutes === 60) {
+    degrees += 1;
+    minutes = 0;
+  }
+  const hemisphere = value >= 0 ? positiveHemisphere : negativeHemisphere;
+  return `${degrees}${hemisphere}${String(minutes).padStart(2, '0')}`;
+}
+
+function runAstrologChart(
+  isoUtc: string,
+  probe: AstrologProbe,
+  options: AstrologRunOptions = {}
+): { ok: boolean; stdout?: string; reason?: string } {
   if (!probe.enabled || !probe.available) {
-    return { ok: false, reason: probe.reason || 'Astrolog not available' };
+    return { ok: false, reason: probe.reason ?? 'Astrolog not available' };
   }
 
   const d = new Date(isoUtc);
-  // Astrolog `-q` in this build parses input in its default fixed zone (shown as ST Zone 8W).
-  // Convert UTC to that clock basis so we compare the same instant.
-  const astrologClock = new Date(d.getTime() - 8 * 60 * 60 * 1000);
-  const month = astrologClock.getUTCMonth() + 1;
-  const day = astrologClock.getUTCDate();
-  const year = astrologClock.getUTCFullYear();
-  const hour = String(astrologClock.getUTCHours()).padStart(2, '0');
-  const minute = String(astrologClock.getUTCMinutes()).padStart(2, '0');
+  const month = d.getUTCMonth() + 1;
+  const day = d.getUTCDate();
+  const year = d.getUTCFullYear();
+  const hour = String(d.getUTCHours()).padStart(2, '0');
+  const minute = String(d.getUTCMinutes()).padStart(2, '0');
+  const longitude = options.longitude ?? 0;
+  const latitude = options.latitude ?? 0;
+  const lonToken = toAstrologCoord(longitude, 'E', 'W');
+  const latToken = toAstrologCoord(latitude, 'N', 'S');
 
-  // Astrolog CLI flags vary by build. Try a few minimal templates.
-  const argSets = [
-    ['-q', String(month), String(day), String(year), `${hour}:${minute}`],
-    ['-q', '-d', `${month}/${day}/${year}`, '-t', `${hour}:${minute}`, '-z', '0'],
-    ['-q', `${month}/${day}/${year}`, `${hour}:${minute}`],
-    ['-q'],
+  const args = [
+    '-qa',
+    String(month),
+    String(day),
+    String(year),
+    `${hour}:${minute}`,
+    '0',
+    lonToken,
+    latToken,
   ];
 
-  for (const args of argSets) {
-    const result = spawnSync(probe.bin, args, { encoding: 'utf8' });
-    if (result.error || result.status !== 0) {
-      continue;
-    }
+  if (options.houseSystem === 'W') {
+    args.push('-c', '14');
+  } else if (options.houseSystem === 'P') {
+    args.push('-c', '0');
+  }
 
-    const parsed = parsePositionsFromStdout(result.stdout);
-    if (parsed.length >= 5) {
-      return { ok: true, positions: parsed };
-    }
+  const result = spawnSync(probe.bin, args, { encoding: 'utf8' });
+  if (result.error || result.status !== 0) {
+    return {
+      ok: false,
+      reason: result.error?.message || result.stderr || `Exit ${result.status}`,
+    };
+  }
+
+  return { ok: true, stdout: result.stdout };
+}
+
+function parseHouseSystem(stdout: string): 'P' | 'W' | null {
+  const match = stdout.match(/(Placidus|Whole)\s+Houses/i);
+  if (!match) return null;
+  if (match[1].toLowerCase() === 'whole') return 'W';
+  return 'P';
+}
+
+function parseHouseCusps(stdout: string): number[] {
+  const cusps: number[] = new Array(12).fill(Number.NaN);
+  const signOrder = ['Ari', 'Tau', 'Gem', 'Can', 'Leo', 'Vir', 'Lib', 'Sco', 'Sag', 'Cap', 'Aqu', 'Pis'];
+
+  const lines = stdout.split(/\r?\n/);
+  for (const line of lines) {
+    const m = line.match(/House cusp\s+(\d+):\s+([0-9]{1,2})([A-Za-z]{3})([0-9]{1,2})/i);
+    if (!m) continue;
+    const cuspIndex = Number(m[1]);
+    if (cuspIndex < 1 || cuspIndex > 12) continue;
+    const degree = Number(m[2]);
+    const signIndex = signOrder.indexOf(m[3]);
+    const minutes = Number(m[4]);
+    if (signIndex < 0) continue;
+    cusps[cuspIndex - 1] = signIndex * 30 + degree + minutes / 60;
+  }
+
+  return cusps;
+}
+
+export function getAstrologPositions(
+  isoUtc: string,
+  probe: AstrologProbe
+): { ok: boolean; positions?: NormalizedBody[]; reason?: string } {
+  const chart = runAstrologChart(isoUtc, probe);
+  if (!chart.ok || !chart.stdout) {
+    return { ok: false, reason: chart.reason };
+  }
+
+  const parsed = parsePositionsFromStdout(chart.stdout);
+  if (parsed.length >= 5) {
+    return { ok: true, positions: parsed };
   }
 
   return {
     ok: false,
     reason: 'Astrolog is installed but output parsing/flags did not yield usable position rows',
+  };
+}
+
+export function getAstrologHouses(
+  input: {
+    isoUtc: string;
+    latitude: number;
+    longitude: number;
+    houseSystem: 'P' | 'W';
+  },
+  probe: AstrologProbe
+): { ok: boolean; houses?: NormalizedHouseResult; reason?: string } {
+  const chart = runAstrologChart(input.isoUtc, probe, {
+    latitude: input.latitude,
+    longitude: input.longitude,
+    houseSystem: input.houseSystem,
+  });
+  if (!chart.ok || !chart.stdout) {
+    return { ok: false, reason: chart.reason };
+  }
+
+  const cusps = parseHouseCusps(chart.stdout);
+  if (cusps.some((c) => !Number.isFinite(c))) {
+    return { ok: false, reason: 'Could not parse all 12 house cusps from Astrolog output' };
+  }
+
+  const system = parseHouseSystem(chart.stdout) ?? input.houseSystem;
+  return {
+    ok: true,
+    houses: {
+      system,
+      cusps,
+      // Astrolog textual chart output doesn't expose explicit ASC/MC values;
+      // use cusp 1/10 proxies for parity sanity.
+      ascendant: cusps[0],
+      mc: cusps[9],
+    },
   };
 }

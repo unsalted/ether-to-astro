@@ -2,13 +2,11 @@ import { writeFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { localToUTC } from '../../src/time-utils.js';
 import { PLANETS, type PlanetPosition } from '../../src/types.js';
-import { getAstrologPositions, probeAstrolog } from './adapters/astrolog.js';
+import { getAstrologHouses, getAstrologPositions, probeAstrolog } from './adapters/astrolog.js';
 import { InternalValidationAdapter } from './adapters/internal.js';
-import { compareEclipses } from './compare/eclipses.js';
 import { compareHouses } from './compare/houses.js';
 import { comparePositions } from './compare/positions.js';
 import { compareRoots } from './compare/roots.js';
-import { compareRiseSet } from './compare/riseSet.js';
 import { assertTransitStatus, findTransit } from './compare/transits.js';
 import { eclipseFixtures } from './fixtures/eclipses/core.js';
 import { houseFixtures } from './fixtures/houses/core.js';
@@ -17,6 +15,12 @@ import { riseSetFixtures } from './fixtures/rise-set/core.js';
 import { rootFixtures } from './fixtures/roots/core.js';
 import { dstFixtures } from './fixtures/transits/dst.js';
 import { transitFixtures } from './fixtures/transits/core.js';
+import {
+  astrologEdgeParityFixtures,
+  astrologHouseParityFixtures,
+  astrologPositionParityFixtures,
+  astrologTransitSnapshotFixtures,
+} from './fixtures/astrolog-parity/core.js';
 import { denseScanRootOracleWithDebug } from './utils/denseRootOracle.js';
 import { formatMismatch, ValidationReport } from './utils/report.js';
 import { TOLERANCES } from './utils/tolerances.js';
@@ -68,10 +72,10 @@ describe('Astro Validation Harness', () => {
     });
 
     const astrologIt = astrologProbe.enabled && astrologProbe.available ? it : it.skip;
-    astrologIt('runs optional Astrolog parity on a subset when enabled and installed', () => {
+    astrologIt('runs expanded Astrolog parity fixtures when enabled and installed', () => {
       const report = new ValidationReport();
-      const subset = positionFixtures.slice(0, 2);
-      for (const fixture of subset) {
+
+      for (const fixture of astrologPositionParityFixtures) {
         const internal = adapter.getPositions(fixture.isoUtc, fixture.planetIds);
         const astrolog = getAstrologPositions(fixture.isoUtc, astrologProbe);
         if (!astrolog.ok || !astrolog.positions) {
@@ -89,7 +93,18 @@ describe('Astro Validation Harness', () => {
 
         for (const row of internal) {
           const ext = astrolog.positions.find((p) => p.body === row.body);
-          if (!ext) continue;
+          if (!ext) {
+            report.addHard({
+              fixture: fixture.name,
+              subsystem: 'astrolog-positions',
+              expected: row.body,
+              actual: 'missing',
+              delta: null,
+              tolerance: 'exact',
+              message: `${row.body} missing in Astrolog output`,
+            });
+            continue;
+          }
           const delta = normalizeLongitudeDelta(row.longitude, ext.longitude);
           if (delta > TOLERANCES.astrologPositionLongitudeDeg) {
             report.addHard({
@@ -102,8 +117,278 @@ describe('Astro Validation Harness', () => {
               message: `${row.body} longitude differs by >${TOLERANCES.astrologPositionLongitudeDeg}° vs Astrolog`,
             });
           }
+          if (typeof ext.retrograde === 'boolean' && row.retrograde !== ext.retrograde) {
+            report.addHard({
+              fixture: fixture.name,
+              subsystem: 'astrolog-positions',
+              expected: row.retrograde,
+              actual: ext.retrograde,
+              delta: null,
+              tolerance: 'exact',
+              message: `${row.body} retrograde flag mismatch vs Astrolog`,
+            });
+          }
         }
       }
+
+      for (const fixture of astrologHouseParityFixtures) {
+        const internal = adapter.getHouseResult(
+          fixture.isoUtc,
+          fixture.latitude,
+          fixture.longitude,
+          fixture.houseSystem
+        );
+
+        if (fixture.expectFallbackToWholeSign) {
+          if (internal.system !== 'W') {
+            report.addHard({
+              fixture: fixture.name,
+              subsystem: 'astrolog-houses',
+              expected: 'W',
+              actual: internal.system,
+              delta: null,
+              tolerance: 'exact',
+              message: 'Expected high-latitude fallback to Whole Sign',
+            });
+          }
+        }
+
+        const astrolog = getAstrologHouses(
+          {
+            isoUtc: fixture.isoUtc,
+            latitude: fixture.latitude,
+            longitude: fixture.longitude,
+            houseSystem: fixture.expectFallbackToWholeSign ? 'W' : fixture.houseSystem,
+          },
+          astrologProbe
+        );
+
+        if (!astrolog.ok || !astrolog.houses) {
+          report.addWarning({
+            fixture: fixture.name,
+            subsystem: 'astrolog-houses',
+            expected: 'parsed houses',
+            actual: astrolog.reason ?? 'unavailable',
+            delta: null,
+            tolerance: 'n/a',
+            message: 'Astrolog house parity skipped for this fixture',
+          });
+          continue;
+        }
+
+        if (astrolog.houses.system !== (fixture.expectFallbackToWholeSign ? 'W' : fixture.houseSystem)) {
+          report.addHard({
+            fixture: fixture.name,
+            subsystem: 'astrolog-houses',
+            expected: fixture.expectFallbackToWholeSign ? 'W' : fixture.houseSystem,
+            actual: astrolog.houses.system,
+            delta: null,
+            tolerance: 'exact',
+            message: 'Astrolog reported unexpected house system label',
+          });
+        }
+
+        for (let i = 0; i < 12; i++) {
+          const delta = normalizeLongitudeDelta(internal.cusps[i], astrolog.houses.cusps[i]);
+          if (delta > TOLERANCES.astrologHouseDeg) {
+            report.addHard({
+              fixture: fixture.name,
+              subsystem: 'astrolog-houses',
+              expected: internal.cusps[i],
+              actual: astrolog.houses.cusps[i],
+              delta,
+              tolerance: TOLERANCES.astrologHouseDeg,
+              message: `House cusp ${i + 1} differs by >${TOLERANCES.astrologHouseDeg}° vs Astrolog`,
+            });
+          }
+        }
+
+        const effectiveHouseSystem = fixture.expectFallbackToWholeSign ? 'W' : fixture.houseSystem;
+        if (effectiveHouseSystem !== 'W') {
+          const ascDelta = normalizeLongitudeDelta(internal.ascendant, astrolog.houses.ascendant);
+          if (ascDelta > TOLERANCES.astrologHouseDeg) {
+            report.addWarning({
+              fixture: fixture.name,
+              subsystem: 'astrolog-houses',
+              expected: internal.ascendant,
+              actual: astrolog.houses.ascendant,
+              delta: ascDelta,
+              tolerance: TOLERANCES.astrologHouseDeg,
+              message: 'ASC proxy differs from Astrolog cusp-1 proxy',
+            });
+          }
+
+          const mcDelta = normalizeLongitudeDelta(internal.mc, astrolog.houses.mc);
+          if (mcDelta > TOLERANCES.astrologHouseDeg) {
+            report.addWarning({
+              fixture: fixture.name,
+              subsystem: 'astrolog-houses',
+              expected: internal.mc,
+              actual: astrolog.houses.mc,
+              delta: mcDelta,
+              tolerance: TOLERANCES.astrologHouseDeg,
+              message: 'MC proxy differs from Astrolog cusp-10 proxy',
+            });
+          }
+        }
+      }
+
+      for (const fixture of astrologTransitSnapshotFixtures) {
+        const planetIds = [
+          PLANETS.SUN,
+          PLANETS.MOON,
+          PLANETS.MERCURY,
+          PLANETS.VENUS,
+          PLANETS.MARS,
+          PLANETS.JUPITER,
+          PLANETS.SATURN,
+          PLANETS.URANUS,
+          PLANETS.NEPTUNE,
+          PLANETS.PLUTO,
+        ];
+        const internalPositions = adapter.getPositions(fixture.currentIsoUtc, planetIds);
+        const astrolog = getAstrologPositions(fixture.currentIsoUtc, astrologProbe);
+        if (!astrolog.ok || !astrolog.positions) {
+          report.addWarning({
+            fixture: fixture.name,
+            subsystem: 'astrolog-transits',
+            expected: 'parsed positions',
+            actual: astrolog.reason ?? 'unavailable',
+            delta: null,
+            tolerance: 'n/a',
+            message: 'Astrolog transit snapshot skipped for this fixture',
+          });
+          continue;
+        }
+
+        for (const row of internalPositions) {
+          const ext = astrolog.positions.find((p) => p.body === row.body);
+          if (!ext) {
+            report.addHard({
+              fixture: fixture.name,
+              subsystem: 'astrolog-transits',
+              expected: row.body,
+              actual: 'missing',
+              delta: null,
+              tolerance: 'exact',
+              message: `${row.body} missing in Astrolog output`,
+            });
+            continue;
+          }
+          const delta = normalizeLongitudeDelta(row.longitude, ext.longitude);
+          if (delta > TOLERANCES.astrologPositionLongitudeDeg) {
+            report.addHard({
+              fixture: fixture.name,
+              subsystem: 'astrolog-transits',
+              expected: row.longitude,
+              actual: ext.longitude,
+              delta,
+              tolerance: TOLERANCES.astrologPositionLongitudeDeg,
+              message: `${row.body} transit longitude differs by >${TOLERANCES.astrologPositionLongitudeDeg}°`,
+            });
+          }
+        }
+
+        const internalTransits = adapter.getTransitsFromOffsets({
+          currentIsoUtc: fixture.currentIsoUtc,
+          transitingPlanetId: fixture.transitingPlanetId,
+          natalPlanetId: fixture.natalPlanetId,
+          natalOffsetDegrees: fixture.natalOffsetDegrees,
+        });
+
+        const currentJD = adapter.ephem.dateToJulianDay(new Date(fixture.currentIsoUtc));
+        const transitingName = adapter.ephem.getPlanetPosition(fixture.transitingPlanetId, currentJD).planet;
+        const natalName = adapter.ephem.getPlanetPosition(fixture.natalPlanetId, currentJD).planet;
+        const hit = findTransit(internalTransits, transitingName, natalName, fixture.expectedAspect);
+        if (!hit) {
+          report.addHard({
+            fixture: fixture.name,
+            subsystem: 'astrolog-transits',
+            expected: fixture.expectedAspect,
+            actual: 'not found',
+            delta: null,
+            tolerance: 'exact',
+            message: 'Expected transit aspect missing in snapshot',
+          });
+          continue;
+        }
+        if (hit.orb > fixture.maxOrb) {
+          report.addHard({
+            fixture: fixture.name,
+            subsystem: 'astrolog-transits',
+            expected: `<= ${fixture.maxOrb}`,
+            actual: hit.orb,
+            delta: null,
+            tolerance: 'exact',
+            message: 'Transit orb exceeds fixture sanity threshold',
+          });
+        }
+      }
+
+      for (const fixture of astrologEdgeParityFixtures) {
+        let isoUtc = fixture.isoUtc;
+        if (fixture.local && fixture.timezone) {
+          const resolved = localToUTC(
+            fixture.local,
+            fixture.timezone,
+            fixture.disambiguation ?? 'compatible'
+          ).toISOString();
+          if (resolved !== fixture.isoUtc) {
+            report.addHard({
+              fixture: fixture.name,
+              subsystem: 'astrolog-edge',
+              expected: fixture.isoUtc,
+              actual: resolved,
+              delta: null,
+              tolerance: 'exact',
+              message: 'Resolved UTC does not match fixture canonical UTC',
+            });
+          }
+          isoUtc = resolved;
+        }
+        const internal = adapter.getPositions(isoUtc, fixture.planetIds);
+        const astrolog = getAstrologPositions(isoUtc, astrologProbe);
+        if (!astrolog.ok || !astrolog.positions) {
+          report.addWarning({
+            fixture: fixture.name,
+            subsystem: 'astrolog-edge',
+            expected: 'parsed positions',
+            actual: astrolog.reason ?? 'unavailable',
+            delta: null,
+            tolerance: 'n/a',
+            message: 'Astrolog edge parity skipped for this fixture',
+          });
+          continue;
+        }
+        for (const row of internal) {
+          const ext = astrolog.positions.find((p) => p.body === row.body);
+          if (!ext) {
+            report.addHard({
+              fixture: fixture.name,
+              subsystem: 'astrolog-edge',
+              expected: row.body,
+              actual: 'missing',
+              delta: null,
+              tolerance: 'exact',
+              message: `${row.body} missing in Astrolog output`,
+            });
+            continue;
+          }
+          const delta = normalizeLongitudeDelta(row.longitude, ext.longitude);
+          if (delta > TOLERANCES.astrologPositionLongitudeDeg) {
+            report.addHard({
+              fixture: fixture.name,
+              subsystem: 'astrolog-edge',
+              expected: row.longitude,
+              actual: ext.longitude,
+              delta,
+              tolerance: TOLERANCES.astrologPositionLongitudeDeg,
+              message: `${row.body} edge-case longitude differs by >${TOLERANCES.astrologPositionLongitudeDeg}°`,
+            });
+          }
+        }
+      }
+
       aggregateReport.hardFailures.push(...report.hardFailures);
       aggregateReport.warnings.push(...report.warnings);
       assertNoHardFailures(report);
@@ -417,7 +702,24 @@ describe('Astro Validation Harness', () => {
         riseSetFixtures[0].latitude,
         riseSetFixtures[0].longitude
       );
-      compareRiseSet(riseSetFixtures[0].name, baseline, baseline, report);
+      expect(baseline.body).toBe('Sun');
+      const eventCount = [
+        baseline.rise,
+        baseline.set,
+        baseline.upperMeridianTransit,
+        baseline.lowerMeridianTransit,
+      ].filter(Boolean).length;
+      if (eventCount === 0) {
+        report.addHard({
+          fixture: riseSetFixtures[0].name,
+          subsystem: 'rise-set',
+          expected: 'at least one event',
+          actual: 0,
+          delta: null,
+          tolerance: '>= 1',
+          message: 'Rise/set smoke check produced zero events',
+        });
+      }
 
       const polar = adapter.getRiseSet(
         riseSetFixtures[1].isoUtc,
@@ -458,13 +760,51 @@ describe('Astro Validation Harness', () => {
       const report = new ValidationReport();
       for (const fixture of eclipseFixtures) {
         const actual = adapter.getNextEclipse(fixture.startIsoUtc, fixture.type);
-        expect(actual).not.toBeNull();
-        if (!actual) continue;
-
-        // Same-engine baseline fixture for deterministic checks.
-        const expected = adapter.getNextEclipse(fixture.startIsoUtc, fixture.type);
-        if (!expected) continue;
-        compareEclipses(fixture.name, expected, actual, report);
+        if (!actual) {
+          report.addHard({
+            fixture: fixture.name,
+            subsystem: 'eclipses',
+            expected: fixture.type,
+            actual: null,
+            delta: null,
+            tolerance: 'non-null',
+            message: 'Eclipse smoke check returned null',
+          });
+          continue;
+        }
+        if (actual.type !== fixture.type) {
+          report.addHard({
+            fixture: fixture.name,
+            subsystem: 'eclipses',
+            expected: fixture.type,
+            actual: actual.type,
+            delta: null,
+            tolerance: 'exact',
+            message: 'Eclipse type mismatch',
+          });
+        }
+        if (!actual.eclipseType?.trim()) {
+          report.addHard({
+            fixture: fixture.name,
+            subsystem: 'eclipses',
+            expected: 'non-empty eclipse subtype',
+            actual: actual.eclipseType,
+            delta: null,
+            tolerance: 'exact',
+            message: 'Eclipse subtype is missing',
+          });
+        }
+        if (Number.isNaN(new Date(actual.maxTime).getTime())) {
+          report.addHard({
+            fixture: fixture.name,
+            subsystem: 'eclipses',
+            expected: 'valid ISO datetime',
+            actual: actual.maxTime,
+            delta: null,
+            tolerance: 'exact',
+            message: 'Eclipse maxTime is not a valid ISO datetime',
+          });
+        }
       }
       aggregateReport.hardFailures.push(...report.hardFailures);
       aggregateReport.warnings.push(...report.warnings);
