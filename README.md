@@ -74,6 +74,7 @@ npm run build
 
 ## How It Works
 
+### In-Memory Storage
 The MCP server uses **in-memory storage** for natal chart data:
 - Each client connection gets its own Node.js process instance
 - Natal chart is stored in RAM for the duration of the connection
@@ -82,6 +83,27 @@ The MCP server uses **in-memory storage** for natal chart data:
 - Simply call `set_natal_chart` again when reconnecting
 
 This design is **MCP-compliant** for stdio transport and ensures complete isolation between different clients.
+
+### Time Handling
+The server accepts **local birth time** (not UTC):
+- Provide birth time in local time at the birth location
+- Specify the IANA timezone (e.g., `America/New_York`, `Europe/London`)
+- The server automatically converts to UTC and handles DST correctly
+- Verification feedback shows both local and UTC times for confirmation
+
+**Example:** Born October 17, 1977 at 1:06 PM in Beaver Falls, PA:
+- Input: `hour: 13, minute: 6, timezone: 'America/New_York'`
+- Server converts: 1:06 PM EDT → 5:06 PM UTC
+- Calculates correct Moon sign (0° Capricorn) and Ascendant (0° Capricorn)
+
+### House Systems
+Supports multiple house systems:
+- **Placidus** (default) - Most common in modern Western astrology
+- **Whole Sign** - Traditional system, works at all latitudes
+- **Koch** - Popular in Europe
+- **Equal** - Simple 30° divisions
+
+The server automatically uses Whole Sign for polar latitudes (>66°) where Placidus fails mathematically. You can specify your preferred system with the `house_system` parameter.
 
 ## Usage
 

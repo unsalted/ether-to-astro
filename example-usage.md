@@ -4,6 +4,14 @@ This document shows how to use the Astro MCP server with an AI agent like Claude
 
 **Note:** The natal chart is stored in memory for the duration of your session. If you disconnect and reconnect, you'll need to call `set_natal_chart` again.
 
+## Important: Time Handling
+
+**Always provide birth time in LOCAL time** (not UTC):
+- Use the time as it appeared on the clock at the birth location
+- Specify the IANA timezone (e.g., `America/New_York`, not `EST`)
+- The server will convert to UTC and handle DST automatically
+- You'll receive verification feedback showing both local and UTC times
+
 ## Setting Up Your Wife's Natal Chart
 
 First, she needs to provide her birth data. Ask your AI agent:
