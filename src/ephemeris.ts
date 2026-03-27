@@ -10,9 +10,30 @@ const DEFAULT_EXACT_TIME_TOLERANCE = 0.01; // degrees
 const MAX_EXACT_TIME_ITERATIONS = 50;
 const TOLERANCE_TO_MINUTES_RATIO = 1440; // Convert tolerance to minutes (1 day = 1440 minutes)
 
+/**
+ * Ephemeris calculator wrapper for Swiss Ephemeris WASM
+ * 
+ * @remarks
+ * Provides a high-level interface for planetary calculations using the
+ * Swiss Ephemeris library compiled to WebAssembly. Handles initialization,
+ * coordinate conversions, and common astrological calculations.
+ * 
+ * All longitudes are tropical (not sidereal) and geocentric.
+ */
 export class EphemerisCalculator {
+  /** Swiss Ephemeris WASM instance */
   public eph: SwissEph | null = null;
 
+  /**
+   * Initialize the Swiss Ephemeris WASM module
+   * 
+   * @returns Promise that resolves when initialization is complete
+   * @throws Error if WASM fails to load or initialize
+   * 
+   * @remarks
+   * Must be called before any other methods. Loads the Swiss Ephemeris
+   * data files and prepares the calculation engine.
+   */
   async init(): Promise<void> {
     if (!this.eph) {
       this.eph = await load();
@@ -50,6 +71,18 @@ export class EphemerisCalculator {
     }
   }
 
+  /**
+   * Convert a JavaScript Date to Julian Day
+   * 
+   * @param date - Date to convert (should be in UTC)
+   * @returns Julian Day number
+   * @throws Error if ephemeris not initialized
+   * 
+   * @remarks
+   * Julian Day is a continuous count of days since noon Universal Time
+   * on January 1, 4713 BCE. It's the standard time system for astronomical
+   * calculations.
+   */
   dateToJulianDay(date: Date): number {
     if (!this.eph) throw new Error('Ephemeris not initialized');
 
@@ -61,10 +94,38 @@ export class EphemerisCalculator {
     return this.eph.swe_julday(year, month, day, hour, Constants.SE_GREG_CAL);
   }
 
-  getPlanetPosition(planetId: number, julianDay: number): PlanetPosition {
+  /**
+   * Normalize angle to 0-360 degree range
+   * 
+   * @param angle - Angle in degrees (may be negative or > 360)
+   * @returns Normalized angle in degrees (0-360)
+   * 
+   * @remarks
+   * Uses modulo arithmetic to handle negative angles correctly.
+   * Example: -10° becomes 350°, 370° becomes 10°.
+   */
+  private normalizeAngle(angle: number): number {
     if (!this.eph) throw new Error('Ephemeris not initialized');
 
-    const result = this.eph.swe_calc_ut(julianDay, planetId, Constants.SEFLG_SPEED);
+    return ((angle % 360) + 360) % 360;
+  }
+
+  /**
+   * Get position of a single planet at a specific time
+   * 
+   * @param planetId - Swiss Ephemeris planet ID (from PLANETS constant)
+   * @param jd - Julian Day for the calculation
+   * @returns Planet position with all relevant data
+   * @throws Error if ephemeris not initialized or invalid planet ID
+   * 
+   * @remarks
+   * Returns tropical, geocentric coordinates. Includes zodiac sign
+   * calculation and retrograde status.
+   */
+  getPlanetPosition(planetId: number, jd: number): PlanetPosition {
+    if (!this.eph) throw new Error('Ephemeris not initialized');
+
+    const result = this.eph.swe_calc_ut(jd, planetId, Constants.SEFLG_SPEED);
 
     // Swiss Ephemeris puts warnings in error field even on success
     // Log warnings but only throw if we don't have valid data
@@ -83,8 +144,7 @@ export class EphemerisCalculator {
     const distance = result.xx[2];
     const speed = result.xx[3];
 
-    // Normalize longitude to 0-360 range
-    const normalizedLon = ((longitude % 360) + 360) % 360;
+    const normalizedLon = this.normalizeAngle(longitude);
     const signIndex = Math.floor(normalizedLon / 30);
     const degreeInSign = normalizedLon % 30;
 
@@ -105,10 +165,33 @@ export class EphemerisCalculator {
     };
   }
 
-  getAllPlanets(julianDay: number, planetIds: number[]): PlanetPosition[] {
-    return planetIds.map((id) => this.getPlanetPosition(id, julianDay));
+  /**
+   * Get positions for multiple planets at a specific time
+   * 
+   * @param planetIds - Array of Swiss Ephemeris planet IDs
+   * @param jd - Julian Day for the calculation
+   * @returns Array of planet positions in the same order as planetIds
+   * @throws Error if ephemeris not initialized
+   * 
+   * @remarks
+   * More efficient than calling getPlanetPosition multiple times
+   * as it performs a single calculation batch.
+   */
+  getAllPlanets(jd: number, planetIds: number[]): PlanetPosition[] {
+    return planetIds.map((id) => this.getPlanetPosition(id, jd));
   }
 
+  /**
+   * Calculate angular distance between two planets
+   * 
+   * @param lon1 - First planet's longitude
+   * @param lon2 - Second planet's longitude
+   * @returns Angular distance in degrees (0-180)
+   * 
+   * @remarks
+   * Always returns the shorter arc between the two planets.
+   * For example, 350° and 10° have a distance of 20°, not 340°.
+   */
   calculateAspectAngle(lon1: number, lon2: number): number {
     let diff = Math.abs(lon1 - lon2);
     if (diff > 180) {
@@ -117,6 +200,43 @@ export class EphemerisCalculator {
     return diff;
   }
 
+  /**
+   * Get zodiac sign and degree for a given longitude
+   * 
+   * @param longitude - Ecliptic longitude in degrees (0-360)
+   * @returns Object with sign name and degree within sign
+   * 
+   * @remarks
+   * Each sign spans exactly 30°. Aries starts at 0°, Taurus at 30°, etc.
+   * The degree is 0-based (0° is the start of the sign).
+   */
+  private getSignAndDegree(longitude: number): { sign: string; degree: number } {
+    const normalizedLon = this.normalizeAngle(longitude);
+    const signIndex = Math.floor(normalizedLon / 30);
+    const degreeInSign = normalizedLon % 30;
+
+    return {
+      sign: ZODIAC_SIGNS[signIndex],
+      degree: degreeInSign,
+    };
+  }
+
+  /**
+   * Find exact time when planet reaches a specific longitude
+   * 
+   * @param planetId - Swiss Ephemeris planet ID
+   * @param targetLongitude - Target longitude in degrees (0-360)
+   * @param startJD - Start of search window (Julian Day)
+   * @param endJD - End of search window (Julian Day)
+   * @param tolerance - Desired precision in degrees (default: 0.01°)
+   * @returns Julian Day of exact transit, or null if no crossing
+   * @throws Error if ephemeris not initialized
+   * 
+   * @remarks
+   * Uses binary search to find when planet crosses the target longitude.
+   * Returns null if the planet doesn't reach the target within the interval.
+   * The tolerance converts to approximately 1 minute of time per 0.01°.
+   */
   findExactTransitTime(
     planetId: number,
     targetLongitude: number,
@@ -127,7 +247,7 @@ export class EphemerisCalculator {
     // First, check if interval brackets the target
     const pos1 = this.getPlanetPosition(planetId, startJD);
     const pos2 = this.getPlanetPosition(planetId, endJD);
-    
+
     // Calculate angular distance to target for both endpoints
     let diff1 = pos1.longitude - targetLongitude;
     if (diff1 > 180) diff1 -= 360;
@@ -198,6 +318,17 @@ export class EphemerisCalculator {
     return Math.abs(finalDiff) < tolerance * 2 ? finalMid : null;
   }
 
+  /**
+   * Convert Julian Day to JavaScript Date
+   * 
+   * @param jd - Julian Day number
+   * @returns JavaScript Date in UTC
+   * @throws Error if ephemeris not initialized
+   * 
+   * @remarks
+   * The returned Date is always in UTC regardless of the original
+   * timezone of the calculation.
+   */
   julianDayToDate(jd: number): Date {
     if (!this.eph) throw new Error('Ephemeris not initialized');
 

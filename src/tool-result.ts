@@ -1,10 +1,22 @@
 /**
  * Structured error handling for MCP tool results
  * 
+ * @remarks
  * Provides agent-recoverable error codes and suggestions for self-correction.
  * Distinguishes between recoverable domain errors and hard infrastructure failures.
+ * 
+ * Each error code includes whether it's retryable and suggested fixes
+ * to help the agent recover from errors automatically.
  */
 
+/**
+ * Error codes for MCP tool operations
+ * 
+ * @remarks
+ * Each code represents a specific category of error that can occur
+ * during astrological calculations. The codes are designed to be
+ * machine-readable while still being descriptive.
+ */
 export type ToolIssueCode =
   | 'INVALID_INPUT'
   | 'UNKNOWN_PLANET'
@@ -18,25 +30,58 @@ export type ToolIssueCode =
   | 'INVALID_DATE'
   | 'INVALID_HOUSE_SYSTEM';
 
+/**
+ * Structured error information for tool operations
+ * 
+ * @remarks
+ * Contains the error code, human-readable message, and metadata
+ * to help agents understand and recover from errors.
+ */
 export interface ToolIssue {
+  /** Machine-readable error code */
   code: ToolIssueCode;
+  /** Human-readable error description */
   message: string;
+  /** Whether the operation can be retried */
   retryable: boolean;
+  /** Suggested fix for the agent (optional) */
   suggestedFix?: string;
+  /** Additional error context (optional) */
   details?: Record<string, unknown>;
 }
 
+/**
+ * Result type for MCP tool operations
+ * 
+ * @remarks
+ * Discriminated union that distinguishes between successful
+ * and failed operations. Success includes data and optional warnings,
+ * while failure includes structured error information.
+ */
 export type ToolResult<T> = {
+  /** Success flag */
   ok: true;
+  /** Result data */
   data: T;
+  /** Optional warnings about the operation */
   warnings?: ToolIssue[];
 } | {
+  /** Failure flag */
   ok: false;
+  /** Error information */
   error: ToolIssue;
 };
 
 /**
  * Create a successful tool result
+ * 
+ * @param data - The successful result data
+ * @param warnings - Optional warnings about the operation
+ * @returns Success result with data
+ * 
+ * @remarks
+ * Use this to wrap successful operation results. Warnings are
+ * optional and can indicate non-fatal issues.
  */
 export function success<T>(data: T, warnings?: ToolIssue[]): ToolResult<T> {
   return warnings ? { ok: true, data, warnings } : { ok: true, data };
@@ -44,6 +89,13 @@ export function success<T>(data: T, warnings?: ToolIssue[]): ToolResult<T> {
 
 /**
  * Create a failed tool result
+ * 
+ * @param error - Structured error information
+ * @returns Failure result with error
+ * 
+ * @remarks
+ * Use this to wrap failed operations. The error should include
+ * a code, message, and optionally retry/suggestion information.
  */
 export function failure(error: ToolIssue): ToolResult<never> {
   return { ok: false, error };
@@ -51,6 +103,15 @@ export function failure(error: ToolIssue): ToolResult<never> {
 
 /**
  * Map Swiss Ephemeris errors to structured tool issues
+ * 
+ * @param context - Operation context where error occurred
+ * @param err - Raw error from Swiss Ephemeris
+ * @param details - Additional error context
+ * @returns Structured tool issue with retry information
+ * 
+ * @remarks
+ * Converts low-level Swiss Ephemeris errors into structured,
+ * agent-recoverable error codes with suggested fixes.
  */
 export function mapSweError(
   context: string,
@@ -80,6 +141,15 @@ export function mapSweError(
 
 /**
  * Create a structured error for missing rise/set events
+ * 
+ * @param eventType - Type of event that was missing
+ * @param planet - Planet name for context
+ * @param details - Additional error context
+ * @returns Structured tool issue indicating no event
+ * 
+ * @remarks
+ * Used when a planet doesn't rise/set at a location (circumpolar)
+ * or when meridian transits don't occur.
  */
 export function noRiseSetEvent(
   eventType: 'rise' | 'set' | 'upper_meridian' | 'lower_meridian',
@@ -97,6 +167,15 @@ export function noRiseSetEvent(
 
 /**
  * Create a structured error for circumpolar objects
+ * 
+ * @param planet - Planet name for context
+ * @param latitude - Observer latitude where object is circumpolar
+ * @param details - Additional error context
+ * @returns Structured tool issue for circumpolar object
+ * 
+ * @remarks
+ * Used when a planet never rises or sets at extreme latitudes.
+ * The object is either always above or always below the horizon.
  */
 export function circumpolarObject(
   planet: string,
@@ -114,6 +193,12 @@ export function circumpolarObject(
 
 /**
  * Create a structured error for missing natal chart
+ * 
+ * @returns Structured tool issue for missing natal chart
+ * 
+ * @remarks
+ * Used when transit or chart operations are requested
+ * before a natal chart has been set.
  */
 export function missingNatalChart(): ToolIssue {
   return {
@@ -126,6 +211,14 @@ export function missingNatalChart(): ToolIssue {
 
 /**
  * Create a warning for polar latitude limitations
+ * 
+ * @param latitude - Observer latitude in degrees
+ * @param houseSystem - House system being used
+ * @returns Structured tool issue warning about polar limitations
+ * 
+ * @remarks
+ * Some house systems (Placidus, Koch) fail at extreme latitudes.
+ * This warns the user and suggests Whole Sign as a fallback.
  */
 export function polarLatitudeWarning(
   latitude: number,

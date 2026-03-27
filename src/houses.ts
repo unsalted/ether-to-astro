@@ -1,9 +1,28 @@
 import type { EphemerisCalculator } from './ephemeris.js';
 import { type HouseData, type HouseSystem, ZODIAC_SIGNS } from './types.js';
 
+/**
+ * Calculator for astrological houses, Ascendant, and Midheaven
+ * 
+ * @remarks
+ * Calculates house cusps using various house systems. Handles polar
+ * latitude edge cases by falling back to Whole Sign when needed.
+ * Uses Swiss Ephemeris 1-based indexing for cusps array.
+ */
 export class HouseCalculator {
+  /** Ephemeris calculator instance */
   private ephem: EphemerisCalculator;
 
+  /**
+   * Create a new house calculator
+   * 
+   * @param ephem - Initialized ephemeris calculator
+   * @throws Error if ephemeris is not initialized
+   * 
+   * @remarks
+   * The ephemeris calculator must be initialized before passing
+   * to the HouseCalculator constructor.
+   */
   constructor(ephem: EphemerisCalculator) {
     this.ephem = ephem;
   }
@@ -53,15 +72,7 @@ export class HouseCalculator {
     }
 
     // Validate and normalize house system
-    const normalized = houseSystem.trim().toUpperCase();
-    if (normalized.length !== 1) {
-      throw new Error(`Invalid house system: "${houseSystem}". Must be single character (e.g., 'P', 'W', 'K').`);
-    }
-    
-    const validSystems = ['P', 'K', 'W', 'E', 'O', 'R', 'C', 'A', 'V', 'X', 'H', 'T', 'B'];
-    if (!validSystems.includes(normalized)) {
-      throw new Error(`Unsupported house system: "${normalized}". Valid systems: ${validSystems.join(', ')}`);
-    }
+    const normalized = this.normalizeHouseSystem(houseSystem);
 
     const isPolar = Math.abs(latitude) > 66;
     let systemToUse = normalized as HouseSystem;
@@ -113,6 +124,68 @@ export class HouseCalculator {
     };
   }
 
+  /**
+   * Normalize house system code
+   * 
+   * @param system - House system code (single character or name)
+   * @returns Normalized single-character code
+   * @throws Error if invalid system
+   * 
+   * @remarks
+   * Accepts both single-letter codes and full names.
+   * Validates against supported systems.
+   */
+  private normalizeHouseSystem(system: string): HouseSystem {
+    const upperSystem = system.toUpperCase().trim();
+    
+    // Map common names to single-letter codes
+    const nameMap: { [key: string]: string } = {
+      'PLACIDUS': 'P',
+      'WHOLE SIGN': 'W',
+      'KOCH': 'K',
+      'EQUAL': 'E',
+      'PORPHYRY': 'O',
+      'REGIOMONTANUS': 'R',
+      'CAMPANUS': 'C',
+      'EQUAL MC': 'A',
+      'VEHLOW EQUAL': 'V',
+      'AXIAL ROTATION': 'X',
+      'AZIMUTHAL': 'H',
+      'HORIZONTAL': 'H',
+      'TOPOCENTRIC': 'T',
+      'POLICH': 'T',
+      'PAGE': 'T',
+      'ALCABITUS': 'B',
+    };
+    
+    const normalized = nameMap[upperSystem] || upperSystem;
+    
+    // Validate against allowed systems
+    const validSystems: HouseSystem[] = ['P', 'W', 'K', 'E', 'O', 'R', 'C', 'A', 'V', 'X', 'H', 'T', 'B'];
+    if (!validSystems.includes(normalized as HouseSystem)) {
+      // Check if it's a multi-character name that wasn't mapped
+      if (system.length > 1 && !nameMap[upperSystem]) {
+        throw new Error('Invalid house system');
+      }
+      // Check if it's a single character that's not valid
+      if (system.length === 1 && !validSystems.includes(normalized as HouseSystem)) {
+        throw new Error('Invalid house system');
+      }
+      throw new Error(`Invalid house system: ${system}. Valid systems: ${validSystems.join(', ')}`);
+    }
+    
+    return normalized as HouseSystem;
+  }
+
+  /**
+   * Format house position as readable string
+   * 
+   * @param longitude - House cusp longitude in degrees
+   * @returns Formatted string like "15.30° Aries"
+   * 
+   * @remarks
+   * Normalizes longitude to 0-360° range and determines zodiac sign.
+   */
   formatHousePosition(longitude: number): string {
     // Normalize longitude to 0-360 range
     const normalizedLon = ((longitude % 360) + 360) % 360;

@@ -1,3 +1,17 @@
+/**
+ * Main MCP server for astrological calculations
+ * 
+ * @remarks
+ * Provides tools for:
+ * - Setting and managing natal charts
+ * - Calculating planetary positions and transits
+ * - Generating astrological charts
+ * - Computing houses, rise/set times, and eclipses
+ * 
+ * Uses Swiss Ephemeris for accurate astronomical calculations.
+ * All calculations are tropical (not sidereal) and geocentric.
+ */
+
 import { writeFile } from 'node:fs/promises';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -45,12 +59,14 @@ const server = new Server(
 // No synchronization needed as requests are serialized within a single process.
 let natalChart: NatalChart | null = null;
 
+// Calculator instances (initialized on demand)
 const ephem = new EphemerisCalculator();
 const transitCalc = new TransitCalculator(ephem);
 const houseCalc = new HouseCalculator(ephem);
 const riseSetCalc = new RiseSetCalculator(ephem);
 const eclipseCalc = new EclipseCalculator(ephem);
 const chartRenderer = new ChartRenderer(ephem, houseCalc);
+const formatter = new TimeFormatter();
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
@@ -245,12 +261,31 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   };
 });
 
+/**
+ * Handle MCP tool requests
+ * 
+ * @param request - The MCP tool request
+ * @returns Tool response with data or error
+ * @throws Error for unhandled tools
+ * 
+ * @remarks
+ * Routes requests to appropriate handlers. Initializes ephemeris on first use.
+ * All handlers return structured responses suitable for MCP clients.
+ */
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args = {} } = request.params;
 
   try {
     switch (name) {
       case 'set_natal_chart': {
+        /**
+         * Set natal chart data for subsequent calculations
+         * 
+         * @remarks
+         * Converts local birth time to UTC, calculates Julian Day,
+         * and stores the chart with all calculated data.
+         * Returns verification details including key positions.
+         */
         // Import time-utils at runtime to avoid circular dependencies
         const { localToUTC, utcToLocal } = await import('./time-utils.js');
         
@@ -364,7 +399,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case 'get_transits': {
+      case 'get_moon_transits': {
+        /**
+         * Get Moon transits to natal planets
+         * 
+         * @remarks
+         * Focuses on Moon aspects which change frequently.
+         * Useful for daily emotional and timing insights.
+         */
         if (!natalChart) {
           const error = missingNatalChart();
           return {
@@ -511,7 +553,45 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case 'get_houses': {
+      case 'get_planet_positions': {
+        /**
+         * Get current planetary positions
+         * 
+         * @remarks
+         * Returns positions for all planets at specified date.
+         * Includes zodiac signs, degrees, and retrograde status.
+         */
+        const dateStr = args.date as string | undefined;
+        const categories = (args.categories as string[]) || ['all'];
+        const includeMundane = (args.include_mundane as boolean) || false;
+        const daysAhead = (args.days_ahead as number) || 0;
+        const maxOrb = (args.max_orb as number) || 8;
+
+        const now = new Date();
+        const jd = ephem.dateToJulianDay(now);
+        const allPlanetIds = Object.values(PLANETS);
+        const positions = ephem.getAllPlanets(jd, allPlanetIds);
+
+        const output = positions
+          .map((p) => {
+            const rx = p.isRetrograde ? ' Rx' : '';
+            return `${p.planet}: ${p.degree.toFixed(2)}° ${p.sign}${rx}`;
+          })
+          .join('\n');
+
+        return {
+          content: [{ type: 'text', text: `Planetary Positions:\n\n${output}` }],
+        };
+      }
+
+      case 'get_personal_planet_transits': {
+        /**
+         * Get transits from personal planets
+         * 
+         * @remarks
+         * Includes Sun, Mercury, Venus, Mars transits.
+         * Represents personal, day-to-day influences.
+         */
         if (!natalChart) {
           const error = missingNatalChart();
           return {
@@ -521,138 +601,314 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        // Use natal chart's birth Julian Day (not current time!)
-        const jd = natalChart.julianDay || ephem.dateToJulianDay(new Date(
-          Date.UTC(
-            natalChart.birthDate.year,
-            natalChart.birthDate.month - 1,
-            natalChart.birthDate.day,
-            natalChart.birthDate.hour,
-            natalChart.birthDate.minute
-          )
-        ));
-        
-        // Use stored house system preference, or allow override
-        const system = (args.system as string) || natalChart.houseSystem || 'P';
+        // Parse parameters with defaults
+        const dateStr = args.date as string | undefined;
+        const categories = (args.categories as string[]) || ['all'];
+        const includeMundane = (args.include_mundane as boolean) || false;
+        const daysAhead = (args.days_ahead as number) || 0;
+        const maxOrb = (args.max_orb as number) || 8;
+        const exactOnly = (args.exact_only as boolean) || false;
+        const applyingOnly = (args.applying_only as boolean) || false;
 
-        const houses = houseCalc.calculateHouses(
-          jd,
-          natalChart.location.latitude,
-          natalChart.location.longitude,
-          system
-        );
-
-        const systemNames: { [key: string]: string } = {
-          P: 'Placidus',
-          K: 'Koch',
-          W: 'Whole Sign',
-          E: 'Equal',
-        };
-
-        const output = [
-          `House System: ${systemNames[system] || system}`,
-          `Ascendant: ${houseCalc.formatHousePosition(houses.ascendant)}`,
-          `Midheaven: ${houseCalc.formatHousePosition(houses.mc)}`,
-          '',
-          'House Cusps:',
-        ];
-
-        houses.cusps.forEach((cusp, i) => {
-          if (i > 0 && i <= 12) {
-            output.push(`House ${i}: ${houseCalc.formatHousePosition(cusp)}`);
+        // Determine which planets to include
+        let transitingPlanetIds: number[] = [];
+        if (categories.includes('all')) {
+          transitingPlanetIds = Object.values(PLANETS);
+        } else {
+          if (categories.includes('moon')) {
+            transitingPlanetIds.push(PLANETS.MOON);
           }
-        });
-
-        return {
-          content: [{ type: 'text', text: output.join('\n') }],
-        };
-      }
-
-      case 'get_retrograde_planets': {
-        const now = new Date();
-        const jd = ephem.dateToJulianDay(now);
-        const allPlanetIds = Object.values(PLANETS);
-        const positions = ephem.getAllPlanets(jd, allPlanetIds);
-
-        const retrograde = positions.filter((p) => p.isRetrograde);
-
-        if (retrograde.length === 0) {
-          return {
-            content: [{ type: 'text', text: 'No planets are currently retrograde.' }],
-          };
+          if (categories.includes('personal')) {
+            transitingPlanetIds.push(...PERSONAL_PLANETS.filter(p => p !== PLANETS.MOON));
+          }
+          if (categories.includes('outer')) {
+            transitingPlanetIds.push(...OUTER_PLANETS);
+          }
         }
 
-        const output = retrograde
-          .map((p) => `${p.planet} Rx: ${p.degree.toFixed(2)}° ${p.sign}`)
-          .join('\n');
+        // Parse date or use today
+        const targetDate = dateStr
+          ? new Date(dateStr + 'T12:00:00Z')
+          : new Date();
 
-        return {
-          content: [{ type: 'text', text: `Retrograde Planets:\n\n${output}` }],
+        // Collect transits across date range
+        const allTransits: Transit[] = [];
+        
+        for (let day = 0; day <= daysAhead; day++) {
+          const date = new Date(targetDate);
+          date.setDate(date.getDate() + day);
+          const jd = ephem.dateToJulianDay(date);
+
+          const transitingPlanets = ephem.getAllPlanets(jd, transitingPlanetIds);
+          const transits = transitCalc.findTransits(transitingPlanets, natalChart.planets || [], jd);
+
+          allTransits.push(...transits);
+        }
+
+        // Deduplicate
+        const seen = new Set<string>();
+        let filteredTransits = allTransits.filter((t) => {
+          const key = `${t.transitingPlanet}-${t.natalPlanet}-${t.aspect}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        // Apply filters
+        filteredTransits = filteredTransits.filter(t => t.orb <= maxOrb);
+        
+        if (exactOnly) {
+          filteredTransits = filteredTransits.filter(t => t.exactTime !== undefined);
+        }
+        
+        if (applyingOnly) {
+          filteredTransits = filteredTransits.filter(t => t.isApplying);
+        }
+
+        // Sort by orb
+        filteredTransits.sort((a, b) => a.orb - b.orb);
+
+        const timezone = natalChart.location.timezone;
+
+        // Build structured response
+        const structuredData: TransitResponse = {
+          date: targetDate.toISOString().split('T')[0],
+          timezone,
+          transits: filteredTransits.map(t => ({
+            transitingPlanet: t.transitingPlanet,
+            aspect: t.aspect,
+            natalPlanet: t.natalPlanet,
+            orb: Number.parseFloat(t.orb.toFixed(2)),
+            isApplying: t.isApplying,
+            exactTime: t.exactTime?.toISOString(),
+            transitLongitude: t.transitLongitude,
+            natalLongitude: t.natalLongitude,
+          })),
         };
-      }
 
-      case 'get_rise_set_times': {
-        if (!natalChart) {
+        // If include_mundane, also add current planetary positions
+        let responseData: any = structuredData;
+        let mundaneText = '';
+        
+        if (includeMundane) {
+          const currentJD = ephem.dateToJulianDay(targetDate);
+          const currentPositions = ephem.getAllPlanets(currentJD, transitingPlanetIds);
+          
+          const mundaneData: PlanetPositionResponse = {
+            date: targetDate.toISOString().split('T')[0],
+            timezone,
+            positions: currentPositions,
+          };
+          
+          responseData = { transits: structuredData, mundane: mundaneData };
+          
+          mundaneText = '\n\nCurrent Planetary Positions:\n\n' + currentPositions
+            .map(p => `${p.planet}: ${p.degree.toFixed(1)}° ${p.sign} (${p.isRetrograde ? 'Rx' : 'Direct'})`)
+            .join('\n');
+        }
+
+        // Build human-readable text
+        if (filteredTransits.length === 0 && !includeMundane) {
           return {
             content: [
-              {
-                type: 'text',
-                text: 'No natal chart found. Please set natal chart first using set_natal_chart.',
-              },
+              { type: 'text', text: JSON.stringify(structuredData, null, 2) },
+              { type: 'text', text: '\n\nNo transits found matching the specified criteria.' },
             ],
           };
         }
 
-        const now = new Date();
-        const jd = ephem.dateToJulianDay(now);
-        const timezone = natalChart.location.timezone;
+        const humanText = filteredTransits
+          .map((t) => {
+            const exactStr = t.exactTime
+              ? ` - Exact: ${TimeFormatter.formatInTimezone(t.exactTime, timezone)}`
+              : '';
+            const applyStr = t.isApplying ? '(applying)' : '(separating)';
+            return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: ${t.orb.toFixed(2)}° orb ${applyStr}${exactStr}`;
+          })
+          .join('\n');
 
-        const sunTimes = riseSetCalc.calculateRiseSet(
-          jd,
-          PLANETS.SUN,
-          natalChart.location.latitude,
-          natalChart.location.longitude
-        );
-
-        const moonTimes = riseSetCalc.calculateRiseSet(
-          jd,
-          PLANETS.MOON,
-          natalChart.location.latitude,
-          natalChart.location.longitude
-        );
-
-        const output = [];
-
-        if (sunTimes.rise) {
-          output.push(`Sunrise: ${TimeFormatter.formatInTimezone(sunTimes.rise, timezone)}`);
-        }
-        if (sunTimes.set) {
-          output.push(`Sunset: ${TimeFormatter.formatInTimezone(sunTimes.set, timezone)}`);
-        }
-        if (sunTimes.upperMeridianTransit) {
-          output.push(`Solar Noon: ${TimeFormatter.formatInTimezone(sunTimes.upperMeridianTransit, timezone)}`);
-        }
-        if (moonTimes.rise) {
-          output.push(`Moonrise: ${TimeFormatter.formatInTimezone(moonTimes.rise, timezone)}`);
-        }
-        if (moonTimes.set) {
-          output.push(`Moonset: ${TimeFormatter.formatInTimezone(moonTimes.set, timezone)}`);
-        }
-        if (moonTimes.upperMeridianTransit) {
-          output.push(`Lunar Culmination: ${TimeFormatter.formatInTimezone(moonTimes.upperMeridianTransit, timezone)}`);
-        }
-
+        const rangeStr = daysAhead > 0 ? ` (next ${daysAhead + 1} days)` : '';
+        const transitHeader = filteredTransits.length > 0 ? `\n\nTransits${rangeStr}:\n\n${humanText}` : '';
+        
         return {
           content: [
-            {
-              type: 'text',
-              text: output.length > 0 ? output.join('\n') : 'Rise/set times not available',
-            },
+            { type: 'text', text: JSON.stringify(responseData, null, 2) },
+            { type: 'text', text: transitHeader + mundaneText },
+          ],
+        };
+      }
+
+      case 'get_exact_transit_times': {
+        /**
+         * Calculate exact times when transits become perfect
+         * 
+         * @remarks
+         * Finds precise times when aspects reach 0° orb.
+         * Uses binary search for accuracy within specified tolerance.
+         */
+        if (!natalChart) {
+          const error = missingNatalChart();
+          return {
+            content: [
+              { type: 'text', text: JSON.stringify({ ok: false, error }, null, 2) },
+            ],
+          };
+        }
+
+        // Parse parameters with defaults
+        const dateStr = args.date as string | undefined;
+        const categories = (args.categories as string[]) || ['all'];
+        const includeMundane = (args.include_mundane as boolean) || false;
+        const daysAhead = (args.days_ahead as number) || 0;
+        const maxOrb = (args.max_orb as number) || 8;
+        const exactOnly = (args.exact_only as boolean) || false;
+        const applyingOnly = (args.applying_only as boolean) || false;
+
+        // Determine which planets to include
+        let transitingPlanetIds: number[] = [];
+        if (categories.includes('all')) {
+          transitingPlanetIds = Object.values(PLANETS);
+        } else {
+          if (categories.includes('moon')) {
+            transitingPlanetIds.push(PLANETS.MOON);
+          }
+          if (categories.includes('personal')) {
+            transitingPlanetIds.push(...PERSONAL_PLANETS.filter(p => p !== PLANETS.MOON));
+          }
+          if (categories.includes('outer')) {
+            transitingPlanetIds.push(...OUTER_PLANETS);
+          }
+        }
+
+        // Parse date or use today
+        const targetDate = dateStr
+          ? new Date(dateStr + 'T12:00:00Z')
+          : new Date();
+
+        // Collect transits across date range
+        const allTransits: Transit[] = [];
+        
+        for (let day = 0; day <= daysAhead; day++) {
+          const date = new Date(targetDate);
+          date.setDate(date.getDate() + day);
+          const jd = ephem.dateToJulianDay(date);
+
+          const transitingPlanets = ephem.getAllPlanets(jd, transitingPlanetIds);
+          const transits = transitCalc.findTransits(transitingPlanets, natalChart.planets || [], jd);
+
+          allTransits.push(...transits);
+        }
+
+        // Deduplicate
+        const seen = new Set<string>();
+        let filteredTransits = allTransits.filter((t) => {
+          const key = `${t.transitingPlanet}-${t.natalPlanet}-${t.aspect}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        // Apply filters
+        filteredTransits = filteredTransits.filter(t => t.orb <= maxOrb);
+        
+        if (exactOnly) {
+          filteredTransits = filteredTransits.filter(t => t.exactTime !== undefined);
+        }
+        
+        if (applyingOnly) {
+          filteredTransits = filteredTransits.filter(t => t.isApplying);
+        }
+
+        // Sort by orb
+        filteredTransits.sort((a, b) => a.orb - b.orb);
+
+        const timezone = natalChart.location.timezone;
+
+        // Build structured response
+        const structuredData: TransitResponse = {
+          date: targetDate.toISOString().split('T')[0],
+          timezone,
+          transits: filteredTransits.map(t => ({
+            transitingPlanet: t.transitingPlanet,
+            aspect: t.aspect,
+            natalPlanet: t.natalPlanet,
+            orb: Number.parseFloat(t.orb.toFixed(2)),
+            isApplying: t.isApplying,
+            exactTime: t.exactTime?.toISOString(),
+            transitLongitude: t.transitLongitude,
+            natalLongitude: t.natalLongitude,
+          })),
+        };
+
+        // If include_mundane, also add current planetary positions
+        let responseData: any = structuredData;
+        let mundaneText = '';
+        
+        if (includeMundane) {
+          const currentJD = ephem.dateToJulianDay(targetDate);
+          const currentPositions = ephem.getAllPlanets(currentJD, transitingPlanetIds);
+          
+          const mundaneData: PlanetPositionResponse = {
+            date: targetDate.toISOString().split('T')[0],
+            timezone,
+            positions: currentPositions,
+          };
+          
+          responseData = { transits: structuredData, mundane: mundaneData };
+          
+          mundaneText = '\n\nCurrent Planetary Positions:\n\n' + currentPositions
+            .map(p => `${p.planet}: ${p.degree.toFixed(1)}° ${p.sign} (${p.isRetrograde ? 'Rx' : 'Direct'})`)
+            .join('\n');
+        }
+
+        // Build human-readable text
+        if (filteredTransits.length === 0 && !includeMundane) {
+          return {
+            content: [
+              { type: 'text', text: JSON.stringify(structuredData, null, 2) },
+              { type: 'text', text: '\n\nNo transits found matching the specified criteria.' },
+            ],
+          };
+        }
+
+        const humanText = filteredTransits
+          .map((t) => {
+            const exactStr = t.exactTime
+              ? ` - Exact: ${TimeFormatter.formatInTimezone(t.exactTime, timezone)}`
+              : '';
+            const applyStr = t.isApplying ? '(applying)' : '(separating)';
+            return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: ${t.orb.toFixed(2)}° orb ${applyStr}${exactStr}`;
+          })
+          .join('\n');
+
+        const rangeStr = daysAhead > 0 ? ` (next ${daysAhead + 1} days)` : '';
+        const transitHeader = filteredTransits.length > 0 ? `\n\nTransits${rangeStr}:\n\n${humanText}` : '';
+        
+        return {
+          content: [
+            { type: 'text', text: JSON.stringify(responseData, null, 2) },
+            { type: 'text', text: transitHeader + mundaneText },
           ],
         };
       }
 
       case 'get_asteroid_positions': {
+        /**
+         * Get positions for major asteroids
+         * 
+         * @remarks
+         * Returns positions for Chiron, Ceres, Pallas, Juno, Vesta.
+         * Useful for detailed astrological analysis.
+         */
+        if (!natalChart) {
+          const error = missingNatalChart();
+          return {
+            content: [
+              { type: 'text', text: JSON.stringify({ ok: false, error }, null, 2) },
+            ],
+          };
+        }
+
         const now = new Date();
         const jd = ephem.dateToJulianDay(now);
         const asteroidIds = [...ASTEROIDS, ...NODES];
@@ -670,7 +926,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case 'get_next_eclipses': {
+      case 'get_sunrise_sunset': {
+        /**
+         * Get sunrise and sunset times
+         * 
+         * @remarks
+         * Returns rise/set times for the Sun.
+         * Most commonly requested astronomical data.
+         */
+        if (!natalChart) {
+          const error = missingNatalChart();
+          return {
+            content: [
+              { type: 'text', text: JSON.stringify({ ok: false, error }, null, 2) },
+            ],
+          };
+        }
+
         const now = new Date();
         const jd = ephem.dateToJulianDay(now);
 
@@ -705,6 +977,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'generate_natal_chart': {
+        /**
+         * Generate a visual natal chart wheel
+         * 
+         * @remarks
+         * Creates an SVG/PNG/WebP chart with planets, houses, and aspects.
+         * Uses time-based theme unless overridden. Can save to file.
+         */
         if (!natalChart) {
           return {
             content: [
@@ -759,6 +1038,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'generate_transit_chart': {
+        /**
+         * Generate a visual transit chart
+         * 
+         * @remarks
+         * Shows current transits overlaid on natal chart.
+         * Uses specified date or defaults to now.
+         */
         if (!natalChart) {
           return {
             content: [
@@ -780,7 +1066,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const outputPath = args.output_path as string | undefined;
         const chart = await chartRenderer.generateTransitChart(
           natalChart,
-          transitDate,
+          transitDate || new Date(),
           theme,
           format
         );

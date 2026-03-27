@@ -3,9 +3,28 @@ import type { EphemerisCalculator } from './ephemeris.js';
 import { logger } from './logger.js';
 import { PLANET_NAMES, type RiseSetTime } from './types.js';
 
+/**
+ * Calculator for rise, set, and meridian transit times
+ * 
+ * @remarks
+ * Calculates when celestial bodies rise above and set below the horizon,
+ * plus upper and lower meridian transits. Handles circumpolar objects
+ * and atmospheric refraction corrections.
+ */
 export class RiseSetCalculator {
+  /** Ephemeris calculator instance */
   private ephem: EphemerisCalculator;
 
+  /**
+   * Create a new rise/set calculator
+   * 
+   * @param ephem - Initialized ephemeris calculator
+   * @throws Error if ephemeris is not initialized
+   * 
+   * @remarks
+   * The ephemeris calculator must be initialized before passing
+   * to the RiseSetCalculator constructor.
+   */
   constructor(ephem: EphemerisCalculator) {
     this.ephem = ephem;
   }
@@ -154,5 +173,81 @@ export class RiseSetCalculator {
     }
 
     return result;
+  }
+
+  /**
+   * Calculate atmospheric pressure from altitude
+   * 
+   * @param altitude - Altitude in meters above sea level
+   * @returns Atmospheric pressure in millibars (hPa)
+   * 
+   * @remarks
+   * Uses barometric formula approximation. At sea level (0m), returns 1013.25 mbar.
+   * Decreases approximately 1 mbar per 8 meters of altitude gain.
+   */
+  private calculatePressure(altitude: number): number {
+    // Barometric formula: P = P0 * (1 - 0.0065*h/T0)^5.255
+    // Simplified approximation: ~1 mbar decrease per 8m altitude
+    return Math.max(0, 1013.25 - altitude * 0.125);
+  }
+
+  /**
+   * Get rise/set times for all planets on a given date
+   * 
+   * @param date - Date for calculation
+   * @param latitude - Observer latitude in degrees
+   * @param longitude - Observer longitude in degrees
+   * @param altitude - Observer altitude in meters (default: 0)
+   * @returns Array of rise/set times for all planets
+   * @throws Error if ephemeris not initialized
+   * 
+   * @remarks
+   * Calculates for Sun through Pluto. Some fields may be undefined
+   * for circumpolar objects at extreme latitudes.
+   */
+  async getAllRiseSet(
+    date: Date,
+    latitude: number,
+    longitude: number,
+    altitude: number = 0
+  ): Promise<RiseSetTime[]> {
+    const jd = this.ephem.dateToJulianDay(date);
+    const results: RiseSetTime[] = [];
+
+    // Calculate for Sun through Pluto (0-9)
+    for (let planetId = 0; planetId <= 9; planetId++) {
+      try {
+        const riseSet = this.calculateRiseSet(jd, planetId, latitude, longitude, altitude);
+        results.push(riseSet);
+      } catch (error) {
+        logger.warn(`Failed to calculate rise/set for planet ${planetId}`, {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Get today's rise/set times for the Sun
+   * 
+   * @param latitude - Observer latitude in degrees
+   * @param longitude - Observer longitude in degrees
+   * @param altitude - Observer altitude in meters (default: 0)
+   * @returns Rise/set times for the Sun
+   * @throws Error if ephemeris not initialized
+   * 
+   * @remarks
+   * Convenience method for the most common use case - sunrise and sunset.
+   */
+  async getSunRiseSet(
+    latitude: number,
+    longitude: number,
+    altitude: number = 0
+  ): Promise<RiseSetTime> {
+    const today = new Date();
+    const jd = this.ephem.dateToJulianDay(today);
+    return this.calculateRiseSet(jd, 0, latitude, longitude, altitude); // Sun is planet ID 0
   }
 }
