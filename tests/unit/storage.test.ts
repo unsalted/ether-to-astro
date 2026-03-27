@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { ChartStorage } from '../../src/storage.js';
 import { EphemerisCalculator } from '../../src/ephemeris.js';
 import { bowenYangChart } from '../fixtures/bowen-yang-chart.js';
@@ -11,16 +11,23 @@ describe('When an astrologer wants to store a natal chart', () => {
   const testStoragePath = join(process.cwd(), 'test-natal-chart.json');
 
   beforeAll(async () => {
+    // Set test storage path BEFORE creating storage instance
+    process.env.NATAL_CHART_PATH = testStoragePath;
+    
     ephem = new EphemerisCalculator();
     await ephem.init();
-    
-    // Use test storage path
-    process.env.NATAL_CHART_PATH = testStoragePath;
     storage = new ChartStorage(ephem);
   });
 
+  beforeEach(() => {
+    // Clean up test file before each test
+    if (existsSync(testStoragePath)) {
+      unlinkSync(testStoragePath);
+    }
+  });
+
   afterEach(() => {
-    // Clean up test file
+    // Clean up test file after each test
     if (existsSync(testStoragePath)) {
       unlinkSync(testStoragePath);
     }

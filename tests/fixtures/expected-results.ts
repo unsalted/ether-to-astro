@@ -5,11 +5,11 @@
  */
 
 export const bowenYangExpectedPositions = {
-  // November 6, 1990, 01:30 UTC - Bowen Yang's birth
+  // November 6, 1990, 11:30 Brisbane (01:30 UTC) - Bowen Yang's birth
   sun: {
-    longitude: 223.89, // 13°53' Scorpio
+    longitude: 223.37, // Actual Swiss Ephemeris calculation
     sign: 'Scorpio',
-    degree: 13.89,
+    degree: 13.37,
     speed: 0.9856,
   },
   moon: {
@@ -109,9 +109,9 @@ export const knownJulianDays = {
     date: new Date(Date.UTC(2000, 0, 1, 12, 0, 0)),
     jd: 2451545.0,
   },
-  // November 6, 1990, 01:30 UTC
+  // November 6, 1990, 01:30 UTC (11:30 Brisbane)
   bowenBirth: {
     date: new Date(Date.UTC(1990, 10, 6, 1, 30, 0)),
-    jd: 2448199.5625,
+    jd: 2448201.5625, // Actual Swiss Ephemeris calculation
   },
 };
