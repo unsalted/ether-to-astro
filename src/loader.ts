@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { readFile } from 'fs/promises';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 // Set up browser globals for astrochart library BEFORE any imports
 import { JSDOM } from 'jsdom';
-import { fileURLToPath } from 'url';
 
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
 (globalThis as any).window = dom.window;

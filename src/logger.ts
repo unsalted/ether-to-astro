@@ -1,4 +1,4 @@
-import { ErrorCategory, type ErrorCategoryType, LogLevel, type LogLevelType } from './constants.js';
+import { type ErrorCategoryType, LogLevel, type LogLevelType } from './constants.js';
 
 export interface LogEntry {
   timestamp: string;
@@ -25,10 +25,10 @@ class Logger {
     const base = `[${entry.timestamp}] ${entry.level}: ${entry.message}`;
 
     if ('category' in entry) {
-      return `${base} (${entry.category})${entry.context ? ' ' + JSON.stringify(entry.context) : ''}`;
+      return `${base} (${entry.category})${entry.context ? ` ${JSON.stringify(entry.context)}` : ''}`;
     }
 
-    return `${base}${entry.context ? ' ' + JSON.stringify(entry.context) : ''}`;
+    return `${base}${entry.context ? ` ${JSON.stringify(entry.context)}` : ''}`;
   }
 
   private log(entry: LogEntry | ErrorLogEntry): void {

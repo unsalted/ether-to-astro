@@ -12,12 +12,12 @@ export class EclipseCalculator {
   }
 
   findNextSolarEclipse(startJD: number): EclipseInfo | null {
-    if (!this.ephem['eph']) {
+    if (!this.ephem.eph) {
       throw new Error('Ephemeris not initialized');
     }
 
     try {
-      const result = this.ephem['eph'].swe_sol_eclipse_when_glob(
+      const result = this.ephem.eph.swe_sol_eclipse_when_glob(
         startJD,
         Constants.SEFLG_SWIEPH,
         0,
@@ -47,17 +47,12 @@ export class EclipseCalculator {
   }
 
   findNextLunarEclipse(startJD: number): EclipseInfo | null {
-    if (!this.ephem['eph']) {
+    if (!this.ephem.eph) {
       throw new Error('Ephemeris not initialized');
     }
 
     try {
-      const result = this.ephem['eph'].swe_lun_eclipse_when(
-        startJD,
-        Constants.SEFLG_SWIEPH,
-        0,
-        false
-      );
+      const result = this.ephem.eph.swe_lun_eclipse_when(startJD, Constants.SEFLG_SWIEPH, 0, false);
 
       if (result.error || !result.tret || result.tret.length < 1) {
         return null;

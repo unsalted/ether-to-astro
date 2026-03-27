@@ -207,7 +207,7 @@ export class ChartRenderer {
     return mapping[planetName] || null;
   }
 
-  private extractSVG(chartObject: any): string {
+  private extractSVG(_chartObject: any): string {
     // Get the SVG element from the virtual DOM
     const container = this.dom.window.document.getElementById('chart-container');
     if (container) {

@@ -1,4 +1,3 @@
-import { Constants } from '@fusionstrings/swiss-eph/wasi';
 import type { EphemerisCalculator } from './ephemeris.js';
 import { type HouseData, ZODIAC_SIGNS } from './types.js';
 
@@ -15,11 +14,11 @@ export class HouseCalculator {
     longitude: number,
     houseSystem: string = 'P'
   ): HouseData {
-    if (!this.ephem['eph']) {
+    if (!this.ephem.eph) {
       throw new Error('Ephemeris not initialized');
     }
 
-    const result = this.ephem['eph'].swe_houses(
+    const result = this.ephem.eph.swe_houses(
       julianDay,
       latitude,
       longitude,

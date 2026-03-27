@@ -1,9 +1,9 @@
-import { existsSync } from 'fs';
-import { readFile, writeFile } from 'fs/promises';
-import { dirname, join, resolve } from 'path';
-import { fileURLToPath } from 'url';
+import { existsSync } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { EphemerisCalculator } from './ephemeris.js';
-import { type NatalChart, PLANET_NAMES, PLANETS, PlanetPosition } from './types.js';
+import { type NatalChart, PLANETS } from './types.js';
 
 // Get project root (dist/ -> project/)
 const __dirname = dirname(fileURLToPath(import.meta.url));

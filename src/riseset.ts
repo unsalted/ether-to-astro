@@ -17,7 +17,7 @@ export class RiseSetCalculator {
     longitude: number,
     altitude: number = 0
   ): RiseSetTime {
-    if (!this.ephem['eph']) {
+    if (!this.ephem.eph) {
       throw new Error('Ephemeris not initialized');
     }
 
@@ -31,7 +31,7 @@ export class RiseSetCalculator {
     };
 
     try {
-      const riseResult = this.ephem['eph'].swe_rise_trans(
+      const riseResult = this.ephem.eph.swe_rise_trans(
         julianDay,
         planetId,
         null,
@@ -53,7 +53,7 @@ export class RiseSetCalculator {
     }
 
     try {
-      const setResult = this.ephem['eph'].swe_rise_trans(
+      const setResult = this.ephem.eph.swe_rise_trans(
         julianDay,
         planetId,
         null,
@@ -75,7 +75,7 @@ export class RiseSetCalculator {
     }
 
     try {
-      const transitResult = this.ephem['eph'].swe_rise_trans(
+      const transitResult = this.ephem.eph.swe_rise_trans(
         julianDay,
         planetId,
         null,

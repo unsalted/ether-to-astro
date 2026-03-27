@@ -1,5 +1,5 @@
-import { readFile } from 'fs/promises';
-import { join } from 'path';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { vi } from 'vitest';
 
 // Polyfill for self (needed for AstroChart library)
@@ -25,7 +25,7 @@ vi.setSystemTime(FIXED_TEST_DATE);
         arrayBuffer: async () => buffer.buffer,
         headers: new Headers({ 'content-type': 'application/wasm' }),
       } as Response;
-    } catch (error) {
+    } catch (_error) {
       // Return empty WASM if file not found (will use Moshier fallback)
       return {
         ok: false,
