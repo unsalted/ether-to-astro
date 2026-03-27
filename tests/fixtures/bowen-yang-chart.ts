@@ -21,6 +21,8 @@ export const bowenYangChart: NatalChart = {
     longitude: 153.026,
     timezone: 'Australia/Brisbane',
   },
+  julianDay: 2448201.5625, // Nov 6, 1990, 01:30 UTC
+  houseSystem: 'P',
 };
 
 /**
@@ -41,6 +43,8 @@ export const midnightChart: NatalChart = {
     longitude: -74.006,
     timezone: 'America/New_York',
   },
+  julianDay: 2451544.5, // Jan 1, 2000, 00:00 UTC
+  houseSystem: 'P',
 };
 
 /**
@@ -60,4 +64,6 @@ export const polarChart: NatalChart = {
     longitude: 15.6267,
     timezone: 'Arctic/Longyearbyen',
   },
+  julianDay: 2449887.0, // Jun 21, 1995, 12:00 UTC
+  houseSystem: 'W', // Whole Sign for polar latitude
 };

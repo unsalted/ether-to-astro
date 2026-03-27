@@ -124,38 +124,78 @@ export class EphemerisCalculator {
     endJD: number,
     tolerance: number = DEFAULT_EXACT_TIME_TOLERANCE
   ): number | null {
+    // First, check if interval brackets the target
+    const pos1 = this.getPlanetPosition(planetId, startJD);
+    const pos2 = this.getPlanetPosition(planetId, endJD);
+    
+    // Calculate angular distance to target for both endpoints
+    let diff1 = pos1.longitude - targetLongitude;
+    if (diff1 > 180) diff1 -= 360;
+    if (diff1 < -180) diff1 += 360;
+    
+    let diff2 = pos2.longitude - targetLongitude;
+    if (diff2 > 180) diff2 -= 360;
+    if (diff2 < -180) diff2 += 360;
+    
+    // Check if we bracket the target (signs differ)
+    // If both same sign, no crossing in this interval
+    if ((diff1 > 0 && diff2 > 0) || (diff1 < 0 && diff2 < 0)) {
+      // No crossing - return null instead of fabricating
+      return null;
+    }
+    
+    // If already very close at either endpoint, return that
+    if (Math.abs(diff1) < tolerance) return startJD;
+    if (Math.abs(diff2) < tolerance) return endJD;
+    
+    // Binary search for the crossing
     let jd1 = startJD;
     let jd2 = endJD;
-
     let iteration = 0;
-
-    while (iteration < MAX_EXACT_TIME_ITERATIONS && jd2 - jd1 > tolerance / TOLERANCE_TO_MINUTES_RATIO) {
+    
+    while (iteration < MAX_EXACT_TIME_ITERATIONS) {
       const jdMid = (jd1 + jd2) / 2;
-      const pos = this.getPlanetPosition(planetId, jdMid);
-
-      let diff = pos.longitude - targetLongitude;
-      if (diff > 180) diff -= 360;
-      if (diff < -180) diff += 360;
-
-      if (Math.abs(diff) < tolerance) {
+      
+      // Stop if interval is tiny (< 1 minute)
+      if (jd2 - jd1 < 1 / TOLERANCE_TO_MINUTES_RATIO) {
+        break;
+      }
+      
+      const posMid = this.getPlanetPosition(planetId, jdMid);
+      let diffMid = posMid.longitude - targetLongitude;
+      if (diffMid > 180) diffMid -= 360;
+      if (diffMid < -180) diffMid += 360;
+      
+      // Check if close enough
+      if (Math.abs(diffMid) < tolerance) {
         return jdMid;
       }
-
-      const pos1 = this.getPlanetPosition(planetId, jd1);
-      let diff1 = pos1.longitude - targetLongitude;
-      if (diff1 > 180) diff1 -= 360;
-      if (diff1 < -180) diff1 += 360;
-
-      if ((diff1 > 0 && diff > 0) || (diff1 < 0 && diff < 0)) {
+      
+      // Narrow the interval
+      const posStart = this.getPlanetPosition(planetId, jd1);
+      let diffStart = posStart.longitude - targetLongitude;
+      if (diffStart > 180) diffStart -= 360;
+      if (diffStart < -180) diffStart += 360;
+      
+      // Pick the half that brackets the target
+      if ((diffStart > 0 && diffMid > 0) || (diffStart < 0 && diffMid < 0)) {
         jd1 = jdMid;
       } else {
         jd2 = jdMid;
       }
-
+      
       iteration++;
     }
-
-    return (jd1 + jd2) / 2;
+    
+    // Return midpoint only if we actually converged
+    const finalMid = (jd1 + jd2) / 2;
+    const finalPos = this.getPlanetPosition(planetId, finalMid);
+    let finalDiff = finalPos.longitude - targetLongitude;
+    if (finalDiff > 180) finalDiff -= 360;
+    if (finalDiff < -180) finalDiff += 360;
+    
+    // Only return if we're actually close (within 2x tolerance)
+    return Math.abs(finalDiff) < tolerance * 2 ? finalMid : null;
   }
 
   julianDayToDate(jd: number): Date {

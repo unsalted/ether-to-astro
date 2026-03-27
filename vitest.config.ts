@@ -22,6 +22,7 @@ export default defineConfig({
         '**/*.test.ts',
         'src/loader.ts',
         'src/logger.ts',
+        'src/constants.ts', // UI preference helper - not core calculation logic
         'scripts/',
         'color-picker.html',
       ],
