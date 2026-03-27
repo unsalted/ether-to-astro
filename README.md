@@ -66,7 +66,7 @@ npm run build
   "mcpServers": {
     "astro": {
       "command": "node",
-      "args": ["/Users/salted/Code/astro-mcp/dist/index.js"]
+      "args": ["/path/to/ether-to-astro-mcp/dist/index.js"]
     }
   }
 }

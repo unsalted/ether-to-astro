@@ -26,7 +26,7 @@ import {
 
 const server = new Server(
   {
-    name: 'astro-mcp',
+    name: 'ether-to-astro-mcp',
     version: '1.0.0',
   },
   {

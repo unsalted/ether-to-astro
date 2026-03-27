@@ -13,7 +13,7 @@ export class EphemerisCalculator {
       this.eph = await load();
       
       // Mount ephemeris files into WASM virtual filesystem
-      // dist/ephemeris.js -> up one level -> astro-mcp/
+      // dist/ephemeris.js -> up one level -> ether-to-astro-mcp/
       const __dirname = dirname(fileURLToPath(import.meta.url));
       const projectRoot = join(__dirname, '..');
       const ephePath = join(projectRoot, 'data', 'ephemeris');

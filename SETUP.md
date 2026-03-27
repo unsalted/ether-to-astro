@@ -23,13 +23,13 @@ Add this MCP server:
   "mcpServers": {
     "astro": {
       "command": "node",
-      "args": ["/Users/salted/Code/astro-mcp/dist/index.js"]
+      "args": ["/path/to/ether-to-astro-mcp/dist/index.js"]
     }
   }
 }
 ```
 
-**Important**: Replace `/Users/salted/Code/astro-mcp` with your actual path!
+**Important**: Replace `/path/to/ether-to-astro-mcp` with your actual path!
 
 ## First Use
 
