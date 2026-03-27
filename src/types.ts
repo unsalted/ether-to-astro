@@ -1,3 +1,9 @@
+// Type unions for domain constraints
+export type HouseSystem = 'P' | 'K' | 'W' | 'E' | 'O' | 'R' | 'C' | 'A' | 'V' | 'X' | 'H' | 'T' | 'B';
+export type SolarEclipseType = 'partial' | 'annular' | 'total' | 'annular-total';
+export type LunarEclipseType = 'penumbral' | 'partial' | 'total';
+export type PlanetName = 'Sun' | 'Moon' | 'Mercury' | 'Venus' | 'Mars' | 'Jupiter' | 'Saturn' | 'Uranus' | 'Neptune' | 'Pluto' | 'Chiron' | 'North Node (Mean)' | 'North Node (True)' | 'Ceres' | 'Pallas' | 'Juno' | 'Vesta';
+
 export interface NatalChart {
   name: string;
   birthDate: {
@@ -15,7 +21,7 @@ export interface NatalChart {
   };
   planets?: PlanetPosition[];
   julianDay?: number; // Cached Julian Day for birth time (UTC)
-  houseSystem?: string; // Preferred house system (P, W, K, E)
+  houseSystem?: HouseSystem; // Preferred house system
   utcDateTime?: { // UTC equivalent of birth time
     year: number;
     month: number;
@@ -27,7 +33,7 @@ export interface NatalChart {
 }
 
 export interface PlanetPosition {
-  planet: string;
+  planet: PlanetName;
   longitude: number;
   latitude: number;
   distance: number;
@@ -37,26 +43,22 @@ export interface PlanetPosition {
   isRetrograde: boolean;
 }
 
-export interface Transit {
-  transitingPlanet: string;
-  natalPlanet: string;
+interface BaseTransit {
+  transitingPlanet: PlanetName;
+  natalPlanet: PlanetName;
   aspect: AspectType;
   orb: number;
-  exactTime?: Date;
   isApplying: boolean;
   transitLongitude: number;
   natalLongitude: number;
 }
 
-export interface TransitData {
-  transitingPlanet: string;
-  aspect: AspectType;
-  natalPlanet: string;
-  orb: number;
-  isApplying: boolean;
+export interface Transit extends BaseTransit {
+  exactTime?: Date;
+}
+
+export interface TransitData extends BaseTransit {
   exactTime?: string; // ISO timestamp
-  transitLongitude: number;
-  natalLongitude: number;
 }
 
 export interface TransitResponse {
@@ -99,9 +101,11 @@ export const PLANETS = {
   PALLAS: 18,
   JUNO: 19,
   VESTA: 20,
-};
+} as const;
 
-export const PLANET_NAMES: { [key: number]: string } = {
+export type PlanetId = typeof PLANETS[keyof typeof PLANETS];
+
+export const PLANET_NAMES: { [key: number]: PlanetName } = {
   0: 'Sun',
   1: 'Moon',
   2: 'Mercury',
@@ -159,11 +163,19 @@ export const ZODIAC_SIGNS = [
   'Pisces',
 ];
 
+/**
+ * House cusps in Swiss Ephemeris 1-based format
+ * - Index 0: Unused (by convention)
+ * - Index 1-12: Houses 1-12
+ * - Length: 13
+ */
+export type HouseCusps = number[];
+
 export interface HouseData {
   ascendant: number;
   mc: number;
-  cusps: number[];
-  system: string;
+  cusps: HouseCusps;
+  system: HouseSystem;
 }
 
 export interface RiseSetTime {

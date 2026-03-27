@@ -14,6 +14,7 @@ import { TransitCalculator } from './transits.js';
 import { missingNatalChart } from './tool-result.js';
 import {
   ASTEROIDS,
+  type HouseSystem,
   type NatalChart,
   NODES,
   OUTER_PLANETS,
@@ -281,7 +282,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const positions = ephem.getAllPlanets(jd, planetIds);
         
         // Determine house system (default to Placidus, or Whole Sign for polar latitudes)
-        let houseSystem = (args.house_system as string) || 'P';
+        let houseSystem: HouseSystem = (args.house_system as HouseSystem) || 'P';
         const isPolar = Math.abs(chart.location.latitude) > 66;
         
         // For polar latitudes, suggest Whole Sign if not specified

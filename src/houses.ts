@@ -1,5 +1,5 @@
 import type { EphemerisCalculator } from './ephemeris.js';
-import { type HouseData, ZODIAC_SIGNS } from './types.js';
+import { type HouseData, type HouseSystem, ZODIAC_SIGNS } from './types.js';
 
 export class HouseCalculator {
   private ephem: EphemerisCalculator;
@@ -64,7 +64,7 @@ export class HouseCalculator {
     }
 
     const isPolar = Math.abs(latitude) > 66;
-    let systemToUse = normalized;
+    let systemToUse = normalized as HouseSystem;
     
     // Try requested system
     const result = this.ephem.eph.swe_houses(
