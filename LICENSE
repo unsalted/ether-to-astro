@@ -1,0 +1,66 @@
+MIT License
+
+Copyright (c) 2024 Ether-to-Astro MCP Server
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+## Third-Party Licenses
+
+This project uses the following open-source libraries:
+
+### Swiss Ephemeris (@fusionstrings/swiss-eph)
+- **License**: AGPL-3.0 / Commercial (dual-licensed)
+- **Source**: https://github.com/FusionStrings/swiss-eph
+- **Note**: Swiss Ephemeris is dual-licensed. For non-commercial use, AGPL-3.0 applies.
+  For commercial use, a license from Astrodienst AG is required.
+- **Original**: https://www.astro.com/swisseph/
+
+### AstroChart (@astrodraw/astrochart)
+- **License**: MIT
+- **Source**: https://github.com/Kibo/AstroChart
+- **Copyright**: Copyright (c) Radek Krejčík
+
+### Sharp
+- **License**: Apache-2.0
+- **Source**: https://github.com/lovell/sharp
+- **Copyright**: Copyright 2013 Lovell Fuller and contributors
+
+### Model Context Protocol SDK (@modelcontextprotocol/sdk)
+- **License**: MIT
+- **Source**: https://github.com/modelcontextprotocol/typescript-sdk
+- **Copyright**: Copyright (c) Anthropic
+
+---
+
+## Important Notice Regarding Swiss Ephemeris
+
+The Swiss Ephemeris library is dual-licensed:
+
+1. **AGPL-3.0**: Free for non-commercial, open-source projects
+2. **Commercial License**: Required for commercial use
+
+If you plan to use this software commercially, you must obtain a commercial
+license for Swiss Ephemeris from Astrodienst AG:
+https://www.astro.com/swisseph/
+
+This project (Ether-to-Astro MCP Server) is licensed under MIT, but the
+Swiss Ephemeris dependency has its own licensing requirements that must be
+respected.
