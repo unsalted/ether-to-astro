@@ -1,15 +1,15 @@
 {
-  "name": "ether-to-astro-mcp",
+  "name": "ether-to-astro",
   "version": "1.0.0",
-  "description": "MCP server for astrology calculations using Swiss Ephemeris",
+  "description": "Astrology CLI + MCP server using Swiss Ephemeris",
   "type": "module",
   "main": "dist/index.js",
   "engines": {
     "node": ">=20"
   },
   "bin": {
-    "ether-to-astro-mcp": "./dist/loader.js",
-    "astro-cli": "./dist/cli.js"
+    "e2a-mcp": "./dist/loader.js",
+    "e2a": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc",

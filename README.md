@@ -73,12 +73,16 @@ npm run build
 {
   "mcpServers": {
     "astro": {
-      "command": "node",
-      "args": ["/path/to/ether-to-astro-mcp/dist/index.js"]
+      "command": "e2a-mcp"
     }
   }
 }
 ```
+
+Package/binary names:
+- Package: `ether-to-astro`
+- CLI command: `e2a`
+- MCP command: `e2a-mcp`
 
 ## Runtime Surfaces
 
@@ -96,20 +100,49 @@ This design is **MCP-compliant** for stdio transport and ensures complete isolat
 
 ### CLI (single-shot, stateless)
 
-`astro-cli` is JSON-first for agent usage and supports `--pretty` for human-readable output.
+`e2a` is JSON-first for agent usage and supports `--pretty` for human-readable output.
 
 Examples:
 
 ```bash
 # Help
-npx astro-cli --help
+npx e2a --help
 
 # Set natal chart and print JSON
-npx astro-cli set-natal-chart --name "Test" --year 1990 --month 1 --day 1 --hour 12 --minute 0 --latitude 40.7 --longitude -74.0 --timezone America/New_York
+npx e2a set-natal-chart --name "Test" --year 1990 --month 1 --day 1 --hour 12 --minute 0 --latitude 40.7 --longitude -74.0 --timezone America/New_York
 
 # Human-readable transit output
-npx astro-cli get-transits --natal-file ./natal.json --date 2026-03-27 --pretty
+npx e2a get-transits --natal-file ./natal.json --date 2026-03-27 --pretty
 ```
+
+### CLI Profiles (`.astro.json`)
+
+The CLI supports profile-based natal input for one-shot commands.
+
+- `--profile <name>`: profile to use
+- `--profile-file <path>`: explicit profile file path
+- `ASTRO_PROFILE`, `ASTRO_PROFILE_FILE`: env var equivalents
+
+Profile file resolution order:
+1. `--profile-file`
+2. `ASTRO_PROFILE_FILE`
+3. `./.astro.json`
+4. `~/.astro.json`
+
+Profile name resolution order:
+1. `--profile`
+2. `ASTRO_PROFILE`
+3. `defaultProfile` in the profile file
+
+Read-only helper commands:
+
+```bash
+npx e2a profiles list
+npx e2a profiles show --profile elwyn
+npx e2a profiles validate
+```
+
+Recommended: add project-local `.astro.json` to `.gitignore` because it contains birth data.
 
 ### Time Handling
 The server accepts **local birth time** (not UTC):

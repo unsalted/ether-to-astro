@@ -3,6 +3,12 @@
 import { readFile } from 'node:fs/promises';
 import { Command, Option } from 'commander';
 import pc from 'picocolors';
+import {
+  ProfileStoreError,
+  loadResolvedProfileFile,
+  resolveProfileSelection,
+  toNatalInput,
+} from './profile-store.js';
 import { getToolSpec, type ToolExecutionResult } from './tool-registry.js';
 import type { AstroService as AstroServiceType, SetNatalChartInput } from './astro-service.js';
 import type { HouseSystem, NatalChart } from './types.js';
@@ -14,6 +20,8 @@ interface CliIO {
 
 interface SharedOptions {
   pretty?: boolean;
+  profile?: string;
+  profileFile?: string;
   natalFile?: string;
   name?: string;
   year?: string;
@@ -47,6 +55,10 @@ interface ChartOptions extends SharedOptions {
   theme?: 'light' | 'dark';
   format?: 'svg' | 'png' | 'webp';
   outputPath?: string;
+}
+
+interface NonNatalTimezoneOptions extends SharedOptions {
+  timezone?: string;
 }
 
 interface SchemaProperty {
@@ -158,9 +170,28 @@ async function resolveNatalInput(options: SharedOptions): Promise<SetNatalChartI
   };
 }
 
+function hasInlineNatalInput(options: SharedOptions): boolean {
+  return (
+    options.year !== undefined
+    || options.month !== undefined
+    || options.day !== undefined
+    || options.hour !== undefined
+    || options.minute !== undefined
+    || options.latitude !== undefined
+    || options.longitude !== undefined
+    || options.timezone !== undefined
+  );
+}
+
+function withProfileOptions(command: Command): Command {
+  return command
+    .option('--profile <name>', 'Profile name to load from profile file')
+    .option('--profile-file <path>', 'Explicit path to profile file');
+}
+
 function emit(io: CliIO, data: unknown, text: string, pretty: boolean): void {
   if (pretty) {
-    io.stdout(`${pc.bold(pc.cyan('astro-cli'))}\n${text}`);
+    io.stdout(`${pc.bold(pc.cyan('e2a'))}\n${text}`);
     return;
   }
   io.stdout(JSON.stringify(data, null, 2));
@@ -179,6 +210,16 @@ function emitExecution(io: CliIO, result: ToolExecutionResult, pretty: boolean):
 }
 
 function errorPayload(error: unknown): { code: string; message: string } {
+  if (error instanceof ProfileStoreError) {
+    return { code: error.code, message: error.message };
+  }
+  if (typeof error === 'object' && error !== null && 'code' in error && 'message' in error) {
+    const code = (error as { code: unknown }).code;
+    const message = (error as { message: unknown }).message;
+    if (typeof code === 'string' && typeof message === 'string') {
+      return { code, message };
+    }
+  }
   if (error instanceof Error) {
     return { code: 'CLI_ERROR', message: error.message };
   }
@@ -186,6 +227,7 @@ function errorPayload(error: unknown): { code: string; message: string } {
 }
 
 function commonNatalOptions(command: Command): Command {
+  withProfileOptions(command);
   command.option('--natal-file <path>', 'JSON file containing natal inputs');
   addSchemaOption(command, 'set_natal_chart', 'name', { valueHint: 'name' });
   addSchemaOption(command, 'set_natal_chart', 'year', { valueHint: 'number' });
@@ -207,13 +249,44 @@ async function withNatalChart(
   options: SharedOptions,
   fn: (natalChart: NatalChart, pretty: boolean) => Promise<void>
 ): Promise<void> {
-  const natalInput = await resolveNatalInput(options);
+  let natalInput: SetNatalChartInput | null = null;
+  if (options.natalFile || hasInlineNatalInput(options)) {
+    natalInput = await resolveNatalInput(options);
+  } else {
+    const profileSelection = await resolveProfileSelection({
+      profileName: options.profile,
+      profileFile: options.profileFile,
+    });
+    natalInput = profileSelection ? toNatalInput(profileSelection.profile) : null;
+  }
+
+  if (!natalInput) {
+    throw new ProfileStoreError(
+      'PROFILE_NOT_FOUND',
+      'No natal context resolved. Provide natal fields, --natal-file, or --profile.'
+    );
+  }
+
   const setNatal = mustTool('set_natal_chart');
-  const result = await setNatal.execute({ service, natalChart: null }, natalInput as unknown as Record<string, unknown>);
+  const result = await setNatal.execute(
+    { service, natalChart: null },
+    natalInput as unknown as Record<string, unknown>
+  );
   if (result.kind !== 'state' || !result.natalChart) {
     throw new Error('set_natal_chart did not return a natal chart');
   }
   await fn(result.natalChart, options.pretty ?? false);
+}
+
+async function resolveCommandTimezone(options: SharedOptions): Promise<string> {
+  if (options.timezone) {
+    return options.timezone;
+  }
+  const profileSelection = await resolveProfileSelection({
+    profileName: options.profile,
+    profileFile: options.profileFile,
+  });
+  return profileSelection?.profile.timezone ?? 'UTC';
 }
 
 function emitCliError(io: CliIO, pretty: boolean, err: unknown): number {
@@ -241,7 +314,7 @@ export async function runCli(
   const program = new Command();
 
   program
-    .name('astro-cli')
+    .name('e2a')
     .description('Single-shot astrology CLI (JSON-first, stateless)')
     .showHelpAfterError('(add --help for more details)')
     .configureOutput({
@@ -252,7 +325,22 @@ export async function runCli(
   commonNatalOptions(program.command('set-natal-chart').description(mustTool('set_natal_chart').description))
     .action(async (options: SharedOptions) => {
       const setNatal = mustTool('set_natal_chart');
-      const natalInput = await resolveNatalInput(options);
+      const profileSelection = options.natalFile || hasInlineNatalInput(options)
+        ? null
+        : await resolveProfileSelection({
+            profileName: options.profile,
+            profileFile: options.profileFile,
+          });
+      const natalInput = options.natalFile || hasInlineNatalInput(options)
+        ? await resolveNatalInput(options)
+        : profileSelection
+          ? toNatalInput(profileSelection.profile)
+          : (() => {
+              throw new ProfileStoreError(
+                'PROFILE_NOT_FOUND',
+                'No natal context resolved. Provide natal fields, --natal-file, or --profile.'
+              );
+            })();
       const result = await setNatal.execute(
         { service, natalChart: null },
         natalInput as unknown as Record<string, unknown>
@@ -263,34 +351,102 @@ export async function runCli(
   program
     .command('get-retrograde-planets')
     .description(mustTool('get_retrograde_planets').description)
-    .option('--timezone <tz>', 'Timezone label for output', 'UTC')
+    .option('--timezone <tz>', 'Timezone label for output')
+    .option('--profile <name>', 'Profile name to load from profile file')
+    .option('--profile-file <path>', 'Explicit path to profile file')
     .option('--pretty', 'Human-readable output instead of JSON')
-    .action(async (options: { timezone: string; pretty?: boolean }) => {
+    .action(async (options: NonNatalTimezoneOptions) => {
       const spec = mustTool('get_retrograde_planets');
-      const result = await spec.execute({ service, natalChart: null }, { timezone: options.timezone });
+      const timezone = await resolveCommandTimezone(options);
+      const result = await spec.execute({ service, natalChart: null }, { timezone });
       emitExecution(io, result, options.pretty ?? false);
     });
 
   program
     .command('get-asteroid-positions')
     .description(mustTool('get_asteroid_positions').description)
-    .option('--timezone <tz>', 'Timezone label for output', 'UTC')
+    .option('--timezone <tz>', 'Timezone label for output')
+    .option('--profile <name>', 'Profile name to load from profile file')
+    .option('--profile-file <path>', 'Explicit path to profile file')
     .option('--pretty', 'Human-readable output instead of JSON')
-    .action(async (options: { timezone: string; pretty?: boolean }) => {
+    .action(async (options: NonNatalTimezoneOptions) => {
       const spec = mustTool('get_asteroid_positions');
-      const result = await spec.execute({ service, natalChart: null }, { timezone: options.timezone });
+      const timezone = await resolveCommandTimezone(options);
+      const result = await spec.execute({ service, natalChart: null }, { timezone });
       emitExecution(io, result, options.pretty ?? false);
     });
 
   program
     .command('get-next-eclipses')
     .description(mustTool('get_next_eclipses').description)
-    .option('--timezone <tz>', 'Timezone label for output', 'UTC')
+    .option('--timezone <tz>', 'Timezone label for output')
+    .option('--profile <name>', 'Profile name to load from profile file')
+    .option('--profile-file <path>', 'Explicit path to profile file')
     .option('--pretty', 'Human-readable output instead of JSON')
-    .action(async (options: { timezone: string; pretty?: boolean }) => {
+    .action(async (options: NonNatalTimezoneOptions) => {
       const spec = mustTool('get_next_eclipses');
-      const result = await spec.execute({ service, natalChart: null }, { timezone: options.timezone });
+      const timezone = await resolveCommandTimezone(options);
+      const result = await spec.execute({ service, natalChart: null }, { timezone });
       emitExecution(io, result, options.pretty ?? false);
+    });
+
+  const profiles = program.command('profiles').description('Inspect and validate CLI profile files');
+
+  profiles.command('list').description('List available profiles')
+    .option('--profile-file <path>', 'Explicit path to profile file')
+    .option('--pretty', 'Human-readable output instead of JSON')
+    .action(async (options: SharedOptions) => {
+      const { filePath, file } = await loadResolvedProfileFile({
+        profileFile: options.profileFile,
+      });
+      const names = Object.keys(file.profiles).sort();
+      const data = {
+        filePath,
+        defaultProfile: file.defaultProfile ?? null,
+        profiles: names,
+      };
+      const text = names.length === 0
+        ? `No profiles found in ${filePath}`
+        : `Profiles in ${filePath}:\n- ${names.join('\n- ')}`;
+      emit(io, data, text, options.pretty ?? false);
+    });
+
+  profiles.command('show').description('Show a profile')
+    .requiredOption('--profile <name>', 'Profile name to show')
+    .option('--profile-file <path>', 'Explicit path to profile file')
+    .option('--pretty', 'Human-readable output instead of JSON')
+    .action(async (options: SharedOptions) => {
+      const selection = await resolveProfileSelection({
+        profileFile: options.profileFile,
+        profileName: options.profile,
+      });
+      if (!selection) {
+        throw new ProfileStoreError('PROFILE_NOT_FOUND', 'Profile was not resolved.');
+      }
+      const data = {
+        filePath: selection.filePath,
+        profileName: selection.profileName,
+        profile: selection.profile,
+      };
+      const text = `Profile "${selection.profileName}" from ${selection.filePath}`;
+      emit(io, data, text, options.pretty ?? false);
+    });
+
+  profiles.command('validate').description('Validate profile file schema')
+    .option('--profile-file <path>', 'Explicit path to profile file')
+    .option('--pretty', 'Human-readable output instead of JSON')
+    .action(async (options: SharedOptions) => {
+      const { filePath, file } = await loadResolvedProfileFile({
+        profileFile: options.profileFile,
+      });
+      const data = {
+        valid: true,
+        filePath,
+        profileCount: Object.keys(file.profiles).length,
+        defaultProfile: file.defaultProfile ?? null,
+      };
+      const text = `Profile file is valid: ${filePath}`;
+      emit(io, data, text, options.pretty ?? false);
     });
 
   commonNatalOptions(program.command('get-transits').description(mustTool('get_transits').description))

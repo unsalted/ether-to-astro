@@ -23,7 +23,7 @@ import type { NatalChart } from './types.js';
 
 const server = new Server(
   {
-    name: 'ether-to-astro-mcp',
+    name: 'e2a-mcp',
     version: '1.0.0',
   },
   {

@@ -7,7 +7,8 @@ This file is for coding agents working in `astro-mcp`. It documents the real arc
 - Engine is native Node binding: `sweph` (not WASM/WASI).
 - `sweph` is version-pinned in `package.json` to keep numeric baselines stable for fixtures/validation.
 - MCP entrypoint is `src/loader.ts` -> `src/index.ts`.
-- CLI entrypoint is `src/cli.ts` (`astro-cli` bin), designed for single-shot stateless usage.
+- CLI entrypoint is `src/cli.ts` (`e2a` bin), designed for single-shot stateless usage.
+- CLI profiles are read from `.astro.json` via `src/profile-store.ts` (read-only in v1).
 - Ephemeris files are expected under `data/ephemeris` and configured via `set_ephe_path()`.
 - Server state is process-local and in-memory: one mutable `natalChart` in `src/index.ts`.
 
@@ -24,6 +25,7 @@ This file is for coding agents working in `astro-mcp`. It documents the real arc
 - `src/astro-service.ts`: shared business logic used by both MCP and CLI.
 - `src/index.ts`: MCP tool schemas + request handling + stateful orchestration.
 - `src/cli.ts`: commander-based single-shot CLI surface.
+- `src/profile-store.ts`: `.astro.json` profile resolution + schema validation for CLI.
 - `src/ephemeris.ts`: low-level ephemeris adapter, JD/date conversion, position calc, exact root solver.
 - `src/transits.ts`: transit detection, exact-time policy, applying/separating selection, dedupe.
 - `src/houses.ts`: house cusps + polar fallback behavior.
