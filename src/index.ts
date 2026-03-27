@@ -18,6 +18,7 @@ import {
   OUTER_PLANETS,
   PERSONAL_PLANETS,
   PLANETS,
+  type Transit,
   type TransitResponse,
   type TransitData,
   type PlanetPositionResponse,
@@ -91,8 +92,52 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: 'get_transits',
+        description:
+          'Unified transit query with flexible filtering. Get transits between current/future planets and natal chart, with control over planet categories, date range, orb, and aspect filtering. This is the recommended tool for most transit queries.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            date: {
+              type: 'string',
+              description: 'Date for transits (ISO format YYYY-MM-DD). Defaults to today.',
+            },
+            categories: {
+              type: 'array',
+              items: {
+                type: 'string',
+                enum: ['moon', 'personal', 'outer', 'all'],
+              },
+              description: 'Planet categories to include: moon, personal (Sun/Mercury/Venus/Mars), outer (Jupiter/Saturn/Uranus/Neptune/Pluto), or all. Defaults to ["all"].',
+            },
+            include_mundane: {
+              type: 'boolean',
+              description: 'Include current planetary positions (not transits to natal chart). Defaults to false.',
+            },
+            days_ahead: {
+              type: 'number',
+              description: 'Number of days to look ahead for upcoming transits. 0 = today only. Defaults to 0.',
+              default: 0,
+            },
+            max_orb: {
+              type: 'number',
+              description: 'Maximum orb in degrees to include. Defaults to 8.',
+              default: 8,
+            },
+            exact_only: {
+              type: 'boolean',
+              description: 'Only return transits with exact times calculated (within 2° orb). Defaults to false.',
+            },
+            applying_only: {
+              type: 'boolean',
+              description: 'Only return applying (tightening) transits. Defaults to false.',
+            },
+          },
+        },
+      },
+      {
         name: 'get_daily_transits',
-        description: 'Get all current planetary positions (mundane transits) for today',
+        description: 'Get all current planetary positions (mundane transits) for today. DEPRECATED: Use get_transits with include_mundane=true instead.',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -100,7 +145,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'get_moon_transits',
-        description: 'Get Moon transits to natal chart planets for today',
+        description: 'Get Moon transits to natal chart planets for today. DEPRECATED: Use get_transits with categories=["moon"] instead.',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -109,7 +154,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'get_personal_planet_transits',
         description:
-          'Get transits from personal planets (Sun, Mercury, Venus, Mars) to natal chart',
+          'Get transits from personal planets (Sun, Mercury, Venus, Mars) to natal chart. DEPRECATED: Use get_transits with categories=["personal"] instead.',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -118,7 +163,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'get_outer_planet_transits',
         description:
-          'Get transits from outer planets (Jupiter, Saturn, Uranus, Neptune, Pluto) to natal chart',
+          'Get transits from outer planets (Jupiter, Saturn, Uranus, Neptune, Pluto) to natal chart. DEPRECATED: Use get_transits with categories=["outer"] instead.',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -127,7 +172,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'get_upcoming_transits',
         description:
-          'Get upcoming transits within orb (approaching within 2 degrees) for the next several days',
+          'Get upcoming transits within orb (approaching within 2 degrees) for the next several days. DEPRECATED: Use get_transits with days_ahead parameter instead.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -141,7 +186,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'get_exact_transit_times',
-        description: 'Calculate exact times when current transits become exact (0° orb)',
+        description: 'Calculate exact times when current transits become exact (0° orb). DEPRECATED: Use get_transits with exact_only=true instead.',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -370,6 +415,132 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               type: 'text',
               text: feedback.join('\n'),
             },
+          ],
+        };
+      }
+
+      case 'get_transits': {
+        if (!natalChart) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No natal chart found. Please set natal chart first using set_natal_chart.',
+              },
+            ],
+          };
+        }
+
+        // Parse parameters with defaults
+        const dateStr = args.date as string | undefined;
+        const categories = (args.categories as string[]) || ['all'];
+        const includeMundane = (args.include_mundane as boolean) || false;
+        const daysAhead = (args.days_ahead as number) || 0;
+        const maxOrb = (args.max_orb as number) || 8;
+        const exactOnly = (args.exact_only as boolean) || false;
+        const applyingOnly = (args.applying_only as boolean) || false;
+
+        // Determine which planets to include
+        let transitingPlanetIds: number[] = [];
+        if (categories.includes('all')) {
+          transitingPlanetIds = Object.values(PLANETS);
+        } else {
+          if (categories.includes('moon')) {
+            transitingPlanetIds.push(PLANETS.MOON);
+          }
+          if (categories.includes('personal')) {
+            transitingPlanetIds.push(...PERSONAL_PLANETS.filter(p => p !== PLANETS.MOON));
+          }
+          if (categories.includes('outer')) {
+            transitingPlanetIds.push(...OUTER_PLANETS);
+          }
+        }
+
+        // Parse date or use today
+        const targetDate = dateStr
+          ? new Date(dateStr + 'T12:00:00Z')
+          : new Date();
+
+        // Collect transits across date range
+        const allTransits: Transit[] = [];
+        
+        for (let day = 0; day <= daysAhead; day++) {
+          const date = new Date(targetDate);
+          date.setDate(date.getDate() + day);
+          const jd = ephem.dateToJulianDay(date);
+
+          const transitingPlanets = ephem.getAllPlanets(jd, transitingPlanetIds);
+          const transits = transitCalc.findTransits(transitingPlanets, natalChart.planets || [], jd);
+
+          allTransits.push(...transits);
+        }
+
+        // Deduplicate
+        const seen = new Set<string>();
+        let filteredTransits = allTransits.filter((t) => {
+          const key = `${t.transitingPlanet}-${t.natalPlanet}-${t.aspect}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        // Apply filters
+        filteredTransits = filteredTransits.filter(t => t.orb <= maxOrb);
+        
+        if (exactOnly) {
+          filteredTransits = filteredTransits.filter(t => t.exactTime !== undefined);
+        }
+        
+        if (applyingOnly) {
+          filteredTransits = filteredTransits.filter(t => t.isApplying);
+        }
+
+        // Sort by orb
+        filteredTransits.sort((a, b) => a.orb - b.orb);
+
+        const timezone = natalChart.location.timezone;
+
+        // Build structured response
+        const structuredData: TransitResponse = {
+          date: targetDate.toISOString().split('T')[0],
+          timezone,
+          transits: filteredTransits.map(t => ({
+            transitingPlanet: t.transitingPlanet,
+            aspect: t.aspect,
+            natalPlanet: t.natalPlanet,
+            orb: Number.parseFloat(t.orb.toFixed(2)),
+            isApplying: t.isApplying,
+            exactTime: t.exactTime?.toISOString(),
+            transitLongitude: t.transitLongitude,
+            natalLongitude: t.natalLongitude,
+          })),
+        };
+
+        // Build human-readable text
+        if (filteredTransits.length === 0) {
+          return {
+            content: [
+              { type: 'text', text: JSON.stringify(structuredData, null, 2) },
+              { type: 'text', text: '\n\nNo transits found matching the specified criteria.' },
+            ],
+          };
+        }
+
+        const humanText = filteredTransits
+          .map((t) => {
+            const exactStr = t.exactTime
+              ? ` - Exact: ${TimeFormatter.formatInTimezone(t.exactTime, timezone)}`
+              : '';
+            const applyStr = t.isApplying ? '(applying)' : '(separating)';
+            return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: ${t.orb.toFixed(2)}° orb ${applyStr}${exactStr}`;
+          })
+          .join('\n');
+
+        const rangeStr = daysAhead > 0 ? ` (next ${daysAhead + 1} days)` : '';
+        return {
+          content: [
+            { type: 'text', text: JSON.stringify(structuredData, null, 2) },
+            { type: 'text', text: `\n\nTransits${rangeStr}:\n\n${humanText}` },
           ],
         };
       }
