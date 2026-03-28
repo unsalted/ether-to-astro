@@ -89,6 +89,17 @@ Defined in `tests/validation/utils/tolerances.ts`:
 - Preferred commit types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `build`, `ci`.
 - Keep commits scoped to one coherent change whenever possible.
 
+## Release Governance
+- `main` is PR-only and branch-protected; do not push directly.
+- Use Conventional Commits / commitizen-style messages for all commits.
+- Version bumps are release actions, not routine feature commits:
+  1. Merge release-ready fixes to `main` via PR.
+  2. On `main`, run `npm version patch|minor|major` (creates commit + tag).
+  3. Push commit and tag, then publish a GitHub Release for that tag.
+  4. `release.yml` handles npm publish via trusted publishing.
+- Keep release commit message explicit (for example: `chore(release): 1.0.1`) when invoking version bump.
+- Do not cut/version tags from feature branches.
+
 ## Known Gotchas
 - `sweph` has process-wide settings (e.g., ephemeris path); avoid per-request mutation.
 
