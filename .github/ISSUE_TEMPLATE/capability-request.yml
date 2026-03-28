@@ -1,0 +1,117 @@
+name: Capability request
+description: Request a new feature, MCP primitive, skill, or reporting capability.
+title: "[Capability]: "
+labels:
+  - feature
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for new capabilities across MCP, CLI, skills, or docs.
+
+        Before filing, check:
+        - `docs/product/product-tenets.md`
+        - `docs/product/architecture-boundaries.md`
+        - whether this belongs in MCP, a skill, or docs
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Recommended surface
+      description: Where should this capability primarily live?
+      options:
+        - MCP
+        - Skill
+        - CLI
+        - Docs
+        - Mixed / not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Capability type
+      options:
+        - Feature
+        - Gap
+        - Skill enhancement
+        - Docs enhancement
+        - RFC / decision needed
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What is missing or hard today? Write this like a PM problem statement.
+      placeholder: The current product can do X, but it cannot do Y, which blocks Z.
+    validations:
+      required: true
+
+  - type: textarea
+    id: user_story
+    attributes:
+      label: User story
+      description: Use the format “As a..., I want..., so that...”
+      placeholder: As a skill author, I want...
+    validations:
+      required: true
+
+  - type: textarea
+    id: value
+    attributes:
+      label: Why this matters
+      description: What user outcome or product goal does this unlock?
+      placeholder: This matters because...
+    validations:
+      required: true
+
+  - type: textarea
+    id: determinism
+    attributes:
+      label: Determinism and boundary check
+      description: Explain whether the proposed output is deterministic for the same inputs, and why it belongs in MCP, a skill, or another layer.
+      placeholder: The output is deterministic because... It belongs in MCP/Skill because...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_scope
+    attributes:
+      label: Proposed scope
+      description: What should this include? Keep it concrete.
+      placeholder: Add a new endpoint or mode that returns...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Flat list is fine. Focus on observable outcomes.
+      placeholder: |
+        - A client can...
+        - The response includes...
+        - Docs explain...
+    validations:
+      required: true
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Example input/output or workflow
+      description: Provide a tool call, user flow, or report snippet if helpful.
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies or related issues
+      description: Link related issues or note prerequisite work.
+
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals or constraints
+      description: What should this issue avoid doing?

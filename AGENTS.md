@@ -98,6 +98,24 @@ Defined in `tests/validation/utils/tolerances.ts`:
 - Preferred commit types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `build`, `ci`.
 - Keep commits scoped to one coherent change whenever possible.
 
+## Request Triage Guidance
+- When responding to bug reports, feature requests, or product-boundary questions, consult these docs first:
+  - `docs/product/product-tenets.md`
+  - `docs/product/architecture-boundaries.md`
+  - `docs/product/adrs/0001-mcp-vs-skill-boundary.md`
+  - `docs/product/post-iteration-2-triage.private.md` if present locally
+- Use those docs to classify the request before proposing implementation:
+  - `bug` for incorrect, lossy, misleading, or contract-drift behavior
+  - `feature` for reusable product capability
+  - `paper-cut` for small interface or workflow friction
+  - `skill` when the work is primarily synthesis, formatting, ranking, or preference-aware orchestration
+  - `MCP` when the work is deterministic or mostly deterministic, computational, reusable, and risky to reconstruct client-side
+- Apply the determinism rule explicitly:
+  - deterministic and generic astro computation is a strong candidate for MCP
+  - deterministic but policy-heavy or personalized workflow synthesis still belongs in a skill
+- If a competent LLM can solve the request in one or two calls using stable MCP primitives, prefer keeping it out of MCP unless there is strong evidence the pattern should become a reusable primitive.
+- For incoming product requests, prefer extending an existing tool with flags, fields, modes, or range support before proposing a new narrowly scoped MCP tool.
+
 ## Release Governance
 - `main` is PR-only and branch-protected; do not push directly.
 - Use Conventional Commits / commitizen-style messages for all commits.

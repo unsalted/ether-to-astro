@@ -1,0 +1,87 @@
+name: Bug report
+description: Report incorrect, misleading, lossy, or contract-drift behavior.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when the current behavior is wrong, misleading, lossy, or does not match docs.
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      options:
+        - MCP
+        - CLI
+        - Docs
+        - Charts / rendering
+        - Validation / tests
+        - Mixed / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current behavior
+      description: What happens today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: User impact
+      description: Why does this matter in practice?
+      placeholder: This causes incorrect astrology, misleading UX, or broken workflows because...
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Include tool calls, CLI commands, or input parameters.
+      placeholder: |
+        1. Call `...`
+        2. With input `...`
+        3. Observe `...`
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Relevant chart/date/timezone context
+      description: Add sanitized astrology context if it matters.
+      placeholder: Date, timezone, house system, location, planet categories, days_ahead, etc.
+
+  - type: textarea
+    id: docs_drift
+    attributes:
+      label: Docs or contract drift
+      description: If docs/tool descriptions are involved, note the mismatch here.
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Fix acceptance criteria
+      description: What would make this bug fixed?
+      placeholder: |
+        - Tool docs say...
+        - Response no longer drops...
+        - Validation covers...
+    validations:
+      required: true
+
