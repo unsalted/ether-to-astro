@@ -20,7 +20,7 @@ So I built the version I wanted to exist: local-first, scriptable, tested, and s
 
 ## Features
 
-Your wife can ask her AI agent about:
+You can ask your AI agent about:
 
 ### Transits
 - **Daily mundane transits** - Current planetary positions
@@ -129,7 +129,8 @@ npm run build
 {
   "mcpServers": {
     "astro": {
-      "command": "e2a-mcp"
+      "command": "npx",
+      "args": ["--yes", "--package=ether-to-astro", "e2a-mcp"]
     }
   }
 }
@@ -158,17 +159,27 @@ This design is **MCP-compliant** for stdio transport and ensures complete isolat
 
 `e2a` is JSON-first for agent usage and supports `--pretty` for human-readable output.
 
+`npx` usage note: this package is named `ether-to-astro`, so invoke bins with `--package`.
+
+Install globally if you want direct commands without `--package`:
+
+```bash
+npm install -g ether-to-astro
+e2a --help
+e2a-mcp --help
+```
+
 Examples:
 
 ```bash
 # Help
-npx e2a --help
+npx --yes --package=ether-to-astro e2a --help
 
 # Set natal chart and print JSON
-npx e2a set-natal-chart --name "Test" --year 1990 --month 1 --day 1 --hour 12 --minute 0 --latitude 40.7 --longitude -74.0 --timezone America/New_York
+npx --yes --package=ether-to-astro e2a set-natal-chart --name "Test" --year 1990 --month 1 --day 1 --hour 12 --minute 0 --latitude 40.7 --longitude -74.0 --timezone America/New_York
 
 # Human-readable transit output
-npx e2a get-transits --natal-file ./natal.json --date 2026-03-27 --pretty
+npx --yes --package=ether-to-astro e2a get-transits --natal-file ./natal.json --date 2026-03-27 --pretty
 ```
 
 ### CLI Profiles (`.astro.json`)
@@ -193,9 +204,9 @@ Profile name resolution order:
 Read-only helper commands:
 
 ```bash
-npx e2a profiles list
-npx e2a profiles show --profile elwyn
-npx e2a profiles validate
+npx --yes --package=ether-to-astro e2a profiles list
+npx --yes --package=ether-to-astro e2a profiles show --profile default
+npx --yes --package=ether-to-astro e2a profiles validate
 ```
 
 Recommended: add project-local `.astro.json` to `.gitignore` because it contains birth data.
