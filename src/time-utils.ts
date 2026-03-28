@@ -165,3 +165,21 @@ export function addLocalDays(local: LocalDateTime, timezone: string, days: numbe
   const zonedDateTime = newPlainDateTime.toZonedDateTime(timezone);
   return new Date(zonedDateTime.epochMilliseconds);
 }
+
+/**
+ * Format a UTC instant as a local ISO-8601 timestamp with timezone offset.
+ *
+ * @param utc - UTC Date object
+ * @param timezone - IANA timezone string
+ * @returns Local timestamp in the form YYYY-MM-DDTHH:mm:ss±HH:MM
+ */
+export function formatLocalTimestampWithOffset(utc: Date, timezone: string): string {
+  const local = utcToLocal(utc, timezone);
+  const offsetMinutes = getTimezoneOffset(utc, timezone);
+  const offsetSign = offsetMinutes >= 0 ? '+' : '-';
+  const offsetAbs = Math.abs(offsetMinutes);
+  const offsetHours = String(Math.floor(offsetAbs / 60)).padStart(2, '0');
+  const offsetMins = String(offsetAbs % 60).padStart(2, '0');
+
+  return `${String(local.year).padStart(4, '0')}-${String(local.month).padStart(2, '0')}-${String(local.day).padStart(2, '0')}T${String(local.hour).padStart(2, '0')}:${String(local.minute).padStart(2, '0')}:${String(local.second ?? 0).padStart(2, '0')}${offsetSign}${offsetHours}:${offsetMins}`;
+}
