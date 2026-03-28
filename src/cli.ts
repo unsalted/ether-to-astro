@@ -56,6 +56,7 @@ interface TransitOptions extends SharedOptions {
   categories?: string;
   includeMundane?: boolean;
   daysAhead?: string;
+  mode?: 'snapshot' | 'best_hit' | 'forecast';
   maxOrb?: string;
   exactOnly?: boolean;
   applyingOnly?: boolean;
@@ -533,6 +534,12 @@ export async function runCli(
       '--days-ahead <number>',
       toolSchemaProperty('get_transits', 'days_ahead').description ?? 'Days ahead'
     )
+    .addOption(
+      new Option(
+        '--mode <mode>',
+        toolSchemaProperty('get_transits', 'mode').description ?? 'Transit mode'
+      ).choices(['snapshot', 'best_hit', 'forecast'])
+    )
     .option(
       '--max-orb <number>',
       toolSchemaProperty('get_transits', 'max_orb').description ?? 'Max orb'
@@ -557,6 +564,7 @@ export async function runCli(
           include_mundane: options.includeMundane,
           days_ahead:
             options.daysAhead == null ? undefined : toNumber(options.daysAhead, 'days-ahead'),
+          mode: options.mode,
           max_orb: options.maxOrb == null ? undefined : toNumber(options.maxOrb, 'max-orb'),
           exact_only: options.exactOnly,
           applying_only: options.applyingOnly,
