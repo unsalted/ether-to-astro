@@ -18,6 +18,21 @@ interface CliIO {
   stderr: (msg: string) => void;
 }
 
+interface PackageMeta {
+  description?: string;
+  version?: string;
+}
+
+const E2A_BANNER = `
+███████╗██████╗  █████╗
+██╔════╝╚════██╗██╔══██╗
+█████╗   █████╔╝███████║
+██╔══╝  ██╔═══╝ ██╔══██║
+███████╗███████╗██║  ██║
+╚══════╝╚══════╝╚═╝  ╚═╝
+    ether-to-astro
+`;
+
 interface SharedOptions {
   pretty?: boolean;
   profile?: string;
@@ -148,6 +163,15 @@ async function loadNatalFromFile(path: string): Promise<SetNatalChartInput> {
   };
 }
 
+async function loadPackageMeta(): Promise<PackageMeta> {
+  try {
+    const raw = await readFile(new URL('../package.json', import.meta.url), 'utf8');
+    return JSON.parse(raw) as PackageMeta;
+  } catch {
+    return {};
+  }
+}
+
 async function resolveNatalInput(options: SharedOptions): Promise<SetNatalChartInput> {
   if (options.natalFile) {
     return loadNatalFromFile(options.natalFile);
@@ -191,7 +215,7 @@ function withProfileOptions(command: Command): Command {
 
 function emit(io: CliIO, data: unknown, text: string, pretty: boolean): void {
   if (pretty) {
-    io.stdout(`${pc.bold(pc.cyan('e2a'))}\n${text}`);
+    io.stdout(`${pc.bold(pc.magenta(E2A_BANNER))}\n${text}`);
     return;
   }
   io.stdout(JSON.stringify(data, null, 2));
@@ -323,16 +347,25 @@ export async function runCli(
   const { AstroService } = await import('./astro-service.js');
   const service: AstroServiceType = new AstroService();
   await service.init();
+  const pkg = await loadPackageMeta();
 
   const program = new Command();
+  const isHelpInvocation = argv.includes('--help') || argv.includes('-h');
+  if (isHelpInvocation) {
+    io.stdout(pc.bold(pc.magenta(E2A_BANNER)));
+  }
 
   program
     .name('e2a')
-    .description('Single-shot astrology CLI (JSON-first, stateless)')
+    .description(pkg.description ?? 'Single-shot astrology CLI (JSON-first, stateless)')
+    .version(pkg.version ?? '0.0.0', '-v, --version', 'Show package version')
     .showHelpAfterError('(add --help for more details)')
     .configureOutput({
       writeErr: (str) => io.stderr(str.trimEnd()),
-      writeOut: (str) => io.stdout(str.trimEnd()),
+      writeOut: (str) => {
+        const spaced = str.replace(/\n(  [\w-]+(?: \[[^\]]+\])?\s{2,})/g, '\n\n$1');
+        io.stdout(spaced.trimEnd());
+      },
     });
 
   commonNatalOptions(program.command('set-natal-chart').description(mustTool('set_natal_chart').description))

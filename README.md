@@ -1,5 +1,15 @@
 # ether-to-astro
 
+```
+███████╗██████╗  █████╗
+██╔════╝╚════██╗██╔══██╗
+█████╗   █████╔╝███████║
+██╔══╝  ██╔═══╝ ██╔══██║
+███████╗███████╗██║  ██║
+╚══════╝╚══════╝╚═╝  ╚═╝
+    ether-to-astro
+```
+
 Astrology tooling for agent workflows.
 
 `ether-to-astro` is a local-first astrology toolkit with two surfaces: `e2a`, a CLI, and `e2a-mcp`, an MCP server.
