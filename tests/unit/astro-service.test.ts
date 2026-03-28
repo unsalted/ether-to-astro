@@ -217,14 +217,17 @@ describe('When using AstroService', () => {
     expect(result.text).toContain('Rise/Set Times');
   });
 
-  it('Given MCP startup defaults, then output timezone fallback and status expose deterministic config', () => {
+  it('Given MCP startup defaults, then reporting timezone fallback and status expose deterministic config', () => {
     const { service } = makeService({
       preferredTimezone: 'America/New_York',
       preferredHouseStyle: 'W',
       weekdayLabels: true,
     });
 
-    expect(service.resolveOutputTimezone(undefined, undefined)).toBe('America/New_York');
+    expect(service.resolveReportingTimezone(undefined, undefined)).toBe('America/New_York');
+    expect(service.resolveReportingTimezone(undefined, 'America/Los_Angeles')).toBe(
+      'America/New_York'
+    );
 
     const status = service.getServerStatus(null);
     expect(status.data).toMatchObject({
@@ -283,6 +286,16 @@ describe('When using AstroService', () => {
     expect(result.data).toMatchObject({
       timezone: 'America/Los_Angeles',
     });
+    expect(result.text).toContain('EDT');
+  });
+
+  it('Given a preferred reporting timezone, then transit exact-time text uses it ahead of natal timezone', () => {
+    const { service } = makeService({
+      preferredTimezone: 'America/New_York',
+    });
+
+    const result = service.getTransits(makeNatalChart());
+
     expect(result.text).toContain('EDT');
   });
 

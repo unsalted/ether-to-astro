@@ -7,7 +7,9 @@ function makeService() {
     getRisingSignWindows: vi.fn(() => ({ data: { windows: [] }, text: 'rising windows' })),
     getTransits: vi.fn(() => ({ data: { transits: [] }, text: 'transits' })),
     getHouses: vi.fn(() => ({ data: { system: 'P' }, text: 'houses' })),
-    resolveOutputTimezone: vi.fn((explicit?: string, natal?: string) => explicit ?? natal ?? 'UTC'),
+    resolveReportingTimezone: vi.fn((explicit?: string, natal?: string) => {
+      return explicit ?? 'America/New_York' ?? natal ?? 'UTC';
+    }),
     getRetrogradePlanets: vi.fn(() => ({ data: { planets: [] }, text: 'retro' })),
     getRiseSetTimes: vi.fn(async () => ({ data: { times: [] }, text: 'rise' })),
     getAsteroidPositions: vi.fn(() => ({ data: { positions: [] }, text: 'asteroids' })),
@@ -241,11 +243,11 @@ describe('When resolving tool specs from the registry', () => {
       { timezone: 'UTC' }
     );
 
-    expect(service.resolveOutputTimezone).toHaveBeenCalledWith(undefined, 'Asia/Tokyo');
-    expect(service.resolveOutputTimezone).toHaveBeenCalledWith(undefined, undefined);
-    expect(service.resolveOutputTimezone).toHaveBeenCalledWith('UTC', 'America/New_York');
-    expect(service.getRetrogradePlanets).toHaveBeenCalledWith('Asia/Tokyo');
-    expect(service.getAsteroidPositions).toHaveBeenCalledWith('UTC');
+    expect(service.resolveReportingTimezone).toHaveBeenCalledWith(undefined, 'Asia/Tokyo');
+    expect(service.resolveReportingTimezone).toHaveBeenCalledWith(undefined, undefined);
+    expect(service.resolveReportingTimezone).toHaveBeenCalledWith('UTC', 'America/New_York');
+    expect(service.getRetrogradePlanets).toHaveBeenCalledWith('America/New_York');
+    expect(service.getAsteroidPositions).toHaveBeenCalledWith('America/New_York');
     expect(service.getNextEclipses).toHaveBeenCalledWith('UTC');
   });
 });

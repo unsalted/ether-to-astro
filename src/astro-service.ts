@@ -169,8 +169,8 @@ export class AstroService {
     });
   }
 
-  resolveOutputTimezone(explicitTimezone?: string, natalTimezone?: string): string {
-    return explicitTimezone ?? natalTimezone ?? this.mcpStartupDefaults.preferredTimezone ?? 'UTC';
+  resolveReportingTimezone(explicitTimezone?: string, natalTimezone?: string): string {
+    return explicitTimezone ?? this.mcpStartupDefaults.preferredTimezone ?? natalTimezone ?? 'UTC';
   }
 
   async init(): Promise<void> {
@@ -429,7 +429,10 @@ export class AstroService {
     const humanLines = filteredTransits
       .map((t) => {
         const exactStr = t.exactTime
-          ? ` - Exact: ${this.formatTimestamp(t.exactTime, timezone)}`
+          ? ` - Exact: ${this.formatTimestamp(
+              t.exactTime,
+              this.resolveReportingTimezone(undefined, timezone)
+            )}`
           : '';
         const applyStr = t.isApplying ? '(applying)' : '(separating)';
         return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: ${t.orb.toFixed(2)}° orb ${applyStr}${exactStr}`;
@@ -599,7 +602,7 @@ export class AstroService {
   }
 
   getRetrogradePlanets(timezone?: string): ServiceResult<Record<string, unknown>> {
-    const resolvedTimezone = timezone || this.mcpStartupDefaults.preferredTimezone || 'UTC';
+    const resolvedTimezone = this.resolveReportingTimezone(timezone);
     const now = this.now();
     const jd = this.ephem.dateToJulianDay(now);
     const allPlanetIds = Object.values(PLANETS);
@@ -671,7 +674,7 @@ export class AstroService {
   }
 
   getAsteroidPositions(timezone?: string): ServiceResult<Record<string, unknown>> {
-    const resolvedTimezone = timezone || this.mcpStartupDefaults.preferredTimezone || 'UTC';
+    const resolvedTimezone = this.resolveReportingTimezone(timezone);
     const now = this.now();
     const jd = this.ephem.dateToJulianDay(now);
     const asteroidIds = [...ASTEROIDS, ...NODES];
@@ -700,7 +703,7 @@ export class AstroService {
   }
 
   getNextEclipses(timezone?: string): ServiceResult<Record<string, unknown>> {
-    const resolvedTimezone = timezone || this.mcpStartupDefaults.preferredTimezone || 'UTC';
+    const resolvedTimezone = this.resolveReportingTimezone(timezone);
     const now = this.now();
     const jd = this.ephem.dateToJulianDay(now);
 
