@@ -17,14 +17,16 @@ import {
 } from './time-utils.js';
 import { deduplicateTransits, TransitCalculator } from './transits.js';
 import {
+  ASPECTS,
   ASTEROIDS,
+  type AspectType,
   type HouseSystem,
   type NatalChart,
   NODES,
   OUTER_PLANETS,
   PERSONAL_PLANETS,
   PLANETS,
-  type PlanetPositionResponse,
+  type PlanetPosition,
   type Transit,
   type TransitResponse,
   ZODIAC_SIGNS,
@@ -94,7 +96,31 @@ export interface ServiceResult<T> {
   text: string;
 }
 
-export interface ChartServiceResult {
+export interface MundaneAspect {
+  id: string;
+  planetA: PlanetPosition['planet'];
+  planetB: PlanetPosition['planet'];
+  aspect: AspectType;
+  orb: number;
+  isApplying: boolean;
+  longitudeA: number;
+  longitudeB: number;
+}
+
+interface MundaneWeather {
+  supportive: string[];
+  challenging: string[];
+}
+
+interface MundaneDay {
+  date: string;
+  timezone: string;
+  positions: PlanetPosition[];
+  aspects: MundaneAspect[];
+  weather: MundaneWeather;
+}
+
+interface ChartServiceResult {
   format: 'svg' | 'png' | 'webp';
   outputPath?: string;
   text: string;
@@ -465,20 +491,23 @@ export class AstroService {
     }
 
     if (includeMundane) {
-      const currentJD = this.ephem.dateToJulianDay(targetDate);
-      const currentPositions = this.ephem.getAllPlanets(currentJD, transitingPlanetIds);
-      const mundaneData: PlanetPositionResponse = {
-        date: dateLabel,
-        timezone,
-        positions: currentPositions,
+      const mundaneDays: MundaneDay[] = [];
+      for (let day = 0; day <= daysAhead; day++) {
+        const dayUTC = addLocalDays(startLocal, timezone, day);
+        mundaneDays.push(this.getMundaneDay(dayUTC, timezone, transitingPlanetIds));
+      }
+
+      const [anchorMundane] = mundaneDays;
+      const mundaneData = {
+        date: anchorMundane.date,
+        timezone: anchorMundane.timezone,
+        positions: anchorMundane.positions,
+        aspects: anchorMundane.aspects,
+        weather: anchorMundane.weather,
+        days: mundaneDays,
       };
       responseData = { transits: responseData, mundane: mundaneData };
-      mundaneText = `\n\nCurrent Planetary Positions:\n\n${currentPositions
-        .map(
-          (p) =>
-            `${p.planet}: ${p.degree.toFixed(1)}° ${p.sign} (${p.isRetrograde ? 'Rx' : 'Direct'})`
-        )
-        .join('\n')}`;
+      mundaneText = `\n\nMundane Weather:\n- Supportive signals: ${anchorMundane.weather.supportive.length}\n- Challenging signals: ${anchorMundane.weather.challenging.length}`;
       if (mode === 'forecast') {
         mundaneText +=
           '\n\nNote: mundane positions remain anchored to the forecast start date in this mode.';
@@ -522,6 +551,76 @@ export class AstroService {
     return {
       data: responseData,
       text: transitHeader + mundaneText,
+    };
+  }
+
+  private getMundaneWeather(aspects: MundaneAspect[]): MundaneWeather {
+    const supportiveAspects = new Set<AspectType>(['conjunction', 'trine', 'sextile']);
+    const challengingAspects = new Set<AspectType>(['square', 'opposition']);
+
+    return {
+      supportive: aspects.filter((a) => supportiveAspects.has(a.aspect)).map((a) => a.id),
+      challenging: aspects.filter((a) => challengingAspects.has(a.aspect)).map((a) => a.id),
+    };
+  }
+
+  private getMundaneAspects(date: string, positions: PlanetPosition[]): MundaneAspect[] {
+    const aspects: MundaneAspect[] = [];
+
+    for (let i = 0; i < positions.length; i++) {
+      for (let j = i + 1; j < positions.length; j++) {
+        const planetA = positions[i];
+        const planetB = positions[j];
+
+        const angle = this.ephem.calculateAspectAngle(planetA.longitude, planetB.longitude);
+
+        for (const aspect of ASPECTS) {
+          const orb = Math.abs(angle - aspect.angle);
+          if (orb > aspect.orb) {
+            continue;
+          }
+
+          const futureLongitudeA = (planetA.longitude + planetA.speed * 0.1 + 360) % 360;
+          const futureLongitudeB = (planetB.longitude + planetB.speed * 0.1 + 360) % 360;
+          const futureAngle = this.ephem.calculateAspectAngle(futureLongitudeA, futureLongitudeB);
+          const futureOrb = Math.abs(futureAngle - aspect.angle);
+
+          aspects.push({
+            id: `${date}:${planetA.planet}-${aspect.name}-${planetB.planet}`,
+            planetA: planetA.planet,
+            planetB: planetB.planet,
+            aspect: aspect.name,
+            orb: Number.parseFloat(orb.toFixed(2)),
+            isApplying: futureOrb < orb,
+            longitudeA: planetA.longitude,
+            longitudeB: planetB.longitude,
+          });
+        }
+      }
+    }
+
+    return aspects.sort(
+      (a, b) =>
+        a.orb - b.orb ||
+        a.planetA.localeCompare(b.planetA) ||
+        a.planetB.localeCompare(b.planetB) ||
+        a.aspect.localeCompare(b.aspect)
+    );
+  }
+
+  private getMundaneDay(dayUTC: Date, timezone: string, transitingPlanetIds: number[]): MundaneDay {
+    const localDay = utcToLocal(dayUTC, timezone);
+    const dateLabel = `${localDay.year}-${String(localDay.month).padStart(2, '0')}-${String(localDay.day).padStart(2, '0')}`;
+    const currentJD = this.ephem.dateToJulianDay(dayUTC);
+    const positions = this.ephem.getAllPlanets(currentJD, transitingPlanetIds);
+    const aspects = this.getMundaneAspects(dateLabel, positions);
+
+    return {
+      date: dateLabel,
+      timezone,
+      positions,
+      aspects,
+      weather: this.getMundaneWeather(aspects),
     };
   }
 
