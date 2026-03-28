@@ -20,7 +20,7 @@ So I built the version I wanted to exist: local-first, scriptable, tested, and s
 
 ## Features
 
-Your wife can ask her AI agent about:
+You can ask your AI agent about:
 
 ### Transits
 - **Daily mundane transits** - Current planetary positions
