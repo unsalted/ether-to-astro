@@ -34,6 +34,10 @@
     "swiss-ephemeris",
     "transits"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/unsalted/ether-to-astro"
+  },
   "author": "",
   "license": "AGPL-3.0-or-later",
   "dependencies": {
