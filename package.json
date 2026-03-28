@@ -1,7 +1,7 @@
 {
   "name": "ether-to-astro",
   "version": "1.0.0",
-  "description": "Astrology CLI + MCP server using Swiss Ephemeris",
+  "description": "Local-first astrology toolkit with a CLI (e2a) and MCP server (e2a-mcp) for charts, transits, rendering, and agent workflows.",
   "type": "module",
   "main": "dist/index.js",
   "engines": {

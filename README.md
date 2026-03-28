@@ -1,8 +1,12 @@
-# Ether-to-Astro (MCP + CLI)
+# ether-to-astro
 
-Astrology calculations and transit tracking using native Swiss Ephemeris (`sweph`), exposed as:
-- a stateful MCP server, and
-- a stateless single-shot CLI.
+Astrology tooling for agent workflows.
+
+`ether-to-astro` is a local-first astrology toolkit with two surfaces: `e2a`, a CLI, and `e2a-mcp`, an MCP server.
+
+This started as a side project because my wife is the real user, and I wasn’t impressed with the tooling around her astrology fascination. I’ve worked on plenty of AI tools and have a pretty high bar for them. Most of what I found in this space felt flimsy, closed-off, or not designed for serious agent workflows.
+
+So I built the version I wanted to exist: local-first, scriptable, tested, and structured to work well both from the command line and through MCP. I’m the builder. She’s the user. That turned out to be a pretty good way to make the product better.
 
 ## Features
 
