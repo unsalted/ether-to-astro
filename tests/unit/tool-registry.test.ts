@@ -51,6 +51,35 @@ describe('When resolving tool specs from the registry', () => {
     }
   });
 
+
+  it('Given get_transits args, then execute forwards mundane and filter options to service', async () => {
+    const service = makeService();
+    const ctx = { service: service as any, natalChart: { name: 'chart' } as any };
+
+    const spec = getToolSpec('get_transits');
+    expect(spec).toBeDefined();
+
+    await spec!.execute(ctx, {
+      include_mundane: true,
+      days_ahead: 3,
+      max_orb: 5,
+      exact_only: true,
+      applying_only: true,
+      categories: ['outer'],
+      date: '2026-01-02',
+    });
+
+    expect(service.getTransits).toHaveBeenCalledWith(ctx.natalChart, {
+      include_mundane: true,
+      days_ahead: 3,
+      max_orb: 5,
+      exact_only: true,
+      applying_only: true,
+      categories: ['outer'],
+      date: '2026-01-02',
+    });
+  });
+
   it('Given simple state tools, then calls route to matching service methods', async () => {
     const service = makeService();
     const ctx = { service: service as any, natalChart: { name: 'chart' } as any };

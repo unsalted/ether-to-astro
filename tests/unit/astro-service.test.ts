@@ -34,6 +34,10 @@ function makeService(mcpStartupDefaults: McpStartupDefaults = {}) {
     eph: {},
     init: vi.fn(async () => {}),
     dateToJulianDay: vi.fn((date: Date) => date.getTime() / 86400000 + 2440587.5),
+    calculateAspectAngle: vi.fn((a: number, b: number) => {
+      const diff = Math.abs(a - b);
+      return diff > 180 ? 360 - diff : diff;
+    }),
     getAllPlanets: vi.fn(() => [makePlanet('Sun', 204), makePlanet('Moon', 270)]),
   };
   const houseCalc = {
@@ -168,9 +172,15 @@ describe('When using AstroService', () => {
     ).toThrow(/Sun\/Moon/);
   });
 
-  it('Given transit filters, then getTransits returns filtered data and optional mundane payload', () => {
-    const { service } = makeService();
+  it('Given transit filters, then getTransits returns filtered data plus mundane aspects and weather for date ranges', () => {
+    const { service, ephem } = makeService();
     const natal = makeNatalChart();
+    ephem.getAllPlanets.mockReturnValue([
+      { ...makePlanet('Sun', 0), speed: 1 },
+      { ...makePlanet('Moon', 90), speed: 1 },
+      { ...makePlanet('Mars', 120), speed: 1 },
+    ]);
+
     const result = service.getTransits(natal, {
       include_mundane: true,
       days_ahead: 1,
@@ -181,7 +191,44 @@ describe('When using AstroService', () => {
 
     expect(result.data).toHaveProperty('transits');
     expect(result.data).toHaveProperty('mundane');
-    expect(result.text.toLowerCase()).toContain('transits');
+    const mundane = (result.data as any).mundane;
+    expect(mundane).toMatchObject({
+      date: '2024-03-26',
+      timezone: 'America/Los_Angeles',
+    });
+    expect(mundane.aspects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          planetA: 'Sun',
+          planetB: 'Moon',
+          aspect: 'square',
+          orb: 0,
+          isApplying: false,
+        }),
+        expect.objectContaining({
+          planetA: 'Sun',
+          planetB: 'Mars',
+          aspect: 'trine',
+          orb: 0,
+          isApplying: false,
+        }),
+      ])
+    );
+    expect(mundane.days).toHaveLength(2);
+    expect(mundane.days[1]).toMatchObject({
+      date: '2024-03-27',
+      timezone: 'America/Los_Angeles',
+    });
+    expect(mundane.days[1].aspects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          planetA: 'Sun',
+          planetB: 'Moon',
+          aspect: 'square',
+        }),
+      ])
+    );
+    expect(result.text).toContain('Current Planetary Positions');
   });
 
   it('Given omitted mode and days_ahead 0, then getTransits resolves to snapshot semantics', () => {
