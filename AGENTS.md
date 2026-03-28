@@ -17,6 +17,7 @@ This file is for coding agents working in `astro-mcp`. It documents the real arc
 - Build: `npm run build`
 - CLI: `npm run start:cli -- --help`
 - Unit/integration tests: `npm test -- --run`
+- Routine quality gate: `npm run quality:gate`
 - Validation harness: `npm run validate:astro`
 - Strict dead-code check: `npm run build -- --noUnusedLocals --noUnusedParameters`
 - Lint: `npm run lint`
@@ -71,16 +72,22 @@ Defined in `tests/validation/utils/tolerances.ts`:
 
 ## Safe Change Workflow
 1. Make focused edits (avoid broad refactors).
-2. Run `npm run build`.
-3. Run `npm test -- --run`.
-4. Run `npm run validate:astro`.
-5. If root mismatches appear, inspect `/tmp/astro-validation-report.json` details:
+2. Run `npm run quality:gate` for normal changes.
+3. Run `npm run validate:astro` for high-risk astro engine changes.
+4. If root mismatches appear, inspect `/tmp/astro-validation-report.json` details:
    - production roots
    - oracle roots
    - residuals
    - sampled trace
    - crossing metadata
-6. Only relax fixtures/tolerances with explicit justification.
+5. Only relax fixtures/tolerances with explicit justification.
+
+## Repo Contract
+- Routine merge gate is `npm run build`, `npm run lint`, and `npm test -- --run`.
+- `npm run validate:astro` is targeted validation, not the default gate for every change.
+- Biome is the source of truth for formatting, import order, and linting.
+- Preferred commit types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `build`, `ci`.
+- Keep commits scoped to one coherent change whenever possible.
 
 ## Known Gotchas
 - `sweph` has process-wide settings (e.g., ephemeris path); avoid per-request mutation.

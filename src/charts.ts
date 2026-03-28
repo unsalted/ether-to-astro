@@ -15,7 +15,7 @@ import { type NatalChart, PLANETS } from './types.js';
 
 /**
  * Renderer for astrological charts using SVG
- * 
+ *
  * @remarks
  * Generates natal and transit charts as SVG images using the astrochart library.
  * Converts SVG to PNG/WebP formats for output. Uses JSDOM to provide
@@ -31,10 +31,10 @@ export class ChartRenderer {
 
   /**
    * Create a new chart renderer
-   * 
+   *
    * @param ephem - Initialized ephemeris calculator
    * @param houseCalc - Initialized house calculator
-   * 
+   *
    * @remarks
    * Both calculators must be initialized before passing to the constructor.
    * Sets up a virtual DOM environment for the astrochart library.
@@ -51,7 +51,7 @@ export class ChartRenderer {
 
   /**
    * Setup global browser variables for astrochart library
-   * 
+   *
    * @remarks
    * The astrochart library expects browser globals like document and window.
    * This method provides those from the virtual DOM. Required because
@@ -69,7 +69,7 @@ export class ChartRenderer {
 
   /**
    * Clear the chart container element
-   * 
+   *
    * @remarks
    * Removes any previous chart content to ensure clean rendering.
    * Called before generating each new chart.
@@ -83,13 +83,13 @@ export class ChartRenderer {
 
   /**
    * Generate a natal chart visualization
-   * 
+   *
    * @param natalChart - Birth chart data with julianDay and houseSystem
    * @param theme - Visual theme for the chart (default: 'light')
    * @param format - Output format (default: 'svg')
    * @returns Chart image as buffer or data URL
    * @throws Error if natal chart is invalid or rendering fails
-   * 
+   *
    * @remarks
    * Renders a complete natal chart with planets, houses, and aspects.
    * Requires julianDay to be set in the natalChart.
@@ -104,7 +104,9 @@ export class ChartRenderer {
 
     // Require Julian Day (always set by set_natal_chart)
     if (!natalChart.julianDay) {
-      throw new Error('Natal chart missing Julian Day - chart may be from old session. Please call set_natal_chart again.');
+      throw new Error(
+        'Natal chart missing Julian Day - chart may be from old session. Please call set_natal_chart again.'
+      );
     }
     const jd = natalChart.julianDay;
 
@@ -154,7 +156,8 @@ export class ChartRenderer {
       STROKE_ONLY: false,
       ...getThemeSettings(theme, false),
     };
-    const ChartClass = ((Chart as unknown as AstroChartConstructor).default || Chart) as AstroChartConstructor;
+    const ChartClass = ((Chart as unknown as AstroChartConstructor).default ||
+      Chart) as AstroChartConstructor;
     const chart = new ChartClass('chart-container', 800, 800, settings);
 
     // Generate SVG
@@ -171,23 +174,22 @@ export class ChartRenderer {
 
   /**
    * Prepare chart data for astrochart library
-   * 
+   *
    * @param natalChart - Birth chart data
    * @param transitDate - Optional date for transit calculations
    * @returns Chart data in astrochart format
    * @throws Error if julianDay is not set
-   * 
+   *
    * @remarks
    * Converts internal chart format to astrochart's expected format.
    * Includes planets, houses, and optionally transit positions.
    */
-  private prepareChartData(
-    natalChart: NatalChart,
-    transitDate?: Date
-  ): AstroChartData {
+  private prepareChartData(natalChart: NatalChart, transitDate?: Date): AstroChartData {
     // Require Julian Day (always set by set_natal_chart)
     if (!natalChart.julianDay) {
-      throw new Error('Natal chart missing Julian Day - chart may be from old session. Please call set_natal_chart again.');
+      throw new Error(
+        'Natal chart missing Julian Day - chart may be from old session. Please call set_natal_chart again.'
+      );
     }
     const jd = natalChart.julianDay;
 
@@ -236,7 +238,7 @@ export class ChartRenderer {
     if (transitDate) {
       const transitJD = this.ephem.dateToJulianDay(transitDate);
       const transitPositions = this.ephem.getAllPlanets(transitJD, renderablePlanetIds);
-      
+
       transitPositions.forEach((p) => {
         const planetKey = this.getPlanetKey(p.planet);
         if (planetKey) {
@@ -255,14 +257,14 @@ export class ChartRenderer {
 
   /**
    * Generate a transit chart visualization
-   * 
+   *
    * @param natalChart - Birth chart data with julianDay and houseSystem
    * @param transitDate - Date for transit calculation
    * @param theme - Visual theme for the chart (default: 'light')
    * @param format - Output format (default: 'svg')
    * @returns Chart image as buffer or data URL
    * @throws Error if natal chart is invalid or rendering fails
-   * 
+   *
    * @remarks
    * Shows both natal positions (inner wheel) and current transits (outer wheel).
    * Requires julianDay to be set in the natalChart.
@@ -284,7 +286,8 @@ export class ChartRenderer {
       STROKE_ONLY: false,
       ...getThemeSettings(theme, false),
     };
-    const ChartClass = ((Chart as unknown as AstroChartConstructor).default || Chart) as AstroChartConstructor;
+    const ChartClass = ((Chart as unknown as AstroChartConstructor).default ||
+      Chart) as AstroChartConstructor;
     const chart = new ChartClass('chart-container', 800, 800, settings);
 
     // Generate SVG
@@ -302,10 +305,10 @@ export class ChartRenderer {
 
   /**
    * Map internal planet names to astrochart keys
-   * 
+   *
    * @param planetName - Internal planet name
    * @returns Astrochart planet key or null if not supported
-   * 
+   *
    * @remarks
    * Maps our planet names to the keys expected by astrochart.
    * Uses mean node to avoid collision with true node.
@@ -332,10 +335,10 @@ export class ChartRenderer {
 
   /**
    * Extract SVG string from virtual DOM
-   * 
+   *
    * @returns SVG string
    * @throws Error if no SVG element found
-   * 
+   *
    * @remarks
    * Finds the SVG element in the virtual DOM and returns
    * its outer HTML. Throws if no chart was rendered.
@@ -346,23 +349,23 @@ export class ChartRenderer {
     if (!container) {
       throw new Error('Chart container not found - DOM setup failed');
     }
-    
+
     const svg = container.querySelector('svg');
     if (!svg) {
       throw new Error('Chart rendering failed - no SVG element generated by astrochart library');
     }
-    
+
     return svg.outerHTML;
   }
 
   /**
    * Convert SVG to specified output format
-   * 
+   *
    * @param svg - SVG string or buffer
    * @param format - Target output format
    * @returns Converted image as buffer (png/webp) or data URL (svg)
    * @throws Error if conversion fails
-   * 
+   *
    * @remarks
    * Uses Sharp library for PNG/WebP conversion. SVG is returned
    * as a data URL for direct use in web contexts.

@@ -4,7 +4,7 @@ import { PLANETS } from '../../src/types.js';
 import { denseScanRootOracleWithDebug } from './utils/denseRootOracle.js';
 
 function shortestDiff(longitude: number, targetLongitude: number): number {
-  let diff = ((longitude % 360) + 360) % 360 - (((targetLongitude % 360) + 360) % 360);
+  let diff = (((longitude % 360) + 360) % 360) - (((targetLongitude % 360) + 360) % 360);
   if (diff > 180) diff -= 360;
   if (diff < -180) diff += 360;
   return diff;

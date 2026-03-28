@@ -1,5 +1,5 @@
-import { access, readFile } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
+import { access, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import type { SetNatalChartInput } from './astro-service.js';
@@ -72,11 +72,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function requireString(
-  value: unknown,
-  label: string,
-  profileName: string
-): string {
+function requireString(value: unknown, label: string, profileName: string): string {
   if (typeof value !== 'string' || value.trim() === '') {
     throw new ProfileStoreError(
       'PROFILE_VALIDATION_FAILED',
@@ -86,11 +82,7 @@ function requireString(
   return value;
 }
 
-function requireNumber(
-  value: unknown,
-  label: string,
-  profileName: string
-): number {
+function requireNumber(value: unknown, label: string, profileName: string): number {
   if (typeof value !== 'number' || Number.isNaN(value)) {
     throw new ProfileStoreError(
       'PROFILE_VALIDATION_FAILED',
@@ -139,7 +131,12 @@ function normalizeProfile(profileName: string, value: unknown): AstroProfile {
     house_system:
       houseSystem === undefined
         ? undefined
-        : (requireEnum(houseSystem, 'house_system', ['P', 'W', 'K', 'E'], profileName) as HouseSystem),
+        : (requireEnum(
+            houseSystem,
+            'house_system',
+            ['P', 'W', 'K', 'E'],
+            profileName
+          ) as HouseSystem),
     birth_time_disambiguation:
       disambiguation === undefined
         ? undefined
@@ -202,16 +199,28 @@ export async function loadAstroProfileFile(filePath: string): Promise<AstroProfi
   }
 
   if (!isRecord(parsed)) {
-    throw new ProfileStoreError('INVALID_PROFILE_FILE', `Invalid profile file: ${filePath} (root must be an object)`);
+    throw new ProfileStoreError(
+      'INVALID_PROFILE_FILE',
+      `Invalid profile file: ${filePath} (root must be an object)`
+    );
   }
   if (parsed.version !== 1) {
-    throw new ProfileStoreError('INVALID_PROFILE_FILE', `Invalid profile file: ${filePath} (version must be 1)`);
+    throw new ProfileStoreError(
+      'INVALID_PROFILE_FILE',
+      `Invalid profile file: ${filePath} (version must be 1)`
+    );
   }
   if (!isRecord(parsed.profiles)) {
-    throw new ProfileStoreError('INVALID_PROFILE_FILE', `Invalid profile file: ${filePath} (profiles must be an object)`);
+    throw new ProfileStoreError(
+      'INVALID_PROFILE_FILE',
+      `Invalid profile file: ${filePath} (profiles must be an object)`
+    );
   }
   if (parsed.defaultProfile !== undefined && typeof parsed.defaultProfile !== 'string') {
-    throw new ProfileStoreError('INVALID_PROFILE_FILE', `Invalid profile file: ${filePath} (defaultProfile must be a string)`);
+    throw new ProfileStoreError(
+      'INVALID_PROFILE_FILE',
+      `Invalid profile file: ${filePath} (defaultProfile must be a string)`
+    );
   }
 
   const normalizedProfiles: Record<string, AstroProfile> = {};

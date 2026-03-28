@@ -4,13 +4,13 @@ import { HouseCalculator } from '../../../src/houses.js';
 import { RiseSetCalculator } from '../../../src/riseset.js';
 import { TransitCalculator } from '../../../src/transits.js';
 import type { PlanetPosition, Transit } from '../../../src/types.js';
-import {
-  type NormalizedBody,
-  type NormalizedEclipse,
-  type NormalizedHouseResult,
-  type NormalizedRiseSet,
-  type NormalizedRoot,
-  type NormalizedTransit,
+import type {
+  NormalizedBody,
+  NormalizedEclipse,
+  NormalizedHouseResult,
+  NormalizedRiseSet,
+  NormalizedRoot,
+  NormalizedTransit,
 } from '../utils/fixtureTypes.js';
 
 export class InternalValidationAdapter {
@@ -81,19 +81,35 @@ export class InternalValidationAdapter {
       .map((t) => this.normalizeTransit(t));
   }
 
-  getTransits(transitingPlanets: PlanetPosition[], natalPlanets: PlanetPosition[], currentIsoUtc: string): NormalizedTransit[] {
+  getTransits(
+    transitingPlanets: PlanetPosition[],
+    natalPlanets: PlanetPosition[],
+    currentIsoUtc: string
+  ): NormalizedTransit[] {
     const currentJD = this.ephem.dateToJulianDay(new Date(currentIsoUtc));
-    return this.transitCalc.findTransits(transitingPlanets, natalPlanets, currentJD).map((t) => this.normalizeTransit(t));
+    return this.transitCalc
+      .findTransits(transitingPlanets, natalPlanets, currentJD)
+      .map((t) => this.normalizeTransit(t));
   }
 
-  getExactRoots(planetId: number, targetLongitude: number, startIsoUtc: string, endIsoUtc: string): NormalizedRoot[] {
+  getExactRoots(
+    planetId: number,
+    targetLongitude: number,
+    startIsoUtc: string,
+    endIsoUtc: string
+  ): NormalizedRoot[] {
     const startJD = this.ephem.dateToJulianDay(new Date(startIsoUtc));
     const endJD = this.ephem.dateToJulianDay(new Date(endIsoUtc));
     const roots = this.ephem.findExactTransitTimes(planetId, targetLongitude, startJD, endJD);
     return roots.map((jd) => ({ jd, isoUtc: this.ephem.julianDayToDate(jd).toISOString() }));
   }
 
-  getRiseSet(isoUtc: string, planetId: number, latitude: number, longitude: number): NormalizedRiseSet {
+  getRiseSet(
+    isoUtc: string,
+    planetId: number,
+    latitude: number,
+    longitude: number
+  ): NormalizedRiseSet {
     const jd = this.ephem.dateToJulianDay(new Date(isoUtc));
     const result = this.riseSetCalc.calculateRiseSet(jd, planetId, latitude, longitude);
     return {
@@ -107,9 +123,10 @@ export class InternalValidationAdapter {
 
   getNextEclipse(startIsoUtc: string, type: 'solar' | 'lunar'): NormalizedEclipse | null {
     const startJD = this.ephem.dateToJulianDay(new Date(startIsoUtc));
-    const result = type === 'solar'
-      ? this.eclipseCalc.findNextSolarEclipse(startJD)
-      : this.eclipseCalc.findNextLunarEclipse(startJD);
+    const result =
+      type === 'solar'
+        ? this.eclipseCalc.findNextSolarEclipse(startJD)
+        : this.eclipseCalc.findNextLunarEclipse(startJD);
 
     if (!result) {
       return null;

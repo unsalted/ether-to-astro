@@ -8,19 +8,19 @@ import { compareHouses } from './compare/houses.js';
 import { comparePositions } from './compare/positions.js';
 import { compareRoots } from './compare/roots.js';
 import { assertTransitStatus, findTransit } from './compare/transits.js';
-import { eclipseFixtures } from './fixtures/eclipses/core.js';
-import { houseFixtures } from './fixtures/houses/core.js';
-import { positionFixtures } from './fixtures/positions/core.js';
-import { riseSetFixtures } from './fixtures/rise-set/core.js';
-import { rootFixtures } from './fixtures/roots/core.js';
-import { dstFixtures } from './fixtures/transits/dst.js';
-import { transitFixtures } from './fixtures/transits/core.js';
 import {
   astrologEdgeParityFixtures,
   astrologHouseParityFixtures,
   astrologPositionParityFixtures,
   astrologTransitSnapshotFixtures,
 } from './fixtures/astrolog-parity/core.js';
+import { eclipseFixtures } from './fixtures/eclipses/core.js';
+import { houseFixtures } from './fixtures/houses/core.js';
+import { positionFixtures } from './fixtures/positions/core.js';
+import { riseSetFixtures } from './fixtures/rise-set/core.js';
+import { rootFixtures } from './fixtures/roots/core.js';
+import { transitFixtures } from './fixtures/transits/core.js';
+import { dstFixtures } from './fixtures/transits/dst.js';
 import { denseScanRootOracleWithDebug } from './utils/denseRootOracle.js';
 import { formatMismatch, ValidationReport } from './utils/report.js';
 import { TOLERANCES } from './utils/tolerances.js';
@@ -37,7 +37,7 @@ function normalizeLongitudeDelta(a: number, b: number): number {
 }
 
 function shortestDiff(longitude: number, targetLongitude: number): number {
-  let diff = ((longitude % 360) + 360) % 360 - (((targetLongitude % 360) + 360) % 360);
+  let diff = (((longitude % 360) + 360) % 360) - (((targetLongitude % 360) + 360) % 360);
   if (diff > 180) diff -= 360;
   if (diff < -180) diff += 360;
   return diff;
@@ -176,7 +176,9 @@ describe('Astro Validation Harness', () => {
           continue;
         }
 
-        if (astrolog.houses.system !== (fixture.expectFallbackToWholeSign ? 'W' : fixture.houseSystem)) {
+        if (
+          astrolog.houses.system !== (fixture.expectFallbackToWholeSign ? 'W' : fixture.houseSystem)
+        ) {
           report.addHard({
             fixture: fixture.name,
             subsystem: 'astrolog-houses',
@@ -297,9 +299,17 @@ describe('Astro Validation Harness', () => {
         });
 
         const currentJD = adapter.ephem.dateToJulianDay(new Date(fixture.currentIsoUtc));
-        const transitingName = adapter.ephem.getPlanetPosition(fixture.transitingPlanetId, currentJD).planet;
+        const transitingName = adapter.ephem.getPlanetPosition(
+          fixture.transitingPlanetId,
+          currentJD
+        ).planet;
         const natalName = adapter.ephem.getPlanetPosition(fixture.natalPlanetId, currentJD).planet;
-        const hit = findTransit(internalTransits, transitingName, natalName, fixture.expectedAspect);
+        const hit = findTransit(
+          internalTransits,
+          transitingName,
+          natalName,
+          fixture.expectedAspect
+        );
         if (!hit) {
           report.addHard({
             fixture: fixture.name,
@@ -440,7 +450,11 @@ describe('Astro Validation Harness', () => {
           report
         );
 
-        if (fixture.expectedIsApplying != null && hit && hit.isApplying !== fixture.expectedIsApplying) {
+        if (
+          fixture.expectedIsApplying != null &&
+          hit &&
+          hit.isApplying !== fixture.expectedIsApplying
+        ) {
           report.addHard({
             fixture: fixture.name,
             subsystem: 'transits',
@@ -540,10 +554,7 @@ describe('Astro Validation Harness', () => {
 
         compareRoots(fixture.name, productionRoots, oracleRoots, report, rootDetails);
 
-        if (
-          fixture.expectedMinRoots != null &&
-          productionRoots.length < fixture.expectedMinRoots
-        ) {
+        if (fixture.expectedMinRoots != null && productionRoots.length < fixture.expectedMinRoots) {
           report.addHard({
             fixture: fixture.name,
             subsystem: 'roots',
@@ -555,10 +566,7 @@ describe('Astro Validation Harness', () => {
           });
         }
 
-        if (
-          fixture.expectedMaxRoots != null &&
-          productionRoots.length > fixture.expectedMaxRoots
-        ) {
+        if (fixture.expectedMaxRoots != null && productionRoots.length > fixture.expectedMaxRoots) {
           report.addHard({
             fixture: fixture.name,
             subsystem: 'roots',
@@ -599,8 +607,12 @@ describe('Astro Validation Harness', () => {
         .spyOn(adapter.ephem, 'findExactTransitTimes')
         .mockReturnValue([nowJD - 2, nowJD + 3]);
 
-      const applying = adapter.getTransits([mars], [mkNatal(92)], nowIso).find((t) => t.aspect === 'square');
-      const separating = adapter.getTransits([mars], [mkNatal(88)], nowIso).find((t) => t.aspect === 'square');
+      const applying = adapter
+        .getTransits([mars], [mkNatal(92)], nowIso)
+        .find((t) => t.aspect === 'square');
+      const separating = adapter
+        .getTransits([mars], [mkNatal(88)], nowIso)
+        .find((t) => t.aspect === 'square');
       spy.mockRestore();
 
       expect(applying?.exactTime).toBe(adapter.ephem.julianDayToDate(nowJD + 3).toISOString());
@@ -659,7 +671,9 @@ describe('Astro Validation Harness', () => {
       expect(unsupported?.exactTimeStatus).toBe('unsupported_body');
 
       const spy = vi.spyOn(adapter.ephem, 'findExactTransitTimes').mockReturnValue([]);
-      const notFound = adapter.getTransits([mars], [natal], nowIso).find((t) => t.aspect === 'conjunction');
+      const notFound = adapter
+        .getTransits([mars], [natal], nowIso)
+        .find((t) => t.aspect === 'conjunction');
       spy.mockRestore();
       expect(notFound?.exactTimeStatus).toBe('not_found');
       expect(notFound?.exactTime).toBeUndefined();

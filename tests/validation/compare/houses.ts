@@ -1,6 +1,6 @@
-import { TOLERANCES } from '../utils/tolerances.js';
 import type { NormalizedHouseResult } from '../utils/fixtureTypes.js';
 import type { ValidationReport } from '../utils/report.js';
+import { TOLERANCES } from '../utils/tolerances.js';
 
 export function compareHouses(
   fixtureName: string,

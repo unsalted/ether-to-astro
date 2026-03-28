@@ -51,6 +51,7 @@ function makeService() {
         aspect: 'square',
         orb: 1.25,
         isApplying: true,
+        exactTimeStatus: 'within_preview' as const,
         transitLongitude: 100,
         natalLongitude: 10,
         exactTime: new Date('2024-03-27T12:00:00Z'),
@@ -179,6 +180,29 @@ describe('When using AstroService', () => {
     expect(result.data).toHaveProperty('transits');
     expect(result.data).toHaveProperty('mundane');
     expect(result.text).toContain('Transits');
+  });
+
+  it('Given exact-time lookup metadata, then getTransits serializes exactTimeStatus', () => {
+    const { service, transitCalc } = makeService();
+    transitCalc.findTransits.mockReturnValue([
+      {
+        transitingPlanet: 'Mars',
+        natalPlanet: 'Sun',
+        aspect: 'square',
+        orb: 1.25,
+        isApplying: true,
+        exactTimeStatus: 'outside_preview',
+        transitLongitude: 100,
+        natalLongitude: 10,
+        exactTime: undefined,
+      },
+    ]);
+
+    const result = service.getTransits(makeNatalChart());
+    expect((result.data as any).transits[0]).toMatchObject({
+      exactTimeStatus: 'outside_preview',
+      exactTime: undefined,
+    });
   });
 
   it('Given a natal chart location, then getRiseSetTimes returns ISO payload and readable text', async () => {
