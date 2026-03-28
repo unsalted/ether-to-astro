@@ -8,8 +8,8 @@
     "node": ">=20"
   },
   "bin": {
-    "e2a-mcp": "./dist/loader.js",
-    "e2a": "./dist/cli.js"
+    "e2a-mcp": "dist/loader.js",
+    "e2a": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
