@@ -1,4 +1,12 @@
-export function formatInTimezone(date: Date, timezone: string): string {
+interface FormatInTimezoneOptions {
+  weekday?: boolean;
+}
+
+export function formatInTimezone(
+  date: Date,
+  timezone: string,
+  formatOptions: FormatInTimezoneOptions = {}
+): string {
   const options: Intl.DateTimeFormatOptions = {
     timeZone: timezone,
     year: 'numeric',
@@ -9,6 +17,10 @@ export function formatInTimezone(date: Date, timezone: string): string {
     hour12: true,
     timeZoneName: 'short',
   };
+
+  if (formatOptions.weekday) {
+    options.weekday = 'short';
+  }
 
   return new Intl.DateTimeFormat('en-US', options).format(date);
 }

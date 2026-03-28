@@ -15,7 +15,7 @@ Add this to your MCP client config:
   "mcpServers": {
     "astro": {
       "command": "npx",
-      "args": ["--yes", "--package=ether-to-astro", "e2a-mcp"]
+      "args": ["--yes", "--package=ether-to-astro", "e2a", "--mcp"]
     }
   }
 }
@@ -27,7 +27,8 @@ Alternative after global install:
 {
   "mcpServers": {
     "astro": {
-      "command": "e2a-mcp"
+      "command": "e2a",
+      "args": ["--mcp"]
     }
   }
 }
@@ -48,7 +49,7 @@ Or install globally:
 ```bash
 npm install -g ether-to-astro
 e2a --help
-e2a-mcp --help
+e2a --mcp --help
 ```
 
 ## Notes
@@ -104,8 +105,15 @@ npx --yes --package=ether-to-astro e2a get-transits --natal-file ./natal.json --
 
 ## Product Surfaces
 
-- `e2a-mcp`: stateful MCP server
+- `e2a --mcp`: canonical stateful MCP server launch
+- `e2a-mcp`: compatibility alias for MCP launch
 - `e2a`: stateless CLI
+
+Optional MCP startup defaults:
+
+```bash
+e2a --mcp --preferred-tz America/Los_Angeles --preferred-house-style W --weekday-labels
+```
 
 ## Available Tools
 

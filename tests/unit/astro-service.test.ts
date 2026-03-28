@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AstroService, parseDateOnlyInput } from '../../src/astro-service.js';
+import type { McpStartupDefaults } from '../../src/entrypoint.js';
 import type { NatalChart, PlanetPosition, RiseSetTime } from '../../src/types.js';
 
 function makePlanet(planet: PlanetPosition['planet'], longitude: number): PlanetPosition {
@@ -28,7 +29,7 @@ function makeNatalChart(): NatalChart {
   };
 }
 
-function makeService() {
+function makeService(mcpStartupDefaults: McpStartupDefaults = {}) {
   const ephem = {
     eph: {},
     init: vi.fn(async () => {}),
@@ -96,6 +97,7 @@ function makeService() {
     riseSetCalc: riseSetCalc as any,
     eclipseCalc: eclipseCalc as any,
     chartRenderer: chartRenderer as any,
+    mcpStartupDefaults,
     writeFile,
     now,
   });
@@ -213,6 +215,75 @@ describe('When using AstroService', () => {
       timezone: 'America/Los_Angeles',
     });
     expect(result.text).toContain('Rise/Set Times');
+  });
+
+  it('Given MCP startup defaults, then output timezone fallback and status expose deterministic config', () => {
+    const { service } = makeService({
+      preferredTimezone: 'America/New_York',
+      preferredHouseStyle: 'W',
+      weekdayLabels: true,
+    });
+
+    expect(service.resolveOutputTimezone(undefined, undefined)).toBe('America/New_York');
+
+    const status = service.getServerStatus(null);
+    expect(status.data).toMatchObject({
+      startupDefaults: {
+        preferredTimezone: 'America/New_York',
+        preferredHouseStyle: 'W',
+        weekdayLabels: true,
+      },
+    });
+  });
+
+  it('Given preferred house style and weekday labels, then deterministic defaults do not override chart house system', () => {
+    const { service, houseCalc } = makeService({
+      preferredTimezone: 'America/New_York',
+      preferredHouseStyle: 'W',
+      weekdayLabels: true,
+    });
+
+    const houses = service.getHouses(makeNatalChart());
+    const eclipses = service.getNextEclipses();
+
+    expect(houseCalc.calculateHouses).toHaveBeenLastCalledWith(
+      makeNatalChart().julianDay,
+      makeNatalChart().location.latitude,
+      makeNatalChart().location.longitude,
+      'P'
+    );
+    expect((houses.data as any).system).toBe('W');
+    expect((eclipses.data as any).timezone).toBe('America/New_York');
+    expect(eclipses.text).toMatch(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/);
+  });
+
+  it('Given no house system on the chart, then preferred house style is used as the fallback', () => {
+    const { service, houseCalc } = makeService({
+      preferredHouseStyle: 'W',
+    });
+    const natalChart = { ...makeNatalChart(), houseSystem: undefined };
+
+    service.getHouses(natalChart);
+
+    expect(houseCalc.calculateHouses).toHaveBeenLastCalledWith(
+      natalChart.julianDay,
+      natalChart.location.latitude,
+      natalChart.location.longitude,
+      'W'
+    );
+  });
+
+  it('Given a preferred reporting timezone, then rise/set text renders in that timezone', async () => {
+    const { service } = makeService({
+      preferredTimezone: 'America/New_York',
+    });
+
+    const result = await service.getRiseSetTimes(makeNatalChart());
+
+    expect(result.data).toMatchObject({
+      timezone: 'America/Los_Angeles',
+    });
+    expect(result.text).toContain('EDT');
   });
 
   it('Given eclipse availability, then getNextEclipses returns summary or empty-state text', () => {

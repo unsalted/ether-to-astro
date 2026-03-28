@@ -3,6 +3,7 @@ import { Temporal } from '@js-temporal/polyfill';
 import { ChartRenderer } from './charts.js';
 import { getDefaultTheme } from './constants.js';
 import { EclipseCalculator } from './eclipses.js';
+import type { McpStartupDefaults } from './entrypoint.js';
 import { EphemerisCalculator } from './ephemeris.js';
 import { formatDateOnly, formatInTimezone } from './formatter.js';
 import { HouseCalculator } from './houses.js';
@@ -36,6 +37,7 @@ interface AstroServiceDependencies {
   riseSetCalc?: RiseSetCalculator;
   eclipseCalc?: EclipseCalculator;
   chartRenderer?: ChartRenderer;
+  mcpStartupDefaults?: McpStartupDefaults;
   now?: () => Date;
   writeFile?: (path: string, data: string | Buffer, encoding?: BufferEncoding) => Promise<void>;
 }
@@ -141,6 +143,7 @@ export class AstroService {
   readonly riseSetCalc: RiseSetCalculator;
   readonly eclipseCalc: EclipseCalculator;
   readonly chartRenderer: ChartRenderer;
+  readonly mcpStartupDefaults: Readonly<McpStartupDefaults>;
   private readonly now: () => Date;
   private readonly writeFileFn: (
     path: string,
@@ -155,8 +158,19 @@ export class AstroService {
     this.riseSetCalc = deps.riseSetCalc ?? new RiseSetCalculator(this.ephem);
     this.eclipseCalc = deps.eclipseCalc ?? new EclipseCalculator(this.ephem);
     this.chartRenderer = deps.chartRenderer ?? new ChartRenderer(this.ephem, this.houseCalc);
+    this.mcpStartupDefaults = Object.freeze({ ...(deps.mcpStartupDefaults ?? {}) });
     this.now = deps.now ?? (() => new Date());
     this.writeFileFn = deps.writeFile ?? writeFile;
+  }
+
+  private formatTimestamp(date: Date, timezone: string): string {
+    return formatInTimezone(date, timezone, {
+      weekday: this.mcpStartupDefaults.weekdayLabels ?? false,
+    });
+  }
+
+  resolveOutputTimezone(explicitTimezone?: string, natalTimezone?: string): string {
+    return explicitTimezone ?? natalTimezone ?? this.mcpStartupDefaults.preferredTimezone ?? 'UTC';
   }
 
   async init(): Promise<void> {
@@ -414,7 +428,9 @@ export class AstroService {
 
     const humanLines = filteredTransits
       .map((t) => {
-        const exactStr = t.exactTime ? ` - Exact: ${formatInTimezone(t.exactTime, timezone)}` : '';
+        const exactStr = t.exactTime
+          ? ` - Exact: ${this.formatTimestamp(t.exactTime, timezone)}`
+          : '';
         const applyStr = t.isApplying ? '(applying)' : '(separating)';
         return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: ${t.orb.toFixed(2)}° orb ${applyStr}${exactStr}`;
       })
@@ -436,7 +452,8 @@ export class AstroService {
     natalChart: NatalChart,
     input: GetHousesInput = {}
   ): ServiceResult<Record<string, unknown>> {
-    const system = input.system || natalChart.houseSystem || 'P';
+    const system =
+      input.system || natalChart.houseSystem || this.mcpStartupDefaults.preferredHouseStyle || 'P';
     if (!natalChart.julianDay) {
       throw new Error('Natal chart is missing julianDay. Re-run set_natal_chart to fix.');
     }
@@ -581,19 +598,20 @@ export class AstroService {
     };
   }
 
-  getRetrogradePlanets(timezone = 'UTC'): ServiceResult<Record<string, unknown>> {
+  getRetrogradePlanets(timezone?: string): ServiceResult<Record<string, unknown>> {
+    const resolvedTimezone = timezone || this.mcpStartupDefaults.preferredTimezone || 'UTC';
     const now = this.now();
     const jd = this.ephem.dateToJulianDay(now);
     const allPlanetIds = Object.values(PLANETS);
     const positions = this.ephem.getAllPlanets(jd, allPlanetIds);
     const retrograde = positions.filter((p) => p.isRetrograde);
 
-    const localNow = utcToLocal(now, timezone);
+    const localNow = utcToLocal(now, resolvedTimezone);
     const dateLabel = `${localNow.year}-${String(localNow.month).padStart(2, '0')}-${String(localNow.day).padStart(2, '0')}`;
 
     const structuredData = {
       date: dateLabel,
-      timezone,
+      timezone: resolvedTimezone,
       planets: retrograde,
     };
 
@@ -607,6 +625,7 @@ export class AstroService {
 
   async getRiseSetTimes(natalChart: NatalChart): Promise<ServiceResult<Record<string, unknown>>> {
     const timezone = natalChart.location.timezone;
+    const reportingTimezone = this.mcpStartupDefaults.preferredTimezone || timezone;
     const now = this.now();
     const localNow = utcToLocal(now, timezone);
     const localMidnight = {
@@ -639,8 +658,8 @@ export class AstroService {
 
     const humanText = `Rise/Set Times:\n\n${results
       .map((r) => {
-        const rise = r.rise ? formatInTimezone(r.rise, timezone) : 'none';
-        const set = r.set ? formatInTimezone(r.set, timezone) : 'none';
+        const rise = r.rise ? this.formatTimestamp(r.rise, reportingTimezone) : 'none';
+        const set = r.set ? this.formatTimestamp(r.set, reportingTimezone) : 'none';
         return `${r.planet}: Rise ${rise}, Set ${set}`;
       })
       .join('\n')}`;
@@ -651,18 +670,19 @@ export class AstroService {
     };
   }
 
-  getAsteroidPositions(timezone = 'UTC'): ServiceResult<Record<string, unknown>> {
+  getAsteroidPositions(timezone?: string): ServiceResult<Record<string, unknown>> {
+    const resolvedTimezone = timezone || this.mcpStartupDefaults.preferredTimezone || 'UTC';
     const now = this.now();
     const jd = this.ephem.dateToJulianDay(now);
     const asteroidIds = [...ASTEROIDS, ...NODES];
     const positions = this.ephem.getAllPlanets(jd, asteroidIds);
 
-    const localNow = utcToLocal(now, timezone);
+    const localNow = utcToLocal(now, resolvedTimezone);
     const dateLabel = `${localNow.year}-${String(localNow.month).padStart(2, '0')}-${String(localNow.day).padStart(2, '0')}`;
 
     const structuredData = {
       date: dateLabel,
-      timezone,
+      timezone: resolvedTimezone,
       positions,
     };
 
@@ -679,7 +699,8 @@ export class AstroService {
     };
   }
 
-  getNextEclipses(timezone = 'UTC'): ServiceResult<Record<string, unknown>> {
+  getNextEclipses(timezone?: string): ServiceResult<Record<string, unknown>> {
+    const resolvedTimezone = timezone || this.mcpStartupDefaults.preferredTimezone || 'UTC';
     const now = this.now();
     const jd = this.ephem.dateToJulianDay(now);
 
@@ -696,7 +717,7 @@ export class AstroService {
         maxTime: solarEclipse.maxTime.toISOString(),
       });
       humanLines.push(
-        `Next Solar Eclipse: ${formatInTimezone(solarEclipse.maxTime, timezone)} (${solarEclipse.eclipseType})`
+        `Next Solar Eclipse: ${this.formatTimestamp(solarEclipse.maxTime, resolvedTimezone)} (${solarEclipse.eclipseType})`
       );
     }
 
@@ -707,11 +728,11 @@ export class AstroService {
         maxTime: lunarEclipse.maxTime.toISOString(),
       });
       humanLines.push(
-        `Next Lunar Eclipse: ${formatInTimezone(lunarEclipse.maxTime, timezone)} (${lunarEclipse.eclipseType})`
+        `Next Lunar Eclipse: ${this.formatTimestamp(lunarEclipse.maxTime, resolvedTimezone)} (${lunarEclipse.eclipseType})`
       );
     }
 
-    const structuredData = { timezone, eclipses };
+    const structuredData = { timezone: resolvedTimezone, eclipses };
     const humanText =
       eclipses.length === 0
         ? 'No eclipses found in the near future.'
@@ -726,6 +747,11 @@ export class AstroService {
       hasNatalChart: natalChart !== null,
       natalChartName: natalChart?.name ?? null,
       natalChartTimezone: natalChart?.location.timezone ?? null,
+      startupDefaults: {
+        preferredTimezone: this.mcpStartupDefaults.preferredTimezone ?? null,
+        preferredHouseStyle: this.mcpStartupDefaults.preferredHouseStyle ?? null,
+        weekdayLabels: this.mcpStartupDefaults.weekdayLabels ?? null,
+      },
       ephemerisInitialized: this.isInitialized(),
       stateModel: 'stateful-per-process',
     };
