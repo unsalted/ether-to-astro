@@ -356,11 +356,11 @@ export class AstroService {
     const exactOnly = input.exact_only ?? false;
     const applyingOnly = input.applying_only ?? false;
 
-    if (daysAhead < 0) {
-      throw new Error('days_ahead must be >= 0');
+    if (!Number.isFinite(daysAhead) || daysAhead < 0) {
+      throw new Error('days_ahead must be a finite number >= 0');
     }
-    if (maxOrb < 0) {
-      throw new Error('max_orb must be >= 0');
+    if (!Number.isFinite(maxOrb) || maxOrb < 0) {
+      throw new Error('max_orb must be a finite number >= 0');
     }
     if (
       requestedMode !== undefined &&
