@@ -97,7 +97,12 @@ export interface TransitFixture {
   natalOffsetDegrees: number;
   expectedAspect: 'conjunction' | 'opposition' | 'square' | 'trine' | 'sextile';
   expectedIsApplying?: boolean;
-  expectExactTimeStatus?: 'within_preview' | 'outside_preview' | 'not_found' | 'unsupported_body' | 'undefined';
+  expectExactTimeStatus?:
+    | 'within_preview'
+    | 'outside_preview'
+    | 'not_found'
+    | 'unsupported_body'
+    | 'undefined';
 }
 
 export interface AstrologTransitSnapshotFixture {

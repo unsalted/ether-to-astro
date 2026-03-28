@@ -1,13 +1,13 @@
 /**
  * Main MCP server for astrological calculations
- * 
+ *
  * @remarks
  * Provides tools for:
  * - Setting and managing natal charts
  * - Calculating planetary positions and transits
  * - Generating astrological charts
  * - Computing houses, rise/set times, and eclipses
- * 
+ *
  * Uses Swiss Ephemeris for accurate astronomical calculations.
  * All calculations are tropical (not sidereal) and geocentric.
  */
@@ -18,7 +18,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { AstroService } from './astro-service.js';
 import { logger } from './logger.js';
 import { getToolSpec, MCP_TOOL_SPECS } from './tool-registry.js';
-import { missingNatalChart, mcpResult, mcpError } from './tool-result.js';
+import { mcpError, mcpResult, missingNatalChart } from './tool-result.js';
 import type { NatalChart } from './types.js';
 
 const server = new Server(
@@ -66,11 +66,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 
 /**
  * Handle MCP tool requests
- * 
+ *
  * @param request - The MCP tool request
  * @returns Tool response with data or error
  * @throws Error for unhandled tools
- * 
+ *
  * @remarks
  * Routes requests to appropriate handlers. Initializes ephemeris on first use.
  * All handlers return structured responses suitable for MCP clients.
@@ -111,17 +111,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     return { content: result.content };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    
+
     // Map known error patterns to appropriate codes
     let code: import('./tool-result.js').ToolIssueCode;
     if (
-      errorMessage.includes('Invalid date format')
-      || errorMessage.includes('Invalid calendar date')
-      || errorMessage.includes('Invalid month')
-      || errorMessage.includes('Invalid day')
-      || errorMessage.includes('days_ahead')
-      || errorMessage.includes('max_orb')
-      || errorMessage.includes('missing julianDay')
+      errorMessage.includes('Invalid date format') ||
+      errorMessage.includes('Invalid calendar date') ||
+      errorMessage.includes('Invalid month') ||
+      errorMessage.includes('Invalid day') ||
+      errorMessage.includes('days_ahead') ||
+      errorMessage.includes('max_orb') ||
+      errorMessage.includes('missing julianDay')
     ) {
       code = 'INVALID_INPUT';
     } else if (errorMessage.includes('Invalid timezone') || errorMessage.includes('timezone')) {
@@ -130,14 +130,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       code = 'INVALID_HOUSE_SYSTEM';
     } else if (errorMessage.includes('Ephemeris') || errorMessage.includes('ephemeris')) {
       code = 'EPHEMERIS_COMPUTE_FAILED';
-    } else if (errorMessage.includes('write') || errorMessage.includes('ENOENT') || errorMessage.includes('EACCES')) {
+    } else if (
+      errorMessage.includes('write') ||
+      errorMessage.includes('ENOENT') ||
+      errorMessage.includes('EACCES')
+    ) {
       code = 'FILE_WRITE_FAILED';
     } else if (errorMessage.includes('render') || errorMessage.includes('chart')) {
       code = 'CHART_RENDER_FAILED';
     } else {
       code = 'INTERNAL_ERROR';
     }
-    
+
     return mcpError({
       code,
       message: errorMessage,

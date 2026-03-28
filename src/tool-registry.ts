@@ -22,7 +22,10 @@ export interface ToolSpec {
   description: string;
   inputSchema: Record<string, unknown>;
   requiresNatalChart: boolean;
-  execute: (ctx: ToolExecutionContext, args: ToolArgs) => Promise<ToolExecutionResult> | ToolExecutionResult;
+  execute: (
+    ctx: ToolExecutionContext,
+    args: ToolArgs
+  ) => Promise<ToolExecutionResult> | ToolExecutionResult;
 }
 
 export const MCP_TOOL_SPECS: ToolSpec[] = [
@@ -41,19 +44,34 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
         minute: { type: 'number', description: 'Birth minute' },
         latitude: { type: 'number', description: 'Birth location latitude' },
         longitude: { type: 'number', description: 'Birth location longitude' },
-        timezone: { type: 'string', description: 'Timezone (e.g., America/New_York, Europe/London)' },
+        timezone: {
+          type: 'string',
+          description: 'Timezone (e.g., America/New_York, Europe/London)',
+        },
         birth_time_disambiguation: {
           type: 'string',
           enum: ['compatible', 'earlier', 'later', 'reject'],
-          description: 'How to handle DST-ambiguous or nonexistent local birth times. Default: reject.',
+          description:
+            'How to handle DST-ambiguous or nonexistent local birth times. Default: reject.',
         },
         house_system: {
           type: 'string',
-          description: 'House system preference: P=Placidus (default), W=Whole Sign, K=Koch, E=Equal',
+          description:
+            'House system preference: P=Placidus (default), W=Whole Sign, K=Koch, E=Equal',
           enum: ['P', 'W', 'K', 'E'],
         },
       },
-      required: ['name', 'year', 'month', 'day', 'hour', 'minute', 'latitude', 'longitude', 'timezone'],
+      required: [
+        'name',
+        'year',
+        'month',
+        'day',
+        'hour',
+        'minute',
+        'latitude',
+        'longitude',
+        'timezone',
+      ],
     },
     requiresNatalChart: false,
     execute: (ctx, args) => {
@@ -80,7 +98,10 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        date: { type: 'string', description: 'Date for transits (ISO format YYYY-MM-DD). Defaults to today.' },
+        date: {
+          type: 'string',
+          description: 'Date for transits (ISO format YYYY-MM-DD). Defaults to today.',
+        },
         categories: {
           type: 'array',
           items: { type: 'string', enum: ['moon', 'personal', 'outer', 'all'] },
@@ -89,11 +110,13 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
         },
         include_mundane: {
           type: 'boolean',
-          description: 'Include current planetary positions (not transits to natal chart). Defaults to false.',
+          description:
+            'Include current planetary positions (not transits to natal chart). Defaults to false.',
         },
         days_ahead: {
           type: 'number',
-          description: 'Number of days to look ahead for upcoming transits. 0 = today only. Defaults to 0.',
+          description:
+            'Number of days to look ahead for upcoming transits. 0 = today only. Defaults to 0.',
           default: 0,
         },
         max_orb: {
@@ -103,7 +126,8 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
         },
         exact_only: {
           type: 'boolean',
-          description: 'Only return transits with exact times calculated (within 2° orb). Defaults to false.',
+          description:
+            'Only return transits with exact times calculated (within 2° orb). Defaults to false.',
         },
         applying_only: {
           type: 'boolean',
@@ -142,7 +166,9 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
     },
     requiresNatalChart: true,
     execute: (ctx, args) => {
-      const result = ctx.service.getHouses(ctx.natalChart as NatalChart, { system: args.system as string | undefined });
+      const result = ctx.service.getHouses(ctx.natalChart as NatalChart, {
+        system: args.system as string | undefined,
+      });
       return { kind: 'state', data: result.data, text: result.text };
     },
   },
@@ -152,7 +178,8 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
     inputSchema: { type: 'object', properties: {} },
     requiresNatalChart: false,
     execute: (ctx, args) => {
-      const timezone = (args.timezone as string | undefined) ?? ctx.natalChart?.location.timezone ?? 'UTC';
+      const timezone =
+        (args.timezone as string | undefined) ?? ctx.natalChart?.location.timezone ?? 'UTC';
       const result = ctx.service.getRetrogradePlanets(timezone);
       return { kind: 'state', data: result.data, text: result.text };
     },
@@ -173,7 +200,8 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
     inputSchema: { type: 'object', properties: {} },
     requiresNatalChart: false,
     execute: (ctx, args) => {
-      const timezone = (args.timezone as string | undefined) ?? ctx.natalChart?.location.timezone ?? 'UTC';
+      const timezone =
+        (args.timezone as string | undefined) ?? ctx.natalChart?.location.timezone ?? 'UTC';
       const result = ctx.service.getAsteroidPositions(timezone);
       return { kind: 'state', data: result.data, text: result.text };
     },
@@ -184,7 +212,8 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
     inputSchema: { type: 'object', properties: {} },
     requiresNatalChart: false,
     execute: (ctx, args) => {
-      const timezone = (args.timezone as string | undefined) ?? ctx.natalChart?.location.timezone ?? 'UTC';
+      const timezone =
+        (args.timezone as string | undefined) ?? ctx.natalChart?.location.timezone ?? 'UTC';
       const result = ctx.service.getNextEclipses(timezone);
       return { kind: 'state', data: result.data, text: result.text };
     },
@@ -210,7 +239,8 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
         theme: {
           type: 'string',
           enum: ['light', 'dark'],
-          description: 'Color theme override. Defaults to time-based: dark (6pm-6am) or light (6am-6pm)',
+          description:
+            'Color theme override. Defaults to time-based: dark (6pm-6am) or light (6am-6pm)',
         },
         format: {
           type: 'string',
@@ -234,7 +264,13 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
         return { kind: 'content', content: [{ type: 'text', text: result.text }] };
       }
       if (result.format === 'svg' && result.svg) {
-        return { kind: 'content', content: [{ type: 'text', text: result.text }, { type: 'text', text: result.svg }] };
+        return {
+          kind: 'content',
+          content: [
+            { type: 'text', text: result.text },
+            { type: 'text', text: result.svg },
+          ],
+        };
       }
       if (result.image) {
         return {
@@ -262,7 +298,8 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
         theme: {
           type: 'string',
           enum: ['light', 'dark'],
-          description: 'Color theme override. Defaults to time-based: dark (6pm-6am) or light (6am-6pm)',
+          description:
+            'Color theme override. Defaults to time-based: dark (6pm-6am) or light (6am-6pm)',
         },
         format: {
           type: 'string',
@@ -287,7 +324,13 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
         return { kind: 'content', content: [{ type: 'text', text: result.text }] };
       }
       if (result.format === 'svg' && result.svg) {
-        return { kind: 'content', content: [{ type: 'text', text: result.text }, { type: 'text', text: result.svg }] };
+        return {
+          kind: 'content',
+          content: [
+            { type: 'text', text: result.text },
+            { type: 'text', text: result.svg },
+          ],
+        };
       }
       if (result.image) {
         return {
@@ -303,7 +346,11 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
   },
 ];
 
-const TOOL_INDEX = new Map(MCP_TOOL_SPECS.map((spec) => [spec.name, spec]));
+export function createToolSpecIndex(specs: ToolSpec[] = MCP_TOOL_SPECS): Map<string, ToolSpec> {
+  return new Map(specs.map((spec) => [spec.name, spec]));
+}
+
+const TOOL_INDEX = createToolSpecIndex();
 
 export function getToolSpec(name: string): ToolSpec | undefined {
   return TOOL_INDEX.get(name);

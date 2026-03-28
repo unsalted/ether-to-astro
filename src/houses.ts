@@ -3,7 +3,7 @@ import { type HouseData, type HouseSystem, ZODIAC_SIGNS } from './types.js';
 
 /**
  * Calculator for astrological houses, Ascendant, and Midheaven
- * 
+ *
  * @remarks
  * Calculates house cusps using various house systems. Handles polar
  * latitude edge cases by falling back to Whole Sign when needed.
@@ -15,10 +15,10 @@ export class HouseCalculator {
 
   /**
    * Create a new house calculator
-   * 
+   *
    * @param ephem - Initialized ephemeris calculator
    * @throws Error if ephemeris is not initialized
-   * 
+   *
    * @remarks
    * The ephemeris calculator must be initialized before passing
    * to the HouseCalculator constructor.
@@ -29,7 +29,7 @@ export class HouseCalculator {
 
   /**
    * Calculate house cusps, Ascendant, and Midheaven for a given time and location
-   * 
+   *
    * Supported house systems:
    * - P: Placidus (most common, fails >66° latitude)
    * - W: Whole Sign (works at all latitudes)
@@ -44,16 +44,16 @@ export class HouseCalculator {
    * - H: Azimuthal/Horizontal
    * - T: Polich/Page (Topocentric)
    * - B: Alcabitus
-   * 
+   *
    * Polar latitude handling:
    * - For latitudes >66°, Placidus/Koch/etc may fail mathematically
    * - Automatically falls back to Whole Sign if requested system fails
    * - Returns actual system used in result.system field
-   * 
+   *
    * Cusp array format:
    * - Swiss Ephemeris 1-based indexing: cusps[0] is unused, cusps[1..12] are houses 1-12
    * - This preserves the original Swiss Ephemeris convention
-   * 
+   *
    * @param julianDay - Julian Day for calculation
    * @param latitude - Observer latitude in degrees
    * @param longitude - Observer longitude in degrees
@@ -76,15 +76,9 @@ export class HouseCalculator {
 
     const isPolar = Math.abs(latitude) > 66;
     let systemToUse = normalized as HouseSystem;
-    
+
     // Try requested system
-    const result = this.ephem.eph.houses_ex2(
-      julianDay,
-      0,
-      latitude,
-      longitude,
-      systemToUse
-    );
+    const result = this.ephem.eph.houses_ex2(julianDay, 0, latitude, longitude, systemToUse);
 
     // Handle polar latitude failure with real fallback
     if (result.flag < 0 && isPolar && systemToUse !== 'W') {
@@ -97,12 +91,14 @@ export class HouseCalculator {
         longitude,
         systemToUse
       );
-      
+
       if (fallbackResult.flag < 0) {
         // Even Whole Sign failed - this should never happen
-        throw new Error(`House calculation failed even with Whole Sign fallback at latitude ${latitude.toFixed(1)}°`);
+        throw new Error(
+          `House calculation failed even with Whole Sign fallback at latitude ${latitude.toFixed(1)}°`
+        );
       }
-      
+
       // Return fallback result with actual system used
       return {
         ascendant: fallbackResult.data.points[0],
@@ -114,7 +110,9 @@ export class HouseCalculator {
 
     // For non-polar failures, throw error (don't return fake data)
     if (result.flag < 0) {
-      throw new Error(`House calculation failed for ${systemToUse} system at latitude ${latitude.toFixed(1)}°`);
+      throw new Error(
+        `House calculation failed for ${systemToUse} system at latitude ${latitude.toFixed(1)}°`
+      );
     }
 
     // Success - return actual data
@@ -128,55 +126,69 @@ export class HouseCalculator {
 
   /**
    * Normalize house system code
-   * 
+   *
    * @param system - House system code (single character or name)
    * @returns Normalized single-character code
    * @throws Error if invalid system
-   * 
+   *
    * @remarks
    * Accepts both single-letter codes and full names.
    * Validates against supported systems.
    */
   private normalizeHouseSystem(system: string): HouseSystem {
     const upperSystem = system.toUpperCase().trim();
-    
+
     // Map common names to single-letter codes
     const nameMap: { [key: string]: string } = {
-      'PLACIDUS': 'P',
+      PLACIDUS: 'P',
       'WHOLE SIGN': 'W',
-      'KOCH': 'K',
-      'EQUAL': 'E',
-      'PORPHYRY': 'O',
-      'REGIOMONTANUS': 'R',
-      'CAMPANUS': 'C',
+      KOCH: 'K',
+      EQUAL: 'E',
+      PORPHYRY: 'O',
+      REGIOMONTANUS: 'R',
+      CAMPANUS: 'C',
       'EQUAL MC': 'A',
       'VEHLOW EQUAL': 'V',
       'AXIAL ROTATION': 'X',
-      'AZIMUTHAL': 'H',
-      'HORIZONTAL': 'H',
-      'TOPOCENTRIC': 'T',
-      'POLICH': 'T',
-      'PAGE': 'T',
-      'ALCABITUS': 'B',
+      AZIMUTHAL: 'H',
+      HORIZONTAL: 'H',
+      TOPOCENTRIC: 'T',
+      POLICH: 'T',
+      PAGE: 'T',
+      ALCABITUS: 'B',
     };
-    
+
     const normalized = nameMap[upperSystem] || upperSystem;
-    
+
     // Validate against allowed systems
-    const validSystems: HouseSystem[] = ['P', 'W', 'K', 'E', 'O', 'R', 'C', 'A', 'V', 'X', 'H', 'T', 'B'];
+    const validSystems: HouseSystem[] = [
+      'P',
+      'W',
+      'K',
+      'E',
+      'O',
+      'R',
+      'C',
+      'A',
+      'V',
+      'X',
+      'H',
+      'T',
+      'B',
+    ];
     if (!validSystems.includes(normalized as HouseSystem)) {
       throw new Error(`Invalid house system: ${system}. Valid systems: ${validSystems.join(', ')}`);
     }
-    
+
     return normalized as HouseSystem;
   }
 
   /**
    * Format house position as readable string
-   * 
+   *
    * @param longitude - House cusp longitude in degrees
    * @returns Formatted string like "15.30° Aries"
-   * 
+   *
    * @remarks
    * Normalizes longitude to 0-360° range and determines zodiac sign.
    */

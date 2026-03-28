@@ -1,4 +1,4 @@
-import { TOLERANCES, minutesToDays } from './tolerances.js';
+import { minutesToDays, TOLERANCES } from './tolerances.js';
 
 interface Sample {
   jd: number;
@@ -84,13 +84,8 @@ export function denseScanRootOracle(
   endJD: number,
   options: OracleOptions = {}
 ): number[] {
-  return denseScanRootOracleWithDebug(
-    getLongitudeAtJd,
-    targetLongitude,
-    startJD,
-    endJD,
-    options
-  ).roots;
+  return denseScanRootOracleWithDebug(getLongitudeAtJd, targetLongitude, startJD, endJD, options)
+    .roots;
 }
 
 export function denseScanRootOracleWithDebug(
@@ -149,8 +144,8 @@ export function denseScanRootOracleWithDebug(
 
   // Enumerate all k*360 crossings in each sampled interval.
   for (let i = 0; i < samples.length - 1; i++) {
-    let left = samples[i];
-    let right = samples[i + 1];
+    const left = samples[i];
+    const right = samples[i + 1];
     const ks = enumerateCrossingKs(left.phi, right.phi);
     if (ks.length === 0) continue;
 
@@ -172,7 +167,7 @@ export function denseScanRootOracleWithDebug(
       let bRight = right;
       let iterations = 0;
       let found = false;
-      while (iterations < maxIterations && (bRight.jd - bLeft.jd) > dedupeEpsilonDays / 4) {
+      while (iterations < maxIterations && bRight.jd - bLeft.jd > dedupeEpsilonDays / 4) {
         const midJD = (bLeft.jd + bRight.jd) / 2;
         const midLongitude = getLongitudeAtJd(midJD);
         const midRawPhase = midLongitude - targetLongitude;
@@ -186,9 +181,19 @@ export function denseScanRootOracleWithDebug(
         }
 
         if ((bLeft.phi - targetPhase) * (midPhi - targetPhase) <= 0) {
-          bRight = { jd: midJD, longitude: midLongitude, shortestDiff: midShortestDiff, phi: midPhi };
+          bRight = {
+            jd: midJD,
+            longitude: midLongitude,
+            shortestDiff: midShortestDiff,
+            phi: midPhi,
+          };
         } else {
-          bLeft = { jd: midJD, longitude: midLongitude, shortestDiff: midShortestDiff, phi: midPhi };
+          bLeft = {
+            jd: midJD,
+            longitude: midLongitude,
+            shortestDiff: midShortestDiff,
+            phi: midPhi,
+          };
         }
         iterations++;
       }
@@ -209,9 +214,7 @@ export function denseScanRootOracleWithDebug(
     const nextAbs = Math.abs(next.shortestDiff);
 
     const isLocalMin =
-      currAbs <= prevAbs &&
-      currAbs <= nextAbs &&
-      (currAbs < prevAbs || currAbs < nextAbs);
+      currAbs <= prevAbs && currAbs <= nextAbs && (currAbs < prevAbs || currAbs < nextAbs);
     if (!isLocalMin) continue;
 
     const hasPhaseCrossingHere = enumerateCrossingKs(prev.phi, next.phi).length > 0;
@@ -222,7 +225,7 @@ export function denseScanRootOracleWithDebug(
     let leftJD = prev.jd;
     let rightJD = next.jd;
     let iterations = 0;
-    while (iterations < maxIterations && (rightJD - leftJD) > dedupeEpsilonDays / 4) {
+    while (iterations < maxIterations && rightJD - leftJD > dedupeEpsilonDays / 4) {
       const m1 = leftJD + (rightJD - leftJD) / 3;
       const m2 = rightJD - (rightJD - leftJD) / 3;
       const d1 = Math.abs(signedShortestDiff(getLongitudeAtJd(m1), targetLongitude));
@@ -236,7 +239,9 @@ export function denseScanRootOracleWithDebug(
     }
 
     const candidateJD = (leftJD + rightJD) / 2;
-    const candidateAbs = Math.abs(signedShortestDiff(getLongitudeAtJd(candidateJD), targetLongitude));
+    const candidateAbs = Math.abs(
+      signedShortestDiff(getLongitudeAtJd(candidateJD), targetLongitude)
+    );
     if (candidateAbs <= toleranceDeg * 2) {
       roots.push(candidateJD);
     }

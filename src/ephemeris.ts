@@ -15,12 +15,12 @@ const TANGENTIAL_ROOT_SCAN_FACTOR = 20; // candidate threshold in tolerance mult
 
 /**
  * Ephemeris calculator wrapper for native Swiss Ephemeris (sweph)
- * 
+ *
  * @remarks
  * Provides a high-level interface for planetary calculations using the
  * Swiss Ephemeris Node bindings. Handles initialization,
  * coordinate conversions, and common astrological calculations.
- * 
+ *
  * All longitudes are tropical (not sidereal) and geocentric.
  */
 export class EphemerisCalculator {
@@ -29,10 +29,10 @@ export class EphemerisCalculator {
 
   /**
    * Initialize the Swiss Ephemeris native module
-   * 
+   *
    * @returns Promise that resolves when initialization is complete
    * @throws Error if module setup fails
-   * 
+   *
    * @remarks
    * Must be called before any other methods. Loads the Swiss Ephemeris
    * data files and prepares the calculation engine.
@@ -69,11 +69,11 @@ export class EphemerisCalculator {
 
   /**
    * Convert a JavaScript Date to Julian Day
-   * 
+   *
    * @param date - Date to convert (should be in UTC)
    * @returns Julian Day number
    * @throws Error if ephemeris not initialized
-   * 
+   *
    * @remarks
    * Julian Day is a continuous count of days since noon Universal Time
    * on January 1, 4713 BCE. It's the standard time system for astronomical
@@ -92,10 +92,10 @@ export class EphemerisCalculator {
 
   /**
    * Normalize angle to 0-360 degree range
-   * 
+   *
    * @param angle - Angle in degrees (may be negative or > 360)
    * @returns Normalized angle in degrees (0-360)
-   * 
+   *
    * @remarks
    * Uses modulo arithmetic to handle negative angles correctly.
    * Example: -10° becomes 350°, 370° becomes 10°.
@@ -106,12 +106,12 @@ export class EphemerisCalculator {
 
   /**
    * Get position of a single planet at a specific time
-   * 
+   *
    * @param planetId - Swiss Ephemeris planet ID (from PLANETS constant)
    * @param jd - Julian Day for the calculation
    * @returns Planet position with all relevant data
    * @throws Error if ephemeris not initialized or invalid planet ID
-   * 
+   *
    * @remarks
    * Returns tropical, geocentric coordinates. Includes zodiac sign
    * calculation and retrograde status.
@@ -168,12 +168,12 @@ export class EphemerisCalculator {
 
   /**
    * Get positions for multiple planets at a specific time
-   * 
+   *
    * @param planetIds - Array of Swiss Ephemeris planet IDs
    * @param jd - Julian Day for the calculation
    * @returns Array of planet positions in the same order as planetIds
    * @throws Error if ephemeris not initialized
-   * 
+   *
    * @remarks
    * Convenience wrapper that maps over planetIds and calls getPlanetPosition for each.
    */
@@ -183,11 +183,11 @@ export class EphemerisCalculator {
 
   /**
    * Calculate angular distance between two planets
-   * 
+   *
    * @param lon1 - First planet's longitude
    * @param lon2 - Second planet's longitude
    * @returns Angular distance in degrees (0-180)
-   * 
+   *
    * @remarks
    * Always returns the shorter arc between the two planets.
    * For example, 350° and 10° have a distance of 20°, not 340°.
@@ -200,10 +200,9 @@ export class EphemerisCalculator {
     return diff;
   }
 
-
   /**
    * Find all exact times when planet reaches a specific longitude
-   * 
+   *
    * @param planetId - Swiss Ephemeris planet ID
    * @param targetLongitude - Target longitude in degrees (will be normalized to 0-360)
    * @param startJD - Start of search window (Julian Day)
@@ -211,7 +210,7 @@ export class EphemerisCalculator {
    * @param tolerance - Desired precision in degrees (default: 0.01°)
    * @returns Array of Julian Days where crossings occur, sorted earliest-first, or empty array if none
    * @throws Error if ephemeris not initialized or invalid inputs
-   * 
+   *
    * @remarks
    * Uses multi-stage search: coarse scan for root detection, then bracket/minimum refinement.
    * Endpoint-near-zero cases are collected directly as candidate roots.
@@ -298,9 +297,7 @@ export class EphemerisCalculator {
       const nextDiff = samples[i + 1].diff;
 
       const isLocalMin =
-        currAbs <= prevAbs &&
-        currAbs <= nextAbs &&
-        (currAbs < prevAbs || currAbs < nextAbs);
+        currAbs <= prevAbs && currAbs <= nextAbs && (currAbs < prevAbs || currAbs < nextAbs);
 
       if (!isLocalMin) continue;
       const hasSignChangeAcrossWindow =
@@ -309,8 +306,7 @@ export class EphemerisCalculator {
 
       const dipProminence = Math.max(prevAbs, nextAbs) - currAbs;
       const looksPromising =
-        currAbs < tolerance * TANGENTIAL_ROOT_SCAN_FACTOR ||
-        dipProminence > tolerance;
+        currAbs < tolerance * TANGENTIAL_ROOT_SCAN_FACTOR || dipProminence > tolerance;
 
       if (looksPromising) {
         tangentialIntervals.push({
@@ -418,11 +414,11 @@ export class EphemerisCalculator {
 
   /**
    * Convert Julian Day to JavaScript Date
-   * 
+   *
    * @param jd - Julian Day number
    * @returns JavaScript Date in UTC
    * @throws Error if ephemeris not initialized
-   * 
+   *
    * @remarks
    * The returned Date is always in UTC regardless of the original
    * timezone of the calculation.

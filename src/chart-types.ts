@@ -8,7 +8,12 @@ import {
 
 // Type for AstroChart library
 export interface AstroChartConstructor {
-  new (elementId: string, width: number, height: number, settings: Partial<AstroChartSettings>): AstroChartInstance;
+  new (
+    elementId: string,
+    width: number,
+    height: number,
+    settings: Partial<AstroChartSettings>
+  ): AstroChartInstance;
   default?: AstroChartConstructor;
 }
 

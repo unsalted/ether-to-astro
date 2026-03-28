@@ -1,27 +1,26 @@
-# Astro MCP Test Suite
+# Astro Test Suite
 
-Comprehensive unit and integration tests for the Astro MCP server with 80% code coverage target.
+Comprehensive unit and validation tests for the `e2a` CLI and `e2a-mcp` server, with an 80% global coverage target.
 
 ## Test Structure
 
 ```
 tests/
-├── unit/                      # Unit tests for individual modules
-│   ├── ephemeris.test.ts      # Ephemeris calculations (18 tests)
-│   ├── transits.test.ts       # Transit calculations (9 tests)
-│   ├── houses.test.ts         # House system calculations (8 tests)
-│   ├── charts.test.ts         # Chart rendering (16 tests)
-│   ├── storage.test.ts        # Natal chart storage (8 tests)
-│   └── formatter.test.ts      # Time formatting (6 tests)
-├── integration/               # Integration tests (planned)
-│   ├── mcp-tools.test.ts      # MCP tool handlers
-│   └── end-to-end.test.ts     # Full workflow scenarios
+├── unit/                      # Unit tests for runtime and domain modules
+│   ├── astro-service.test.ts  # Service orchestration and tool-facing behavior
+│   ├── cli*.test.ts           # CLI contracts, profiles, error handling
+│   ├── tool-registry.test.ts  # MCP tool spec mapping and execution wrappers
+│   ├── ephemeris/transits/*   # Core astrology math and solver behavior
+│   ├── riseset/eclipses/*     # Event calculators and edge flags
+│   └── charts/houses/*        # Rendering and house-system behavior
+├── helpers/                   # Reusable test helpers/builders
 ├── fixtures/                  # Test data and fixtures
 │   ├── bowen-yang-chart.ts    # Bowen Yang's birth chart
 │   └── expected-results.ts    # Known calculation results
-└── setup.ts                   # Test environment setup
+├── setup.ts                   # Test environment setup
+└── validation/                # End-to-end validation harness
 
-Total: 65+ tests
+Total: 150+ tests
 ```
 
 ## Running Tests
@@ -66,27 +65,22 @@ describe('When an AI asks "What transits is Bowen experiencing today?"', () => {
 ```
 
 ### Coverage Goals
-- **Minimum 80%** across all metrics (lines, functions, branches, statements)
-- Focus on core calculation logic
-- Exclude logging and entry points
+- **Minimum 80%** across lines, functions, branches, and statements
+- Preserve high-fidelity solver tests while adding deterministic orchestration tests
+- Exclude logging/entrypoint-only modules from coverage gates
 
 ### Testing Strategy
-1. **Unit Tests:** Test individual modules in isolation
-2. **Integration Tests:** Test MCP tool handlers and workflows
-3. **Mocking:** Use Moshier fallback for fast tests (no ephemeris files needed)
-4. **Real Data:** Use Bowen Yang's chart for realistic scenarios
+1. **Core math lane:** Real ephemeris/solver behavior (minimal mocking)
+2. **Orchestration lane:** Fast deterministic tests with injected mocks/fakes
+3. **Filesystem/profile lane:** Temp-fs integration style for precedence and parsing
+4. **Validation lane:** Cross-check production outputs with oracle comparators
 
 ## Current Status
 
 ✅ **Completed:**
-- Test infrastructure setup (vitest + coverage)
-- Test fixtures with Bowen Yang's chart
-- Formatter tests (6/6 passing)
-- Test environment configuration
-
-🚧 **In Progress:**
-- Core unit tests (ephemeris, transits, houses, charts, storage)
-- Integration tests for MCP tools
+- Unit suites for service, CLI, registry, domain calculators, and profile store
+- Validation harness with subsystem comparators and dense root oracle
+- Deterministic time setup and fixture-driven real-world chart checks
 
 ## Known Issues
 
@@ -97,9 +91,9 @@ The project uses native `sweph` bindings in Node.js:
 - **Fallback:** Moshier mode remains available when ephemeris files are missing
 
 ### AstroChart Browser Dependencies
-The AstroChart library expects browser globals:
-- **Solution:** Use jsdom environment in vitest config
-- **Polyfill:** Add `self` global in setup file
+The chart library expects browser-like globals:
+- Use `jsdom` test environment
+- Polyfill `self` in `tests/setup.ts`
 
 ## Coverage Reports
 
@@ -174,9 +168,6 @@ Run with `--coverage` to see which lines aren't covered, then add targeted tests
 
 ## Future Enhancements
 
-- [ ] Integration tests for all 12 MCP tools
-- [ ] End-to-end workflow tests
-- [ ] Performance benchmarks
-- [ ] Snapshot testing for chart SVG output
-- [ ] Parameterized tests for multiple birth charts
-- [ ] Real ephemeris data integration tests
+- [ ] Thread-level MCP request/response integration tests
+- [ ] CI flake detector pass (repeat-run sampling on key suites)
+- [ ] Additional chart rendering failure-path contract tests

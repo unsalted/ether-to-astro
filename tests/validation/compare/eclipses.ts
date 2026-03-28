@@ -1,6 +1,6 @@
-import { TOLERANCES, minutesBetweenIso } from '../utils/tolerances.js';
 import type { NormalizedEclipse } from '../utils/fixtureTypes.js';
 import type { ValidationReport } from '../utils/report.js';
+import { minutesBetweenIso, TOLERANCES } from '../utils/tolerances.js';
 
 export function compareEclipses(
   fixtureName: string,

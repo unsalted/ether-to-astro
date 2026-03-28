@@ -85,7 +85,7 @@ const currentJD = ephem.dateToJulianDay(new Date());
 
 ### What We Mock
 1. **Date/Time:** Fixed to March 26, 2024, 12:00 UTC
-2. **File I/O:** Mock file writes in storage tests
+2. **Orchestration dependencies:** Mock file writes, service adapters, and runtime context in CLI/service tests
 
 ### What We DON'T Mock
 1. **Ephemeris Calculations:** Use real Moshier calculations
@@ -107,36 +107,25 @@ const currentJD = ephem.dateToJulianDay(new Date());
 - Test files themselves
 
 ### Coverage Focus Areas
-1. **Core Calculations** (90%+ target)
+1. **High-risk runtime surfaces**
+   - `astro-service`, `tool-registry`, `cli`, `riseset`, `eclipses`
+2. **Core calculations**
    - Ephemeris calculations
-   - Transit finding
-   - Aspect calculations
-
-2. **Data Handling** (85%+ target)
-   - Chart storage
-   - House calculations
-   - Time formatting
-
-3. **Rendering** (75%+ target)
-   - Chart generation
-   - Theme application
-   - Format conversion
+   - Transit finding and exact-time status handling
+   - House fallback behavior
+3. **Output contracts**
+   - JSON/text payloads
+   - Chart content branches and file-output handling
 
 ## Test Organization
 
 ### Unit Tests
-Test individual modules in isolation:
-- `ephemeris.test.ts` - Planetary calculations
-- `transits.test.ts` - Transit finding
-- `houses.test.ts` - House systems
-- `charts.test.ts` - Chart rendering
-- `storage.test.ts` - Data persistence
-- `formatter.test.ts` - Time formatting
+Two lanes:
+1. **Core math lane** (minimal mocking): ephemeris/transits/houses/temporal edge behavior
+2. **Orchestration lane** (deterministic mocks): astro-service/tool-registry/cli/profile-store/riseset/eclipses
 
-### Integration Tests (Planned)
-Test MCP tool handlers:
-- `mcp-tools.test.ts` - All 12 MCP tools
-- `end-to-end.test.ts` - Full workflows
+### Validation Tests
+`tests/validation/*` provides end-to-end subsystem comparison against independent adapters/oracles.
 
 ## Running Tests
 
@@ -171,9 +160,9 @@ npm run test:coverage
 - Verify no tests use `new Date()` directly
 
 ### "Coverage too low"
-- Run with `--coverage` to see uncovered lines
-- Add tests for edge cases
-- Focus on core calculation logic first
+- Run with `--coverage` to identify low-signal modules first
+- Add deterministic orchestration tests before expanding expensive ephemeris scenarios
+- Remove vacuous assertions (`length >= 0`, conditional-pass guards)
 
 ## Best Practices
 
@@ -182,8 +171,8 @@ npm run test:coverage
 3. **Use range assertions** for floating-point comparisons
 4. **Test edge cases** (retrograde, polar regions, date boundaries)
 5. **Keep tests fast** (<30s total runtime)
-6. **Write descriptive test names** that read like user stories
+6. **Write concise contract-oriented test names**
 7. **Follow Arrange-Act-Assert** pattern
-8. **Mock external dependencies** (file I/O, network)
-9. **Don't mock core logic** (ephemeris, calculations)
+8. **Mock orchestration dependencies** (file I/O, clock, service adapters)
+9. **Don't mock core solver logic** (ephemeris, root finding)
 10. **Update expected values** when ephemeris library changes

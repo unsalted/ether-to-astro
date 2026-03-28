@@ -1,7 +1,18 @@
 import { spawnSync } from 'node:child_process';
 import type { NormalizedBody, NormalizedHouseResult } from '../utils/fixtureTypes.js';
 
-const BODY_NAMES = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto'];
+const BODY_NAMES = [
+  'Sun',
+  'Moon',
+  'Mercury',
+  'Venus',
+  'Mars',
+  'Jupiter',
+  'Saturn',
+  'Uranus',
+  'Neptune',
+  'Pluto',
+];
 
 export interface AstrologProbe {
   enabled: boolean;
@@ -21,7 +32,12 @@ export function probeAstrolog(): AstrologProbe {
   const bin = process.env.ASTROLOG_BIN || 'astrolog';
 
   if (!enabled) {
-    return { enabled: false, available: false, bin, reason: 'VALIDATE_WITH_ASTROLOG is not enabled' };
+    return {
+      enabled: false,
+      available: false,
+      bin,
+      reason: 'VALIDATE_WITH_ASTROLOG is not enabled',
+    };
   }
 
   const probe = spawnSync(bin, ['-Hc'], { encoding: 'utf8' });
@@ -45,7 +61,9 @@ function parsePositionsFromStdout(stdout: string): NormalizedBody[] {
   for (const line of lines) {
     // Common Astrolog table line format:
     // "Sun :  6Ari38 ..."
-    const tableMatch = line.match(/^(Sun|Moon|Merc|Venu|Mars|Jupi|Satu|Uran|Nept|Plut)\s*:\s*([0-9]{1,2})([A-Za-z]{3})([0-9]{1,2})\s*(R?)\s*[+-]/i);
+    const tableMatch = line.match(
+      /^(Sun|Moon|Merc|Venu|Mars|Jupi|Satu|Uran|Nept|Plut)\s*:\s*([0-9]{1,2})([A-Za-z]{3})([0-9]{1,2})\s*(R?)\s*[+-]/i
+    );
     if (tableMatch) {
       const bodyMap: Record<string, string> = {
         Sun: 'Sun',
@@ -59,7 +77,20 @@ function parsePositionsFromStdout(stdout: string): NormalizedBody[] {
         Nept: 'Neptune',
         Plut: 'Pluto',
       };
-      const signOrder = ['Ari', 'Tau', 'Gem', 'Can', 'Leo', 'Vir', 'Lib', 'Sco', 'Sag', 'Cap', 'Aqu', 'Pis'];
+      const signOrder = [
+        'Ari',
+        'Tau',
+        'Gem',
+        'Can',
+        'Leo',
+        'Vir',
+        'Lib',
+        'Sco',
+        'Sag',
+        'Cap',
+        'Aqu',
+        'Pis',
+      ];
       const body = bodyMap[tableMatch[1]];
       const degree = Number(tableMatch[2]);
       const signIndex = signOrder.indexOf(tableMatch[3]);
@@ -76,13 +107,17 @@ function parsePositionsFromStdout(stdout: string): NormalizedBody[] {
 
     // Example-ish line formats across Astrolog builds often include:
     // "Sun  6Ar19  ..." or "Sun 6.32"
-    const plainMatch = line.match(/^(Sun|Moon|Mercury|Venus|Mars|Jupiter|Saturn|Uranus|Neptune|Pluto)\s+([0-9]+(?:\.[0-9]+)?)/i);
+    const plainMatch = line.match(
+      /^(Sun|Moon|Mercury|Venus|Mars|Jupiter|Saturn|Uranus|Neptune|Pluto)\s+([0-9]+(?:\.[0-9]+)?)/i
+    );
     if (plainMatch) {
       parsed.push({ body: plainMatch[1], longitude: Number(plainMatch[2]) });
       continue;
     }
 
-    const zodiacMatch = line.match(/^(Sun|Moon|Mercury|Venus|Mars|Jupiter|Saturn|Uranus|Neptune|Pluto)\s+([0-9]{1,2})([A-Za-z]{2})([0-9]{1,2})/i);
+    const zodiacMatch = line.match(
+      /^(Sun|Moon|Mercury|Venus|Mars|Jupiter|Saturn|Uranus|Neptune|Pluto)\s+([0-9]{1,2})([A-Za-z]{2})([0-9]{1,2})/i
+    );
     if (zodiacMatch) {
       const signOrder = ['Ar', 'Ta', 'Ge', 'Cn', 'Le', 'Vi', 'Li', 'Sc', 'Sg', 'Cp', 'Aq', 'Pi'];
       const degree = Number(zodiacMatch[2]);
@@ -104,12 +139,16 @@ function parsePositionsFromStdout(stdout: string): NormalizedBody[] {
     if (!byBody.has(row.body)) byBody.set(row.body, row);
   }
 
-  return BODY_NAMES
-    .map((body) => byBody.get(body))
-    .filter((row): row is NormalizedBody => Boolean(row));
+  return BODY_NAMES.map((body) => byBody.get(body)).filter((row): row is NormalizedBody =>
+    Boolean(row)
+  );
 }
 
-function toAstrologCoord(value: number, positiveHemisphere: string, negativeHemisphere: string): string {
+function toAstrologCoord(
+  value: number,
+  positiveHemisphere: string,
+  negativeHemisphere: string
+): string {
   const abs = Math.abs(value);
   let degrees = Math.floor(abs);
   let minutes = Math.round((abs - degrees) * 60);
@@ -178,7 +217,20 @@ function parseHouseSystem(stdout: string): 'P' | 'W' | null {
 
 function parseHouseCusps(stdout: string): number[] {
   const cusps: number[] = new Array(12).fill(Number.NaN);
-  const signOrder = ['Ari', 'Tau', 'Gem', 'Can', 'Leo', 'Vir', 'Lib', 'Sco', 'Sag', 'Cap', 'Aqu', 'Pis'];
+  const signOrder = [
+    'Ari',
+    'Tau',
+    'Gem',
+    'Can',
+    'Leo',
+    'Vir',
+    'Lib',
+    'Sco',
+    'Sag',
+    'Cap',
+    'Aqu',
+    'Pis',
+  ];
 
   const lines = stdout.split(/\r?\n/);
   for (const line of lines) {

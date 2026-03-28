@@ -18,7 +18,12 @@ export function findTransit(
 export function assertTransitStatus(
   fixtureName: string,
   transit: NormalizedTransit | undefined,
-  expectedStatus: 'within_preview' | 'outside_preview' | 'not_found' | 'unsupported_body' | 'undefined',
+  expectedStatus:
+    | 'within_preview'
+    | 'outside_preview'
+    | 'not_found'
+    | 'unsupported_body'
+    | 'undefined',
   report: ValidationReport
 ): void {
   if (!transit) {

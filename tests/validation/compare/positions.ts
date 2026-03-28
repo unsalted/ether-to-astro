@@ -1,6 +1,6 @@
-import { TOLERANCES } from '../utils/tolerances.js';
 import type { NormalizedBody } from '../utils/fixtureTypes.js';
 import type { ValidationReport } from '../utils/report.js';
+import { TOLERANCES } from '../utils/tolerances.js';
 
 function sortBodies(rows: NormalizedBody[]): NormalizedBody[] {
   return [...rows].sort((a, b) => String(a.body).localeCompare(String(b.body)));

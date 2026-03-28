@@ -20,18 +20,66 @@ const CORE_PARITY_PLANET_IDS = [
 ];
 
 export const astrologPositionParityFixtures: AstrologPositionParityFixture[] = [
-  { name: 'positions-modern-baseline-noon', isoUtc: '2024-03-26T12:00:00Z', planetIds: CORE_PARITY_PLANET_IDS },
-  { name: 'positions-modern-baseline-midnight', isoUtc: '2024-03-26T00:00:00Z', planetIds: CORE_PARITY_PLANET_IDS },
-  { name: 'positions-leap-day-2024-02-29', isoUtc: '2024-02-29T12:00:00Z', planetIds: CORE_PARITY_PLANET_IDS },
-  { name: 'positions-year-boundary-dec31', isoUtc: '2024-12-31T23:59:00Z', planetIds: CORE_PARITY_PLANET_IDS },
-  { name: 'positions-spring-equinox-window', isoUtc: '2024-03-20T12:00:00Z', planetIds: CORE_PARITY_PLANET_IDS },
-  { name: 'positions-autumn-equinox-window', isoUtc: '2024-09-22T12:00:00Z', planetIds: CORE_PARITY_PLANET_IDS },
-  { name: 'positions-mercury-retrograde', isoUtc: '2024-04-10T12:00:00Z', planetIds: CORE_PARITY_PLANET_IDS },
-  { name: 'positions-venus-retrograde', isoUtc: '2023-08-10T12:00:00Z', planetIds: CORE_PARITY_PLANET_IDS },
-  { name: 'positions-mars-station-window', isoUtc: '2024-12-08T12:00:00Z', planetIds: CORE_PARITY_PLANET_IDS },
-  { name: 'positions-pluto-or-uranus-station-window', isoUtc: '2024-09-02T12:00:00Z', planetIds: CORE_PARITY_PLANET_IDS },
-  { name: 'positions-far-past-date', isoUtc: '1905-06-15T12:00:00Z', planetIds: CORE_PARITY_PLANET_IDS },
-  { name: 'positions-near-future-date', isoUtc: '2035-05-10T12:00:00Z', planetIds: CORE_PARITY_PLANET_IDS },
+  {
+    name: 'positions-modern-baseline-noon',
+    isoUtc: '2024-03-26T12:00:00Z',
+    planetIds: CORE_PARITY_PLANET_IDS,
+  },
+  {
+    name: 'positions-modern-baseline-midnight',
+    isoUtc: '2024-03-26T00:00:00Z',
+    planetIds: CORE_PARITY_PLANET_IDS,
+  },
+  {
+    name: 'positions-leap-day-2024-02-29',
+    isoUtc: '2024-02-29T12:00:00Z',
+    planetIds: CORE_PARITY_PLANET_IDS,
+  },
+  {
+    name: 'positions-year-boundary-dec31',
+    isoUtc: '2024-12-31T23:59:00Z',
+    planetIds: CORE_PARITY_PLANET_IDS,
+  },
+  {
+    name: 'positions-spring-equinox-window',
+    isoUtc: '2024-03-20T12:00:00Z',
+    planetIds: CORE_PARITY_PLANET_IDS,
+  },
+  {
+    name: 'positions-autumn-equinox-window',
+    isoUtc: '2024-09-22T12:00:00Z',
+    planetIds: CORE_PARITY_PLANET_IDS,
+  },
+  {
+    name: 'positions-mercury-retrograde',
+    isoUtc: '2024-04-10T12:00:00Z',
+    planetIds: CORE_PARITY_PLANET_IDS,
+  },
+  {
+    name: 'positions-venus-retrograde',
+    isoUtc: '2023-08-10T12:00:00Z',
+    planetIds: CORE_PARITY_PLANET_IDS,
+  },
+  {
+    name: 'positions-mars-station-window',
+    isoUtc: '2024-12-08T12:00:00Z',
+    planetIds: CORE_PARITY_PLANET_IDS,
+  },
+  {
+    name: 'positions-pluto-or-uranus-station-window',
+    isoUtc: '2024-09-02T12:00:00Z',
+    planetIds: CORE_PARITY_PLANET_IDS,
+  },
+  {
+    name: 'positions-far-past-date',
+    isoUtc: '1905-06-15T12:00:00Z',
+    planetIds: CORE_PARITY_PLANET_IDS,
+  },
+  {
+    name: 'positions-near-future-date',
+    isoUtc: '2035-05-10T12:00:00Z',
+    planetIds: CORE_PARITY_PLANET_IDS,
+  },
 ];
 
 export const astrologHouseParityFixtures: AstrologHouseParityFixture[] = [

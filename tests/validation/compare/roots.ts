@@ -1,6 +1,6 @@
-import { TOLERANCES, minutesBetweenIso } from '../utils/tolerances.js';
 import type { NormalizedRoot } from '../utils/fixtureTypes.js';
 import type { ValidationReport } from '../utils/report.js';
+import { minutesBetweenIso, TOLERANCES } from '../utils/tolerances.js';
 
 function dedupeRootsByMinutes(roots: NormalizedRoot[], minutes: number): NormalizedRoot[] {
   const sorted = [...roots].sort((a, b) => a.jd - b.jd);

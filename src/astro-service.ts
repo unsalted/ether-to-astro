@@ -4,24 +4,35 @@ import { ChartRenderer } from './charts.js';
 import { getDefaultTheme } from './constants.js';
 import { EclipseCalculator } from './eclipses.js';
 import { EphemerisCalculator } from './ephemeris.js';
-import { TimeFormatter } from './formatter.js';
+import { formatDateOnly, formatInTimezone } from './formatter.js';
 import { HouseCalculator } from './houses.js';
 import { RiseSetCalculator } from './riseset.js';
-import { TransitCalculator, deduplicateTransits } from './transits.js';
-import { addLocalDays, localToUTC, type Disambiguation, utcToLocal } from './time-utils.js';
+import { addLocalDays, type Disambiguation, localToUTC, utcToLocal } from './time-utils.js';
+import { deduplicateTransits, TransitCalculator } from './transits.js';
 import {
   ASTEROIDS,
+  type HouseSystem,
+  type NatalChart,
   NODES,
   OUTER_PLANETS,
   PERSONAL_PLANETS,
   PLANETS,
-  type HouseSystem,
-  type NatalChart,
   type PlanetPositionResponse,
   type Transit,
   type TransitResponse,
   ZODIAC_SIGNS,
 } from './types.js';
+
+interface AstroServiceDependencies {
+  ephem?: EphemerisCalculator;
+  transitCalc?: TransitCalculator;
+  houseCalc?: HouseCalculator;
+  riseSetCalc?: RiseSetCalculator;
+  eclipseCalc?: EclipseCalculator;
+  chartRenderer?: ChartRenderer;
+  now?: () => Date;
+  writeFile?: (path: string, data: string | Buffer, encoding?: BufferEncoding) => Promise<void>;
+}
 
 export interface SetNatalChartInput {
   name: string;
@@ -116,14 +127,22 @@ export class AstroService {
   readonly riseSetCalc: RiseSetCalculator;
   readonly eclipseCalc: EclipseCalculator;
   readonly chartRenderer: ChartRenderer;
+  private readonly now: () => Date;
+  private readonly writeFileFn: (
+    path: string,
+    data: string | Buffer,
+    encoding?: BufferEncoding
+  ) => Promise<void>;
 
-  constructor() {
-    this.ephem = new EphemerisCalculator();
-    this.transitCalc = new TransitCalculator(this.ephem);
-    this.houseCalc = new HouseCalculator(this.ephem);
-    this.riseSetCalc = new RiseSetCalculator(this.ephem);
-    this.eclipseCalc = new EclipseCalculator(this.ephem);
-    this.chartRenderer = new ChartRenderer(this.ephem, this.houseCalc);
+  constructor(deps: AstroServiceDependencies = {}) {
+    this.ephem = deps.ephem ?? new EphemerisCalculator();
+    this.houseCalc = deps.houseCalc ?? new HouseCalculator(this.ephem);
+    this.transitCalc = deps.transitCalc ?? new TransitCalculator(this.ephem);
+    this.riseSetCalc = deps.riseSetCalc ?? new RiseSetCalculator(this.ephem);
+    this.eclipseCalc = deps.eclipseCalc ?? new EclipseCalculator(this.ephem);
+    this.chartRenderer = deps.chartRenderer ?? new ChartRenderer(this.ephem, this.houseCalc);
+    this.now = deps.now ?? (() => new Date());
+    this.writeFileFn = deps.writeFile ?? writeFile;
   }
 
   async init(): Promise<void> {
@@ -134,7 +153,9 @@ export class AstroService {
     return !!this.ephem.eph;
   }
 
-  setNatalChart(input: SetNatalChartInput): ServiceResult<Record<string, unknown>> & { chart: NatalChart } {
+  setNatalChart(
+    input: SetNatalChartInput
+  ): ServiceResult<Record<string, unknown>> & { chart: NatalChart } {
     const requestedHouseSystem = input.house_system ?? null;
 
     const chart: NatalChart = {
@@ -227,9 +248,15 @@ export class AstroService {
     ];
 
     if (isPolar && houses.system !== houseSystem) {
-      feedback.push('', `Note: Polar latitude detected (${chart.location.latitude.toFixed(1)}°). Requested ${systemNames[houseSystem]}, using ${systemNames[houses.system]} instead.`);
+      feedback.push(
+        '',
+        `Note: Polar latitude detected (${chart.location.latitude.toFixed(1)}°). Requested ${systemNames[houseSystem]}, using ${systemNames[houses.system]} instead.`
+      );
     } else if (isPolar) {
-      feedback.push('', `Note: Polar latitude detected (${chart.location.latitude.toFixed(1)}°). Using ${systemNames[houses.system]} house system.`);
+      feedback.push(
+        '',
+        `Note: Polar latitude detected (${chart.location.latitude.toFixed(1)}°). Using ${systemNames[houses.system]} house system.`
+      );
     }
 
     const structuredData: Record<string, unknown> = {
@@ -262,7 +289,10 @@ export class AstroService {
     };
   }
 
-  getTransits(natalChart: NatalChart, input: GetTransitsInput = {}): ServiceResult<Record<string, unknown>> {
+  getTransits(
+    natalChart: NatalChart,
+    input: GetTransitsInput = {}
+  ): ServiceResult<Record<string, unknown>> {
     const dateStr = input.date;
     const categories = input.categories ?? ['all'];
     const includeMundane = input.include_mundane ?? false;
@@ -284,7 +314,9 @@ export class AstroService {
     } else {
       if (categories.includes('moon')) transitingPlanetIds.push(PLANETS.MOON);
       if (categories.includes('personal')) {
-        transitingPlanetIds.push(...PERSONAL_PLANETS.filter((p) => !transitingPlanetIds.includes(p)));
+        transitingPlanetIds.push(
+          ...PERSONAL_PLANETS.filter((p) => !transitingPlanetIds.includes(p))
+        );
       }
       if (categories.includes('outer')) {
         transitingPlanetIds.push(...OUTER_PLANETS.filter((p) => !transitingPlanetIds.includes(p)));
@@ -298,7 +330,7 @@ export class AstroService {
       const parsed = parseDateOnlyInput(dateStr);
       targetDate = localToUTC(parsed, timezone);
     } else {
-      const now = new Date();
+      const now = this.now();
       const localNow = utcToLocal(now, timezone);
       const localNoon = { ...localNow, hour: 12, minute: 0, second: 0 };
       targetDate = localToUTC(localNoon, timezone);
@@ -310,7 +342,11 @@ export class AstroService {
       const dayUTC = addLocalDays(startLocal, timezone, day);
       const jd = this.ephem.dateToJulianDay(dayUTC);
       const transitingPlanets = this.ephem.getAllPlanets(jd, transitingPlanetIds);
-      const transits = this.transitCalc.findTransits(transitingPlanets, natalChart.planets || [], jd);
+      const transits = this.transitCalc.findTransits(
+        transitingPlanets,
+        natalChart.planets || [],
+        jd
+      );
       allTransits.push(...transits);
     }
 
@@ -332,13 +368,17 @@ export class AstroService {
         natalPlanet: t.natalPlanet,
         orb: Number.parseFloat(t.orb.toFixed(2)),
         isApplying: t.isApplying,
+        exactTimeStatus: t.exactTimeStatus,
         exactTime: t.exactTime?.toISOString(),
         transitLongitude: t.transitLongitude,
         natalLongitude: t.natalLongitude,
       })),
     };
 
-    let responseData: Record<string, unknown> = structuredData as unknown as Record<string, unknown>;
+    let responseData: Record<string, unknown> = structuredData as unknown as Record<
+      string,
+      unknown
+    >;
     let mundaneText = '';
 
     if (includeMundane) {
@@ -350,25 +390,27 @@ export class AstroService {
         positions: currentPositions,
       };
       responseData = { transits: structuredData, mundane: mundaneData };
-      mundaneText = '\n\nCurrent Planetary Positions:\n\n' + currentPositions
-        .map((p) => `${p.planet}: ${p.degree.toFixed(1)}° ${p.sign} (${p.isRetrograde ? 'Rx' : 'Direct'})`)
-        .join('\n');
+      mundaneText = `\n\nCurrent Planetary Positions:\n\n${currentPositions
+        .map(
+          (p) =>
+            `${p.planet}: ${p.degree.toFixed(1)}° ${p.sign} (${p.isRetrograde ? 'Rx' : 'Direct'})`
+        )
+        .join('\n')}`;
     }
 
     const humanLines = filteredTransits
       .map((t) => {
-        const exactStr = t.exactTime
-          ? ` - Exact: ${TimeFormatter.formatInTimezone(t.exactTime, timezone)}`
-          : '';
+        const exactStr = t.exactTime ? ` - Exact: ${formatInTimezone(t.exactTime, timezone)}` : '';
         const applyStr = t.isApplying ? '(applying)' : '(separating)';
         return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: ${t.orb.toFixed(2)}° orb ${applyStr}${exactStr}`;
       })
       .join('\n');
 
     const rangeStr = daysAhead > 0 ? ` (next ${daysAhead + 1} days)` : '';
-    const transitHeader = filteredTransits.length > 0
-      ? `Transits${rangeStr}:\n\n${humanLines}`
-      : 'No transits found matching the specified criteria.';
+    const transitHeader =
+      filteredTransits.length > 0
+        ? `Transits${rangeStr}:\n\n${humanLines}`
+        : 'No transits found matching the specified criteria.';
 
     return {
       data: responseData,
@@ -376,7 +418,10 @@ export class AstroService {
     };
   }
 
-  getHouses(natalChart: NatalChart, input: GetHousesInput = {}): ServiceResult<Record<string, unknown>> {
+  getHouses(
+    natalChart: NatalChart,
+    input: GetHousesInput = {}
+  ): ServiceResult<Record<string, unknown>> {
     const system = input.system || natalChart.houseSystem || 'P';
     if (!natalChart.julianDay) {
       throw new Error('Natal chart is missing julianDay. Re-run set_natal_chart to fix.');
@@ -405,7 +450,7 @@ export class AstroService {
   }
 
   getRetrogradePlanets(timezone = 'UTC'): ServiceResult<Record<string, unknown>> {
-    const now = new Date();
+    const now = this.now();
     const jd = this.ephem.dateToJulianDay(now);
     const allPlanetIds = Object.values(PLANETS);
     const positions = this.ephem.getAllPlanets(jd, allPlanetIds);
@@ -420,18 +465,26 @@ export class AstroService {
       planets: retrograde,
     };
 
-    const humanText = retrograde.length === 0
-      ? 'No planets are currently retrograde.'
-      : `Retrograde Planets:\n\n${retrograde.map((p) => `${p.planet}: ${p.degree.toFixed(2)}° ${p.sign}`).join('\n')}`;
+    const humanText =
+      retrograde.length === 0
+        ? 'No planets are currently retrograde.'
+        : `Retrograde Planets:\n\n${retrograde.map((p) => `${p.planet}: ${p.degree.toFixed(2)}° ${p.sign}`).join('\n')}`;
 
     return { data: structuredData, text: humanText };
   }
 
   async getRiseSetTimes(natalChart: NatalChart): Promise<ServiceResult<Record<string, unknown>>> {
     const timezone = natalChart.location.timezone;
-    const now = new Date();
+    const now = this.now();
     const localNow = utcToLocal(now, timezone);
-    const localMidnight = { year: localNow.year, month: localNow.month, day: localNow.day, hour: 0, minute: 0, second: 0 };
+    const localMidnight = {
+      year: localNow.year,
+      month: localNow.month,
+      day: localNow.day,
+      hour: 0,
+      minute: 0,
+      second: 0,
+    };
     const midnightUTC = localToUTC(localMidnight, timezone);
 
     const dateLabel = `${localNow.year}-${String(localNow.month).padStart(2, '0')}-${String(localNow.day).padStart(2, '0')}`;
@@ -452,11 +505,13 @@ export class AstroService {
       })),
     };
 
-    const humanText = `Rise/Set Times:\n\n${results.map((r) => {
-      const rise = r.rise ? TimeFormatter.formatInTimezone(r.rise, timezone) : 'none';
-      const set = r.set ? TimeFormatter.formatInTimezone(r.set, timezone) : 'none';
-      return `${r.planet}: Rise ${rise}, Set ${set}`;
-    }).join('\n')}`;
+    const humanText = `Rise/Set Times:\n\n${results
+      .map((r) => {
+        const rise = r.rise ? formatInTimezone(r.rise, timezone) : 'none';
+        const set = r.set ? formatInTimezone(r.set, timezone) : 'none';
+        return `${r.planet}: Rise ${rise}, Set ${set}`;
+      })
+      .join('\n')}`;
 
     return {
       data: structuredData,
@@ -465,7 +520,7 @@ export class AstroService {
   }
 
   getAsteroidPositions(timezone = 'UTC'): ServiceResult<Record<string, unknown>> {
-    const now = new Date();
+    const now = this.now();
     const jd = this.ephem.dateToJulianDay(now);
     const asteroidIds = [...ASTEROIDS, ...NODES];
     const positions = this.ephem.getAllPlanets(jd, asteroidIds);
@@ -479,12 +534,12 @@ export class AstroService {
       positions,
     };
 
-    const humanText = 'Asteroid & Node Positions:\n\n' + positions
+    const humanText = `Asteroid & Node Positions:\n\n${positions
       .map((p) => {
         const rx = p.isRetrograde ? ' Rx' : '';
         return `${p.planet}: ${p.degree.toFixed(2)}° ${p.sign}${rx}`;
       })
-      .join('\n');
+      .join('\n')}`;
 
     return {
       data: structuredData,
@@ -493,7 +548,7 @@ export class AstroService {
   }
 
   getNextEclipses(timezone = 'UTC'): ServiceResult<Record<string, unknown>> {
-    const now = new Date();
+    const now = this.now();
     const jd = this.ephem.dateToJulianDay(now);
 
     const solarEclipse = this.eclipseCalc.findNextSolarEclipse(jd);
@@ -509,7 +564,7 @@ export class AstroService {
         maxTime: solarEclipse.maxTime.toISOString(),
       });
       humanLines.push(
-        `Next Solar Eclipse: ${TimeFormatter.formatInTimezone(solarEclipse.maxTime, timezone)} (${solarEclipse.eclipseType})`
+        `Next Solar Eclipse: ${formatInTimezone(solarEclipse.maxTime, timezone)} (${solarEclipse.eclipseType})`
       );
     }
 
@@ -520,14 +575,15 @@ export class AstroService {
         maxTime: lunarEclipse.maxTime.toISOString(),
       });
       humanLines.push(
-        `Next Lunar Eclipse: ${TimeFormatter.formatInTimezone(lunarEclipse.maxTime, timezone)} (${lunarEclipse.eclipseType})`
+        `Next Lunar Eclipse: ${formatInTimezone(lunarEclipse.maxTime, timezone)} (${lunarEclipse.eclipseType})`
       );
     }
 
     const structuredData = { timezone, eclipses };
-    const humanText = eclipses.length === 0
-      ? 'No eclipses found in the near future.'
-      : `Upcoming Eclipses:\n\n${humanLines.join('\n')}`;
+    const humanText =
+      eclipses.length === 0
+        ? 'No eclipses found in the near future.'
+        : `Upcoming Eclipses:\n\n${humanLines.join('\n')}`;
 
     return { data: structuredData, text: humanText };
   }
@@ -549,7 +605,10 @@ export class AstroService {
     return { data: statusData, text: humanText };
   }
 
-  async generateNatalChart(natalChart: NatalChart, input: GenerateChartInput = {}): Promise<ChartServiceResult> {
+  async generateNatalChart(
+    natalChart: NatalChart,
+    input: GenerateChartInput = {}
+  ): Promise<ChartServiceResult> {
     const theme = input.theme || getDefaultTheme(natalChart.location.timezone);
     const format = input.format || 'svg';
     const outputPath = input.output_path;
@@ -557,9 +616,9 @@ export class AstroService {
 
     if (outputPath) {
       if (format === 'svg') {
-        await writeFile(outputPath, chart as string, 'utf-8');
+        await this.writeFileFn(outputPath, chart as string, 'utf-8');
       } else {
-        await writeFile(outputPath, chart as Buffer);
+        await this.writeFileFn(outputPath, chart as Buffer);
       }
       return {
         format,
@@ -588,7 +647,10 @@ export class AstroService {
     };
   }
 
-  async generateTransitChart(natalChart: NatalChart, input: GenerateTransitChartInput = {}): Promise<ChartServiceResult> {
+  async generateTransitChart(
+    natalChart: NatalChart,
+    input: GenerateTransitChartInput = {}
+  ): Promise<ChartServiceResult> {
     const dateStr = input.date;
     const theme = input.theme ?? getDefaultTheme(natalChart.location.timezone);
     const format = input.format ?? 'svg';
@@ -598,21 +660,26 @@ export class AstroService {
       const parsed = parseDateOnlyInput(dateStr);
       targetDate = localToUTC(parsed, natalChart.location.timezone);
     } else {
-      const now = new Date();
+      const now = this.now();
       const localNow = utcToLocal(now, natalChart.location.timezone);
       const localNoon = { ...localNow, hour: 12, minute: 0, second: 0 };
       targetDate = localToUTC(localNoon, natalChart.location.timezone);
     }
 
     const outputPath = input.output_path;
-    const chart = await this.chartRenderer.generateTransitChart(natalChart, targetDate, theme, format);
-    const dateLabel = TimeFormatter.formatDateOnly(targetDate, natalChart.location.timezone);
+    const chart = await this.chartRenderer.generateTransitChart(
+      natalChart,
+      targetDate,
+      theme,
+      format
+    );
+    const dateLabel = formatDateOnly(targetDate, natalChart.location.timezone);
 
     if (outputPath) {
       if (format === 'svg') {
-        await writeFile(outputPath, chart as string, 'utf-8');
+        await this.writeFileFn(outputPath, chart as string, 'utf-8');
       } else {
-        await writeFile(outputPath, chart as Buffer);
+        await this.writeFileFn(outputPath, chart as Buffer);
       }
       return {
         format,

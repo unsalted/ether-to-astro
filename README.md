@@ -71,6 +71,48 @@ npm install
 npm run build
 ```
 
+## Engineering Contract
+
+This repo uses a lightweight, agent-friendly operating contract:
+
+- Keep changes focused and avoid unrelated churn in the same diff.
+- Treat Biome as the source of truth for formatting, import order, and linting.
+- Use conventional commit messages: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `build`, `ci`.
+- Keep PR descriptions short and explicit about what changed and how it was verified.
+
+Required routine quality gate:
+
+```bash
+npm run quality:gate
+```
+
+This runs:
+
+- `npm run build`
+- `npm run lint`
+- `npm test -- --run`
+
+Use `npm run validate:astro` for high-risk astrology engine work such as ephemeris/root-solver/transit-timing changes. It is intentionally not part of the default routine gate.
+
+Commit examples:
+
+```text
+fix(cli): resolve injected cwd for relative profile paths
+test(profiles): cover default profile precedence
+refactor(transits): simplify exact-time formatting
+docs(readme): document remote-ready repo contract
+```
+
+Pull request checklist:
+
+- Scope is focused and coherent.
+- `npm run quality:gate` passed locally.
+- Tests were added or updated when behavior changed.
+- Docs were updated when workflow or interfaces changed.
+- PR description includes:
+  - What changed
+  - How it was verified
+
 ## Setup
 
 1. Run setup script or install manually (see above)
@@ -252,4 +294,8 @@ Ask your AI agent:
 
 ## License
 
-MIT
+AGPL-3.0-or-later
+
+This package adopts the AGPL path because it depends on `sweph`, which declares
+`(AGPL-3.0-or-later OR LGPL-3.0-or-later)` and reserves the LGPL path for the
+conditions described by the Swiss Ephemeris licensing terms.

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   ProfileStoreError,
+  resolveProfileFilePath,
   loadResolvedProfileFile,
   resolveProfileSelection,
 } from '../../src/profile-store.js';
@@ -73,6 +74,27 @@ describe('profile store', () => {
     expect(resolved?.profileName).toBe('nick');
   });
 
+  it('uses explicit profileName over env and file default', async () => {
+    const cwd = await makeDir('explicit-precedence');
+    await writeFile(path.join(cwd, '.astro.json'), sampleProfileFile(), 'utf8');
+    const resolved = await resolveProfileSelection({
+      cwd,
+      homeDir: cwd,
+      profileName: 'nick',
+      env: { ...process.env, ASTRO_PROFILE: 'elwyn' },
+    });
+    expect(resolved?.profileName).toBe('nick');
+  });
+
+  it('prefers local profile file over home profile file', async () => {
+    const cwd = await makeDir('local-over-home-cwd');
+    const home = await makeDir('local-over-home-home');
+    await writeFile(path.join(home, '.astro.json'), sampleProfileFile().replaceAll('elwyn', 'home-default'), 'utf8');
+    await writeFile(path.join(cwd, '.astro.json'), sampleProfileFile(), 'utf8');
+    const pathResult = await resolveProfileFilePath({ cwd, homeDir: home }, true);
+    expect(pathResult).toBe(path.join(cwd, '.astro.json'));
+  });
+
   it('throws PROFILE_NOT_FOUND for missing explicit profile', async () => {
     const cwd = await makeDir('missing-profile');
     await writeFile(path.join(cwd, '.astro.json'), sampleProfileFile(), 'utf8');
@@ -97,5 +119,45 @@ describe('profile store', () => {
     await expect(loadResolvedProfileFile({ cwd, homeDir: cwd })).rejects.toMatchObject<
       Partial<ProfileStoreError>
     >({ code: 'INVALID_PROFILE_FILE' });
+  });
+
+  it('throws DEFAULT_PROFILE_NOT_FOUND when default profile key is invalid', async () => {
+    const cwd = await makeDir('bad-default');
+    await writeFile(
+      path.join(cwd, '.astro.json'),
+      JSON.stringify({
+        version: 1,
+        defaultProfile: 'ghost',
+        profiles: {
+          elwyn: JSON.parse(sampleProfileFile()).profiles.elwyn,
+        },
+      }),
+      'utf8'
+    );
+
+    await expect(resolveProfileSelection({ cwd, homeDir: cwd })).rejects.toMatchObject<
+      Partial<ProfileStoreError>
+    >({ code: 'DEFAULT_PROFILE_NOT_FOUND' });
+  });
+
+  it('throws PROFILE_VALIDATION_FAILED for invalid enum fields', async () => {
+    const cwd = await makeDir('enum-invalid');
+    await writeFile(
+      path.join(cwd, '.astro.json'),
+      JSON.stringify({
+        version: 1,
+        profiles: {
+          bad: {
+            ...JSON.parse(sampleProfileFile()).profiles.elwyn,
+            house_system: 'Z',
+          },
+        },
+      }),
+      'utf8'
+    );
+
+    await expect(loadResolvedProfileFile({ cwd, homeDir: cwd })).rejects.toMatchObject<
+      Partial<ProfileStoreError>
+    >({ code: 'PROFILE_VALIDATION_FAILED' });
   });
 });

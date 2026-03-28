@@ -73,14 +73,17 @@ export const DARK_ASPECT_COLORS = {
  * Determine chart theme based on time of day
  * Dark theme: 6 PM - 6 AM (18:00 - 06:00)
  * Light theme: 6 AM - 6 PM (06:00 - 18:00)
- * 
+ *
  * @param timezone - Optional IANA timezone to use (e.g., 'America/New_York'). Defaults to server local time.
  * @returns 'dark' or 'light' theme
  */
 export function getDefaultTheme(timezone?: string): 'light' | 'dark' {
   const now = new Date();
-  const hour = timezone 
-    ? Number.parseInt(now.toLocaleString('en-US', { timeZone: timezone, hour: '2-digit', hour12: false }), 10)
+  const hour = timezone
+    ? Number.parseInt(
+        now.toLocaleString('en-US', { timeZone: timezone, hour: '2-digit', hour12: false }),
+        10
+      )
     : now.getHours();
   return hour >= 18 || hour < 6 ? 'dark' : 'light';
 }

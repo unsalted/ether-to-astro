@@ -5,7 +5,7 @@ import { PLANET_NAMES, type RiseSetTime } from './types.js';
 
 /**
  * Calculator for rise, set, and meridian transit times
- * 
+ *
  * @remarks
  * Calculates when celestial bodies rise above and set below the horizon,
  * plus upper and lower meridian transits. Handles circumpolar objects
@@ -17,10 +17,10 @@ export class RiseSetCalculator {
 
   /**
    * Create a new rise/set calculator
-   * 
+   *
    * @param ephem - Initialized ephemeris calculator
    * @throws Error if ephemeris is not initialized
-   * 
+   *
    * @remarks
    * The ephemeris calculator must be initialized before passing
    * to the RiseSetCalculator constructor.
@@ -31,19 +31,19 @@ export class RiseSetCalculator {
 
   /**
    * Calculate rise, set, and meridian transit times for a celestial body
-   * 
+   *
    * Uses standard astronomical definitions:
    * - Rise/Set: Upper limb of disc with atmospheric refraction considered
    * - Atmospheric pressure: Estimated from altitude (sea level if altitude=0)
    * - Temperature: 0°C (default assumption)
    * - Upper meridian: Highest point in sky (culmination)
    * - Lower meridian: Lowest point in sky (anti-culmination)
-   * 
+   *
    * Swiss Ephemeris return codes:
    * - 0 or positive: Event found successfully
    * - -1: Calculation error (hard failure)
    * - -2: No event exists (circumpolar object)
-   * 
+   *
    * @param julianDay - Julian Day to start search from (typically midnight of target date)
    * @param planetId - Swiss Ephemeris planet ID
    * @param latitude - Observer latitude in degrees (-90 to 90)
@@ -96,11 +96,13 @@ export class RiseSetCalculator {
         eventType,
         [longitude, latitude, altitude],
         0, // atpress: 0 = auto-estimate from altitude
-        0  // attemp: 0°C
+        0 // attemp: 0°C
       );
 
       if (eventResult.flag === -1) {
-        throw new Error(`${eventName} calculation failed for ${planetName}: ${eventResult.error || 'Unknown error'}`);
+        throw new Error(
+          `${eventName} calculation failed for ${planetName}: ${eventResult.error || 'Unknown error'}`
+        );
       } else if (eventResult.flag === -2) {
         logger.debug(`No ${eventName} for ${planetName} (circumpolar or no event)`, {
           planet: planetName,
@@ -115,27 +117,32 @@ export class RiseSetCalculator {
 
     result.rise = calculateEvent(Constants.SE_CALC_RISE, 'rise');
     result.set = calculateEvent(Constants.SE_CALC_SET, 'set');
-    result.upperMeridianTransit = calculateEvent(Constants.SE_CALC_MTRANSIT, 'upper meridian transit');
-    result.lowerMeridianTransit = calculateEvent(Constants.SE_CALC_ITRANSIT, 'lower meridian transit');
+    result.upperMeridianTransit = calculateEvent(
+      Constants.SE_CALC_MTRANSIT,
+      'upper meridian transit'
+    );
+    result.lowerMeridianTransit = calculateEvent(
+      Constants.SE_CALC_ITRANSIT,
+      'lower meridian transit'
+    );
 
     return result;
   }
 
-
   /**
    * Get rise/set times for all planets for a given date
-   * 
+   *
    * @param date - Date/time to use as search anchor (typically current instant or midnight of target date)
    * @param latitude - Observer latitude in degrees (-90 to 90)
    * @param longitude - Observer longitude in degrees
    * @param altitude - Observer altitude in meters (default: 0)
    * @returns Array of rise/set times for all planets
    * @throws Error if ephemeris not initialized or invalid inputs
-   * 
+   *
    * @remarks
    * Calculates for Sun through Pluto. Some fields may be undefined
    * for circumpolar objects at extreme latitudes.
-   * 
+   *
    * Swiss Ephemeris searches for the NEXT event after the given instant,
    * so to get events for a specific civil date, pass midnight of that date.
    */
@@ -184,13 +191,13 @@ export class RiseSetCalculator {
 
   /**
    * Get Sun rise/set times for the current instant
-   * 
+   *
    * @param latitude - Observer latitude in degrees (-90 to 90)
    * @param longitude - Observer longitude in degrees
    * @param altitude - Observer altitude in meters (default: 0)
    * @returns Rise/set times for the Sun
    * @throws Error if ephemeris not initialized or invalid inputs
-   * 
+   *
    * @remarks
    * Searches for the next sunrise/sunset after the current instant.
    * If called in the afternoon, sunrise will be tomorrow.

@@ -1,16 +1,46 @@
 // Type unions for domain constraints
-export type HouseSystem = 'P' | 'K' | 'W' | 'E' | 'O' | 'R' | 'C' | 'A' | 'V' | 'X' | 'H' | 'T' | 'B';
+export type HouseSystem =
+  | 'P'
+  | 'K'
+  | 'W'
+  | 'E'
+  | 'O'
+  | 'R'
+  | 'C'
+  | 'A'
+  | 'V'
+  | 'X'
+  | 'H'
+  | 'T'
+  | 'B';
 export type SolarEclipseType = 'partial' | 'annular' | 'total' | 'annular-total';
 export type LunarEclipseType = 'penumbral' | 'partial' | 'total';
-export type PlanetName = 'Sun' | 'Moon' | 'Mercury' | 'Venus' | 'Mars' | 'Jupiter' | 'Saturn' | 'Uranus' | 'Neptune' | 'Pluto' | 'Chiron' | 'North Node (Mean)' | 'North Node (True)' | 'Ceres' | 'Pallas' | 'Juno' | 'Vesta';
+export type PlanetName =
+  | 'Sun'
+  | 'Moon'
+  | 'Mercury'
+  | 'Venus'
+  | 'Mars'
+  | 'Jupiter'
+  | 'Saturn'
+  | 'Uranus'
+  | 'Neptune'
+  | 'Pluto'
+  | 'Chiron'
+  | 'North Node (Mean)'
+  | 'North Node (True)'
+  | 'Ceres'
+  | 'Pallas'
+  | 'Juno'
+  | 'Vesta';
 
 /**
  * Represents a complete natal birth chart with all necessary data for calculations
- * 
+ *
  * @remarks
  * This is the core data structure for the MCP server. All calculations (transits,
  * houses, charts) are based on this chart data.
- * 
+ *
  * The julianDay field is calculated during set_natal_chart and should always be
  * present for charts created in the current session.
  */
@@ -42,21 +72,21 @@ export interface NatalChart {
   };
   /** Optional pre-calculated planet positions (rarely used) */
   planets?: PlanetPosition[];
-  /** 
+  /**
    * Cached Julian Day for birth time (UTC)
    * @remarks
    * This is calculated during set_natal_chart and should always be present.
    * Required for chart generation and transit calculations.
    */
   julianDay?: number;
-  /** 
+  /**
    * Preferred house system for calculations
    * @default 'P' (Placidus)
    * @remarks
    * For polar latitudes (>66°), Whole Sign ('W') may be used as fallback.
    */
   houseSystem?: HouseSystem;
-  /** 
+  /**
    * UTC equivalent of birth time
    * @remarks
    * Calculated from local birth time using timezone conversion.
@@ -80,7 +110,7 @@ export interface NatalChart {
 
 /**
  * Represents a planet's position at a specific time
- * 
+ *
  * @remarks
  * All angular measurements are in degrees. Longitude is along the ecliptic,
  * latitude is celestial latitude (distance from ecliptic).
@@ -90,13 +120,13 @@ export interface PlanetPosition {
   planetId: number;
   /** Planet name (e.g., 'Sun', 'Moon', 'Mercury') */
   planet: PlanetName;
-  /** 
+  /**
    * Ecliptic longitude in degrees (0-360)
    * @remarks
    * 0° Aries, 90° Cancer, 180° Libra, 270° Capricorn
    */
   longitude: number;
-  /** 
+  /**
    * Celestial latitude in degrees (-90 to 90)
    * @remarks
    * Positive is north of ecliptic, negative is south
@@ -104,7 +134,7 @@ export interface PlanetPosition {
   latitude: number;
   /** Distance from Earth in AU (Astronomical Units) */
   distance: number;
-  /** 
+  /**
    * Daily motion in degrees per day
    * @remarks
    * Positive = direct motion, Negative = retrograde
@@ -114,7 +144,7 @@ export interface PlanetPosition {
   sign: string;
   /** Degree within the sign (0-30) */
   degree: number;
-  /** 
+  /**
    * Whether the planet is in retrograde motion
    * @remarks
    * Retrograde means the planet appears to move backward from Earth's perspective
@@ -124,7 +154,7 @@ export interface PlanetPosition {
 
 /**
  * Base interface for all transit data
- * 
+ *
  * @remarks
  * Contains the core transit information shared between internal Transit
  * and serialized TransitData types.
@@ -136,13 +166,13 @@ interface BaseTransit {
   natalPlanet: PlanetName;
   /** Type of aspect between the planets */
   aspect: AspectType;
-  /** 
+  /**
    * Angular distance from exact aspect in degrees
    * @remarks
    * Lower values indicate stronger aspects. 0° is exact.
    */
   orb: number;
-  /** 
+  /**
    * Whether the aspect is applying (getting stronger) or separating (weakening)
    * @remarks
    * true = applying (getting closer to exact)
@@ -159,13 +189,13 @@ interface BaseTransit {
 
 /**
  * Internal transit representation with Date object
- * 
+ *
  * @remarks
  * Used for calculations and internal storage. The exactTime is a Date object
  * for precise time comparisons.
  */
 export interface Transit extends BaseTransit {
-  /** 
+  /**
    * Exact time when aspect becomes perfect (0° orb)
    * @remarks
    * May be undefined if aspect is not within orb or exact time not calculated
@@ -175,13 +205,13 @@ export interface Transit extends BaseTransit {
 
 /**
  * Serialized transit representation for API responses
- * 
+ *
  * @remarks
  * Used when sending transit data to MCP clients. The exactTime is an ISO string
  * for JSON serialization.
  */
 export interface TransitData extends BaseTransit {
-  /** 
+  /**
    * Exact time when aspect becomes perfect (0° orb) as ISO string
    * @remarks
    * May be undefined if aspect is not within orb or exact time not calculated
@@ -191,7 +221,7 @@ export interface TransitData extends BaseTransit {
 
 /**
  * Response wrapper for transit data
- * 
+ *
  * @remarks
  * Contains all transits for a specific date along with metadata
  * about the calculation context.
@@ -207,7 +237,7 @@ export interface TransitResponse {
 
 /**
  * Response wrapper for planet position data
- * 
+ *
  * @remarks
  * Contains positions for all requested planets at a specific time.
  */
@@ -222,7 +252,7 @@ export interface PlanetPositionResponse {
 
 /**
  * Types of astrological aspects
- * 
+ *
  * @remarks
  * Aspects are angular relationships between planets that indicate
  * specific types of interactions and energies.
@@ -231,7 +261,7 @@ export type AspectType = 'conjunction' | 'opposition' | 'square' | 'trine' | 'se
 
 /**
  * Aspect definitions with angles and default orbs
- * 
+ *
  * @remarks
  * Each aspect has a specific angular relationship and an orb (tolerance).
  * The orb determines how far from exact the aspect can still be considered active.
@@ -246,7 +276,7 @@ export const ASPECTS: Array<{ name: AspectType; angle: number; orb: number }> = 
 
 /**
  * Swiss Ephemeris planet IDs
- * 
+ *
  * @remarks
  * These are the numeric IDs used by the Swiss Ephemeris library.
  * The `as const` assertion ensures type safety when referencing planets.
@@ -290,16 +320,16 @@ export const PLANETS = {
 
 /**
  * Type derived from PLANETS constants
- * 
+ *
  * @remarks
  * Ensures type safety when working with planet IDs.
  * Only values present in PLANETS are valid PlanetId values.
  */
-export type PlanetId = typeof PLANETS[keyof typeof PLANETS];
+export type PlanetId = (typeof PLANETS)[keyof typeof PLANETS];
 
 /**
  * Mapping from planet IDs to human-readable names
- * 
+ *
  * @remarks
  * Used for display purposes and converting between numeric IDs
  * and string names. Index signature allows number-based lookup.
@@ -326,7 +356,7 @@ export const PLANET_NAMES: { [key: number]: PlanetName } = {
 
 /**
  * Personal planets (inner planets)
- * 
+ *
  * @remarks
  * These planets move quickly and represent personal, day-to-day concerns:
  * - Sun: Identity, vitality
@@ -344,7 +374,7 @@ export const PERSONAL_PLANETS = [
 ];
 /**
  * Slow-moving planets (Jupiter through Pluto)
- * 
+ *
  * @remarks
  * These planets move slowly and represent generational, societal themes.
  * Note: Includes Jupiter and Saturn (social planets) plus the true outer planets.
@@ -358,7 +388,7 @@ export const OUTER_PLANETS = [
 ];
 /**
  * Major asteroids
- * 
+ *
  * @remarks
  * The four main asteroids used in astrology, representing feminine archetypes:
  * - Ceres: Nurturing, agriculture
@@ -375,7 +405,7 @@ export const ASTEROIDS = [
 ];
 /**
  * Lunar nodes
- * 
+ *
  * @remarks
  * The North and South Nodes represent points where the Moon's orbit
  * crosses the ecliptic. They indicate life path and evolutionary direction.
@@ -384,7 +414,7 @@ export const NODES = [PLANETS.MEAN_NODE, PLANETS.TRUE_NODE];
 
 /**
  * Zodiac signs in order
- * 
+ *
  * @remarks
  * The 12 signs of the tropical zodiac, each spanning 30° of the ecliptic.
  * Used for determining which sign a planet is in.
@@ -406,12 +436,12 @@ export const ZODIAC_SIGNS = [
 
 /**
  * House cusps in Swiss Ephemeris 1-based format
- * 
+ *
  * @remarks
  * - Index 0: Unused (by convention)
  * - Index 1-12: Houses 1-12
  * - Length: 13
- * 
+ *
  * The Swiss Ephemeris uses 1-based indexing for house cusps,
  * with index 0 unused by convention.
  */
@@ -419,34 +449,34 @@ export type HouseCusps = number[];
 
 /**
  * Complete house system calculation results
- * 
+ *
  * @remarks
  * Contains the angles (Ascendant, MC) and all house cusps for a given
  * time and location. The cusps array follows Swiss Ephemeris 1-based format.
  */
 export interface HouseData {
-  /** 
+  /**
    * Ascendant angle in degrees (0-360)
    * @remarks
    * The point where the ecliptic crosses the eastern horizon.
    * Represents the self, identity, and personal appearance.
    */
   ascendant: number;
-  /** 
+  /**
    * Midheaven (Medium Coeli) angle in degrees (0-360)
    * @remarks
    * The highest point in the sky at the time of birth.
    * Represents career, public life, and reputation.
    */
   mc: number;
-  /** 
+  /**
    * House cusps in Swiss 1-based format
    * @remarks
    * cusps[1] = House 1, cusps[2] = House 2, ..., cusps[12] = House 12
    * cusps[0] is unused by convention
    */
   cusps: HouseCusps;
-  /** 
+  /**
    * The house system actually used for calculation
    * @remarks
    * May differ from requested system if fallback was used
@@ -457,7 +487,7 @@ export interface HouseData {
 
 /**
  * Rise, set, and meridian transit times for a celestial body
- * 
+ *
  * @remarks
  * Contains the times when a planet rises above the horizon, sets below it,
  * and crosses the upper and lower meridians. Times may be undefined for
@@ -466,25 +496,25 @@ export interface HouseData {
 export interface RiseSetTime {
   /** Planet name */
   planet: string;
-  /** 
+  /**
    * Time when planet rises above eastern horizon
    * @remarks
    * Undefined for circumpolar objects (always visible)
    */
   rise?: Date;
-  /** 
+  /**
    * Time when planet sets below western horizon
    * @remarks
    * Undefined for circumpolar objects (always visible)
    */
   set?: Date;
-  /** 
+  /**
    * Time when planet crosses upper meridian (highest point)
    * @remarks
    * This is the planet's "culmination" or "upper transit"
    */
   upperMeridianTransit?: Date;
-  /** 
+  /**
    * Time when planet crosses lower meridian (lowest point)
    * @remarks
    * This is the planet's "lower transit" or "anti-culmination"
@@ -494,7 +524,7 @@ export interface RiseSetTime {
 
 /**
  * Basic eclipse information
- * 
+ *
  * @remarks
  * TODO: This should be replaced with a discriminated union for solar vs lunar eclipses
  * with richer phase timing data. See planning documents for details.
@@ -504,7 +534,7 @@ export interface EclipseInfo {
   type: 'solar' | 'lunar';
   /** Date of the eclipse */
   date: Date;
-  /** 
+  /**
    * Eclipse classification
    * @remarks
    * TODO: Should use constrained union types:
