@@ -205,6 +205,42 @@ describe('When using AstroService', () => {
     });
   });
 
+  it('Given electional context is requested, then getTransits returns raw electional primitives', () => {
+    const { service } = makeService();
+    const result = service.getTransits(makeNatalChart(), {
+      include_electional_context: true,
+    });
+    expect(result.data).toHaveProperty('electionalContext');
+    expect((result.data as any).electionalContext).toMatchObject({
+      moonCondition: expect.any(Object),
+      applyingAspects: expect.any(Array),
+      houseContext: expect.any(Object),
+      ascSign: expect.any(String),
+      rulerCondition: expect.any(Object),
+      sectRelevantInputs: expect.any(Object),
+    });
+  });
+
+  it('Given electional applying aspects are included, then each aspect carries explicit applying state', () => {
+    const { service } = makeService();
+    const result = service.getTransits(makeNatalChart(), {
+      include_electional_context: true,
+      electional_context_fields: ['applying_aspects'],
+    });
+    const applying = (result.data as any).electionalContext.applyingAspects;
+    expect(applying).toHaveLength(1);
+    expect(applying[0]).toMatchObject({
+      isApplying: true,
+      applyingState: 'applying',
+    });
+  });
+
+  it('Given electional context is not requested, then getTransits remains backward compatible', () => {
+    const { service } = makeService();
+    const result = service.getTransits(makeNatalChart(), {});
+    expect((result.data as any).electionalContext).toBeUndefined();
+  });
+
   it('Given a natal chart location, then getRiseSetTimes returns ISO payload and readable text', async () => {
     const { service, riseSetCalc } = makeService();
     const result = await service.getRiseSetTimes(makeNatalChart());

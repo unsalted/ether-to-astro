@@ -58,6 +58,42 @@ describe('When resolving tool specs from the registry', () => {
     expect(service.getServerStatus).toHaveBeenCalled();
   });
 
+  it('Given get_transits schema, then electional context flags are exposed in the tool contract', () => {
+    const spec = getToolSpec('get_transits');
+    expect(spec).toBeDefined();
+    const schema = spec?.inputSchema as any;
+    expect(schema.properties.include_electional_context?.type).toBe('boolean');
+    expect(schema.properties.electional_context_fields?.items?.enum).toEqual(
+      expect.arrayContaining([
+        'moon_condition',
+        'applying_aspects',
+        'house_context',
+        'asc_sign',
+        'ruler_condition',
+        'sect_relevant_inputs',
+      ])
+    );
+  });
+
+  it('Given get_transits execution with electional args, then args are forwarded to AstroService.getTransits', async () => {
+    const service = makeService();
+    await getToolSpec('get_transits')!.execute(
+      { service: service as any, natalChart: { name: 'chart' } as any },
+      {
+        include_electional_context: true,
+        electional_context_fields: ['moon_condition', 'asc_sign'],
+      }
+    );
+
+    expect(service.getTransits).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        include_electional_context: true,
+        electional_context_fields: ['moon_condition', 'asc_sign'],
+      })
+    );
+  });
+
   it('Given async state tool handlers, then they resolve to state payloads', async () => {
     const service = makeService();
     const ctx = { service: service as any, natalChart: { name: 'chart' } as any };

@@ -113,6 +113,27 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
           description:
             'Include current planetary positions (not transits to natal chart). Defaults to false.',
         },
+        include_electional_context: {
+          type: 'boolean',
+          description:
+            'Include raw electional context primitives (moon condition, applying aspects, house context, asc sign, ruler condition, sect inputs). Defaults to false.',
+        },
+        electional_context_fields: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: [
+              'moon_condition',
+              'applying_aspects',
+              'house_context',
+              'asc_sign',
+              'ruler_condition',
+              'sect_relevant_inputs',
+            ],
+          },
+          description:
+            'Optional subset of electional context fields to include. Defaults to all supported fields when include_electional_context is true.',
+        },
         days_ahead: {
           type: 'number',
           description:
@@ -141,6 +162,8 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
         date: args.date as string | undefined,
         categories: args.categories as string[] | undefined,
         include_mundane: args.include_mundane as boolean | undefined,
+        include_electional_context: args.include_electional_context as boolean | undefined,
+        electional_context_fields: args.electional_context_fields as string[] | undefined,
         days_ahead: args.days_ahead as number | undefined,
         max_orb: args.max_orb as number | undefined,
         exact_only: args.exact_only as boolean | undefined,

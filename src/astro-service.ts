@@ -17,6 +17,7 @@ import {
   OUTER_PLANETS,
   PERSONAL_PLANETS,
   PLANETS,
+  type PlanetPosition,
   type PlanetPositionResponse,
   type Transit,
   type TransitResponse,
@@ -52,6 +53,8 @@ export interface GetTransitsInput {
   date?: string;
   categories?: string[];
   include_mundane?: boolean;
+  include_electional_context?: boolean;
+  electional_context_fields?: string[];
   days_ahead?: number;
   max_orb?: number;
   exact_only?: boolean;
@@ -296,6 +299,8 @@ export class AstroService {
     const dateStr = input.date;
     const categories = input.categories ?? ['all'];
     const includeMundane = input.include_mundane ?? false;
+    const includeElectionalContext = input.include_electional_context ?? false;
+    const electionalContextFields = input.electional_context_fields ?? [];
     const daysAhead = input.days_ahead ?? 0;
     const maxOrb = input.max_orb ?? 8;
     const exactOnly = input.exact_only ?? false;
@@ -380,22 +385,43 @@ export class AstroService {
       unknown
     >;
     let mundaneText = '';
+    const targetJD = this.ephem.dateToJulianDay(targetDate);
+    const currentPositions = this.ephem.getAllPlanets(targetJD, Object.values(PLANETS));
+    const electionalContext = includeElectionalContext
+      ? this.buildElectionalContext(
+          natalChart,
+          structuredData,
+          currentPositions,
+          targetJD,
+          timezone,
+          electionalContextFields
+        )
+      : undefined;
 
     if (includeMundane) {
-      const currentJD = this.ephem.dateToJulianDay(targetDate);
-      const currentPositions = this.ephem.getAllPlanets(currentJD, transitingPlanetIds);
+      const mundanePositions = currentPositions.filter((p) =>
+        transitingPlanetIds.includes(p.planetId)
+      );
       const mundaneData: PlanetPositionResponse = {
         date: dateLabel,
         timezone,
-        positions: currentPositions,
+        positions: mundanePositions,
       };
       responseData = { transits: structuredData, mundane: mundaneData };
+      if (electionalContext) {
+        responseData.electionalContext = electionalContext;
+      }
       mundaneText = `\n\nCurrent Planetary Positions:\n\n${currentPositions
         .map(
           (p) =>
             `${p.planet}: ${p.degree.toFixed(1)}° ${p.sign} (${p.isRetrograde ? 'Rx' : 'Direct'})`
         )
         .join('\n')}`;
+    } else if (electionalContext) {
+      responseData = {
+        ...responseData,
+        electionalContext,
+      };
     }
 
     const humanLines = filteredTransits
@@ -416,6 +442,135 @@ export class AstroService {
       data: responseData,
       text: transitHeader + mundaneText,
     };
+  }
+
+  private buildElectionalContext(
+    natalChart: NatalChart,
+    transitResponse: TransitResponse,
+    currentPositions: PlanetPosition[],
+    targetJD: number,
+    timezone: string,
+    requestedFields: string[]
+  ): Record<string, unknown> {
+    const includeField = (field: string): boolean =>
+      requestedFields.length === 0 || requestedFields.includes(field);
+
+    const houses = this.houseCalc.calculateHouses(
+      targetJD,
+      natalChart.location.latitude,
+      natalChart.location.longitude,
+      natalChart.houseSystem || 'P'
+    );
+    const moon = currentPositions.find((p) => p.planet === 'Moon');
+    const sun = currentPositions.find((p) => p.planet === 'Sun');
+    const ascSign = ZODIAC_SIGNS[Math.floor(houses.ascendant / 30)];
+    const ascRuler = this.getAscendantRuler(ascSign);
+    const ascRulerPosition = currentPositions.find((p) => p.planet === ascRuler);
+    const moonHouse = moon ? this.resolveHouse(houses.cusps, moon.longitude) : undefined;
+    const sunHouse = sun ? this.resolveHouse(houses.cusps, sun.longitude) : undefined;
+
+    const context: Record<string, unknown> = {};
+
+    if (includeField('moon_condition')) {
+      context.moonCondition = moon
+        ? {
+            sign: moon.sign,
+            degree: moon.degree,
+            house: moonHouse,
+            isRetrograde: moon.isRetrograde,
+            phaseDegreesFromSun: sun
+              ? Number.parseFloat(this.angularDifference(moon.longitude, sun.longitude).toFixed(2))
+              : undefined,
+          }
+        : null;
+    }
+
+    if (includeField('applying_aspects')) {
+      context.applyingAspects = transitResponse.transits.map((transit) => ({
+        ...transit,
+        applyingState: transit.isApplying ? 'applying' : 'separating',
+      }));
+    }
+
+    if (includeField('house_context')) {
+      context.houseContext = {
+        system: houses.system,
+        ascendant: houses.ascendant,
+        mc: houses.mc,
+      };
+    }
+
+    if (includeField('asc_sign')) {
+      context.ascSign = ascSign;
+    }
+
+    if (includeField('ruler_condition')) {
+      context.rulerCondition = ascRulerPosition
+        ? {
+            ruler: ascRuler,
+            sign: ascRulerPosition.sign,
+            degree: ascRulerPosition.degree,
+            house: this.resolveHouse(houses.cusps, ascRulerPosition.longitude),
+            isRetrograde: ascRulerPosition.isRetrograde,
+            speed: ascRulerPosition.speed,
+          }
+        : null;
+    }
+
+    if (includeField('sect_relevant_inputs')) {
+      const isDayChart = sunHouse !== undefined && sunHouse >= 7 && sunHouse <= 12;
+      context.sectRelevantInputs = {
+        isDayChart,
+        sectLight: isDayChart ? 'Sun' : 'Moon',
+        sunHouse,
+        moonHouse,
+        chartTimezone: timezone,
+      };
+    }
+
+    return context;
+  }
+
+  private resolveHouse(cusps: number[], longitude: number): number {
+    const cuspList = cusps.slice(1, 13);
+    for (let i = 0; i < cuspList.length; i++) {
+      const start = cuspList[i];
+      const end = cuspList[(i + 1) % cuspList.length];
+      if (this.isLongitudeInArc(longitude, start, end)) {
+        return i + 1;
+      }
+    }
+    return 1;
+  }
+
+  private isLongitudeInArc(value: number, start: number, end: number): boolean {
+    if (start <= end) {
+      return value >= start && value < end;
+    }
+    return value >= start || value < end;
+  }
+
+  private angularDifference(a: number, b: number): number {
+    const raw = Math.abs(a - b) % 360;
+    return raw > 180 ? 360 - raw : raw;
+  }
+
+  private getAscendantRuler(sign: string): PlanetPosition['planet'] {
+    const rulerBySign: Record<string, PlanetPosition['planet']> = {
+      Aries: 'Mars',
+      Taurus: 'Venus',
+      Gemini: 'Mercury',
+      Cancer: 'Moon',
+      Leo: 'Sun',
+      Virgo: 'Mercury',
+      Libra: 'Venus',
+      Scorpio: 'Mars',
+      Sagittarius: 'Jupiter',
+      Capricorn: 'Saturn',
+      Aquarius: 'Saturn',
+      Pisces: 'Jupiter',
+    };
+    return rulerBySign[sign] ?? 'Mars';
   }
 
   getHouses(
