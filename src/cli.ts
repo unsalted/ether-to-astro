@@ -3,14 +3,14 @@
 import { readFile } from 'node:fs/promises';
 import { Command, Option } from 'commander';
 import pc from 'picocolors';
+import type { AstroService as AstroServiceType, SetNatalChartInput } from './astro-service.js';
 import {
-  ProfileStoreError,
   loadResolvedProfileFile,
+  ProfileStoreError,
   resolveProfileSelection,
   toNatalInput,
 } from './profile-store.js';
 import { getToolSpec, type ToolExecutionResult } from './tool-registry.js';
-import type { AstroService as AstroServiceType, SetNatalChartInput } from './astro-service.js';
 import type { HouseSystem, NatalChart } from './types.js';
 
 interface CliIO {
@@ -186,9 +186,11 @@ async function resolveNatalInput(options: SharedOptions): Promise<SetNatalChartI
     minute: toNumber(options.minute, 'minute'),
     latitude: toNumber(options.latitude, 'latitude'),
     longitude: toNumber(options.longitude, 'longitude'),
-    timezone: options.timezone ?? (() => {
-      throw new Error('Missing required argument --timezone');
-    })(),
+    timezone:
+      options.timezone ??
+      (() => {
+        throw new Error('Missing required argument --timezone');
+      })(),
     house_system: options.houseSystem as HouseSystem | undefined,
     birth_time_disambiguation: options.birthTimeDisambiguation,
   };
@@ -196,14 +198,14 @@ async function resolveNatalInput(options: SharedOptions): Promise<SetNatalChartI
 
 function hasInlineNatalInput(options: SharedOptions): boolean {
   return (
-    options.year !== undefined
-    || options.month !== undefined
-    || options.day !== undefined
-    || options.hour !== undefined
-    || options.minute !== undefined
-    || options.latitude !== undefined
-    || options.longitude !== undefined
-    || options.timezone !== undefined
+    options.year !== undefined ||
+    options.month !== undefined ||
+    options.day !== undefined ||
+    options.hour !== undefined ||
+    options.minute !== undefined ||
+    options.latitude !== undefined ||
+    options.longitude !== undefined ||
+    options.timezone !== undefined
   );
 }
 
@@ -307,10 +309,10 @@ async function resolveCommandTimezone(options: SharedOptions): Promise<string> {
     return options.timezone;
   }
   const explicitProfileRequested = Boolean(
-    options.profile
-      || options.profileFile
-      || process.env.ASTRO_PROFILE
-      || process.env.ASTRO_PROFILE_FILE
+    options.profile ||
+      options.profileFile ||
+      process.env.ASTRO_PROFILE ||
+      process.env.ASTRO_PROFILE_FILE
   );
   try {
     const profileSelection = await resolveProfileSelection({
@@ -363,21 +365,24 @@ export async function runCli(
     .configureOutput({
       writeErr: (str) => io.stderr(str.trimEnd()),
       writeOut: (str) => {
-        const spaced = str.replace(/\n(  [\w-]+(?: \[[^\]]+\])?\s{2,})/g, '\n\n$1');
+        const spaced = str.replace(/\n( {2}[\w-]+(?: \[[^\]]+\])?\s{2,})/g, '\n\n$1');
         io.stdout(spaced.trimEnd());
       },
     });
 
-  commonNatalOptions(program.command('set-natal-chart').description(mustTool('set_natal_chart').description))
-    .action(async (options: SharedOptions) => {
-      const setNatal = mustTool('set_natal_chart');
-      const profileSelection = options.natalFile || hasInlineNatalInput(options)
+  commonNatalOptions(
+    program.command('set-natal-chart').description(mustTool('set_natal_chart').description)
+  ).action(async (options: SharedOptions) => {
+    const setNatal = mustTool('set_natal_chart');
+    const profileSelection =
+      options.natalFile || hasInlineNatalInput(options)
         ? null
         : await resolveProfileSelection({
             profileName: options.profile,
             profileFile: options.profileFile,
           });
-      const natalInput = options.natalFile || hasInlineNatalInput(options)
+    const natalInput =
+      options.natalFile || hasInlineNatalInput(options)
         ? await resolveNatalInput(options)
         : profileSelection
           ? toNatalInput(profileSelection.profile)
@@ -387,12 +392,12 @@ export async function runCli(
                 'No natal context resolved. Provide natal fields, --natal-file, or --profile.'
               );
             })();
-      const result = await setNatal.execute(
-        { service, natalChart: null },
-        natalInput as unknown as Record<string, unknown>
-      );
-      emitExecution(io, result, options.pretty ?? false);
-    });
+    const result = await setNatal.execute(
+      { service, natalChart: null },
+      natalInput as unknown as Record<string, unknown>
+    );
+    emitExecution(io, result, options.pretty ?? false);
+  });
 
   program
     .command('get-retrograde-planets')
@@ -436,9 +441,13 @@ export async function runCli(
       emitExecution(io, result, options.pretty ?? false);
     });
 
-  const profiles = program.command('profiles').description('Inspect and validate CLI profile files');
+  const profiles = program
+    .command('profiles')
+    .description('Inspect and validate CLI profile files');
 
-  profiles.command('list').description('List available profiles')
+  profiles
+    .command('list')
+    .description('List available profiles')
     .option('--profile-file <path>', 'Explicit path to profile file')
     .option('--pretty', 'Human-readable output instead of JSON')
     .action(async (options: SharedOptions) => {
@@ -451,13 +460,16 @@ export async function runCli(
         defaultProfile: file.defaultProfile ?? null,
         profiles: names,
       };
-      const text = names.length === 0
-        ? `No profiles found in ${filePath}`
-        : `Profiles in ${filePath}:\n- ${names.join('\n- ')}`;
+      const text =
+        names.length === 0
+          ? `No profiles found in ${filePath}`
+          : `Profiles in ${filePath}:\n- ${names.join('\n- ')}`;
       emit(io, data, text, options.pretty ?? false);
     });
 
-  profiles.command('show').description('Show a profile')
+  profiles
+    .command('show')
+    .description('Show a profile')
     .requiredOption('--profile <name>', 'Profile name to show')
     .option('--profile-file <path>', 'Explicit path to profile file')
     .option('--pretty', 'Human-readable output instead of JSON')
@@ -482,7 +494,9 @@ export async function runCli(
       emit(io, data, text, options.pretty ?? false);
     });
 
-  profiles.command('validate').description('Validate profile file schema')
+  profiles
+    .command('validate')
+    .description('Validate profile file schema')
     .option('--profile-file <path>', 'Explicit path to profile file')
     .option('--pretty', 'Human-readable output instead of JSON')
     .action(async (options: SharedOptions) => {
@@ -499,37 +513,59 @@ export async function runCli(
       emit(io, data, text, options.pretty ?? false);
     });
 
-  commonNatalOptions(program.command('get-transits').description(mustTool('get_transits').description))
-    .option('--date <yyyy-mm-dd>', toolSchemaProperty('get_transits', 'date').description ?? 'Date for transits')
-    .option('--categories <list>', toolSchemaProperty('get_transits', 'categories').description ?? 'Categories')
+  commonNatalOptions(
+    program.command('get-transits').description(mustTool('get_transits').description)
+  )
+    .option(
+      '--date <yyyy-mm-dd>',
+      toolSchemaProperty('get_transits', 'date').description ?? 'Date for transits'
+    )
+    .option(
+      '--categories <list>',
+      toolSchemaProperty('get_transits', 'categories').description ?? 'Categories'
+    )
     .option(
       '--include-mundane',
-      toolSchemaProperty('get_transits', 'include_mundane').description ?? 'Include mundane positions'
+      toolSchemaProperty('get_transits', 'include_mundane').description ??
+        'Include mundane positions'
     )
     .option(
       '--days-ahead <number>',
       toolSchemaProperty('get_transits', 'days_ahead').description ?? 'Days ahead'
     )
-    .option('--max-orb <number>', toolSchemaProperty('get_transits', 'max_orb').description ?? 'Max orb')
-    .option('--exact-only', toolSchemaProperty('get_transits', 'exact_only').description ?? 'Exact only')
+    .option(
+      '--max-orb <number>',
+      toolSchemaProperty('get_transits', 'max_orb').description ?? 'Max orb'
+    )
+    .option(
+      '--exact-only',
+      toolSchemaProperty('get_transits', 'exact_only').description ?? 'Exact only'
+    )
     .option(
       '--applying-only',
       toolSchemaProperty('get_transits', 'applying_only').description ?? 'Applying only'
     )
     .action(async (options: TransitOptions) => {
       await withNatalChart(service, options, async (chart, pretty) => {
-        const categories = options.categories?.split(',').map((v) => v.trim()).filter(Boolean);
+        const categories = options.categories
+          ?.split(',')
+          .map((v) => v.trim())
+          .filter(Boolean);
         const input = {
           date: options.date,
           categories,
           include_mundane: options.includeMundane,
-          days_ahead: options.daysAhead == null ? undefined : toNumber(options.daysAhead, 'days-ahead'),
+          days_ahead:
+            options.daysAhead == null ? undefined : toNumber(options.daysAhead, 'days-ahead'),
           max_orb: options.maxOrb == null ? undefined : toNumber(options.maxOrb, 'max-orb'),
           exact_only: options.exactOnly,
           applying_only: options.applyingOnly,
         };
         const spec = mustTool('get_transits');
-        const result = await spec.execute({ service, natalChart: chart }, input as Record<string, unknown>);
+        const result = await spec.execute(
+          { service, natalChart: chart },
+          input as Record<string, unknown>
+        );
         emitExecution(io, result, pretty);
       });
     });
@@ -552,16 +588,21 @@ export async function runCli(
       });
     });
 
-  commonNatalOptions(program.command('get-rise-set-times').description(mustTool('get_rise_set_times').description))
-    .action(async (options: SharedOptions) => {
-      await withNatalChart(service, options, async (chart, pretty) => {
-        const spec = mustTool('get_rise_set_times');
-        const result = await spec.execute({ service, natalChart: chart }, {});
-        emitExecution(io, result, pretty);
-      });
+  commonNatalOptions(
+    program.command('get-rise-set-times').description(mustTool('get_rise_set_times').description)
+  ).action(async (options: SharedOptions) => {
+    await withNatalChart(service, options, async (chart, pretty) => {
+      const spec = mustTool('get_rise_set_times');
+      const result = await spec.execute({ service, natalChart: chart }, {});
+      emitExecution(io, result, pretty);
     });
+  });
 
-  commonNatalOptions(program.command('generate-natal-chart').description(mustTool('generate_natal_chart').description))
+  commonNatalOptions(
+    program
+      .command('generate-natal-chart')
+      .description(mustTool('generate_natal_chart').description)
+  )
     .addOption(
       new Option(
         '--theme <theme>',
@@ -572,7 +613,9 @@ export async function runCli(
       new Option(
         '--format <format>',
         toolSchemaProperty('generate_natal_chart', 'format').description ?? 'Output format'
-      ).choices(['svg', 'png', 'webp']).default('svg')
+      )
+        .choices(['svg', 'png', 'webp'])
+        .default('svg')
     )
     .option(
       '--output-path <path>',
@@ -581,16 +624,23 @@ export async function runCli(
     .action(async (options: ChartOptions) => {
       await withNatalChart(service, options, async (chart, pretty) => {
         const spec = mustTool('generate_natal_chart');
-        const result = await spec.execute({ service, natalChart: chart }, {
-          theme: options.theme,
-          format: options.format,
-          output_path: options.outputPath,
-        });
+        const result = await spec.execute(
+          { service, natalChart: chart },
+          {
+            theme: options.theme,
+            format: options.format,
+            output_path: options.outputPath,
+          }
+        );
         emitExecution(io, result, pretty);
       });
     });
 
-  commonNatalOptions(program.command('generate-transit-chart').description(mustTool('generate_transit_chart').description))
+  commonNatalOptions(
+    program
+      .command('generate-transit-chart')
+      .description(mustTool('generate_transit_chart').description)
+  )
     .option(
       '--date <yyyy-mm-dd>',
       toolSchemaProperty('generate_transit_chart', 'date').description ?? 'Transit date'
@@ -605,7 +655,9 @@ export async function runCli(
       new Option(
         '--format <format>',
         toolSchemaProperty('generate_transit_chart', 'format').description ?? 'Output format'
-      ).choices(['svg', 'png', 'webp']).default('svg')
+      )
+        .choices(['svg', 'png', 'webp'])
+        .default('svg')
     )
     .option(
       '--output-path <path>',
@@ -614,12 +666,15 @@ export async function runCli(
     .action(async (options: ChartOptions) => {
       await withNatalChart(service, options, async (chart, pretty) => {
         const spec = mustTool('generate_transit_chart');
-        const result = await spec.execute({ service, natalChart: chart }, {
-          date: options.date,
-          theme: options.theme,
-          format: options.format,
-          output_path: options.outputPath,
-        });
+        const result = await spec.execute(
+          { service, natalChart: chart },
+          {
+            date: options.date,
+            theme: options.theme,
+            format: options.format,
+            output_path: options.outputPath,
+          }
+        );
         emitExecution(io, result, pretty);
       });
     });
