@@ -16,7 +16,7 @@ Astrology tooling for agent workflows.
 
 This started as a side project because my wife is the real user, and I wasn’t impressed with the tooling around her astrology fascination. I’ve worked on plenty of AI tools and have a pretty high bar for them. Most of what I found in this space felt flimsy, closed-off, or not designed for serious agent workflows.
 
-So I built the version I wanted to exist: local-first, scriptable, tested, and structured to work well both from the command line and through MCP. I’m the builder. She’s the user. That turned out to be a pretty good way to make the product better.
+So I built the version I wanted to exist: local-first, scriptable, tested, and structured to work well both from the command line and through MCP. I built it, she uses it daily, and that feedback loop has made the product better.
 
 ## Features
 
@@ -71,7 +71,7 @@ npm install
 npm run build
 ```
 
-## Engineering Contract
+## Contributing Contract
 
 This repo uses a lightweight, agent-friendly operating contract:
 
@@ -160,6 +160,7 @@ This design is **MCP-compliant** for stdio transport and ensures complete isolat
 `e2a` is JSON-first for agent usage and supports `--pretty` for human-readable output.
 
 `npx` usage note: this package is named `ether-to-astro`, so invoke bins with `--package`.
+`npx e2a` will not work by itself because npm resolves package names first.
 
 Install globally if you want direct commands without `--package`:
 
