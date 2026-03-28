@@ -32,19 +32,15 @@ describe('When an AI asks "What transits is Bowen experiencing today?"', () => {
 
       const transits = transitCalc.findTransits(transitingPlanets, natalPlanets, currentJD);
 
-      expect(transits).toBeDefined();
       expect(Array.isArray(transits)).toBe(true);
-      
-      // Should find at least some transits
-      if (transits.length > 0) {
-        transits.forEach(transit => {
-          expect(transit.transitingPlanet).toBeDefined();
-          expect(transit.natalPlanet).toBeDefined();
-          expect(transit.aspect).toBeDefined();
-          expect(transit.orb).toBeGreaterThanOrEqual(0);
-          expect(transit.isApplying).toBeDefined();
-        });
-      }
+      expect(transits.length).toBeGreaterThan(0);
+      transits.forEach(transit => {
+        expect(typeof transit.transitingPlanet).toBe('string');
+        expect(typeof transit.natalPlanet).toBe('string');
+        expect(typeof transit.aspect).toBe('string');
+        expect(transit.orb).toBeGreaterThanOrEqual(0);
+        expect(typeof transit.isApplying).toBe('boolean');
+      });
     });
 
     it('should calculate applying vs separating aspects correctly', () => {
@@ -86,9 +82,8 @@ describe('When an AI asks "What transits is Bowen experiencing today?"', () => {
 
       transits.forEach(transit => {
         const aspectConfig = ASPECTS.find(a => a.name === transit.aspect);
-        if (aspectConfig) {
-          expect(transit.orb).toBeLessThanOrEqual(aspectConfig.orb);
-        }
+        expect(aspectConfig).toBeDefined();
+        expect(transit.orb).toBeLessThanOrEqual(aspectConfig!.orb);
       });
     });
   });
@@ -130,13 +125,16 @@ describe('When an AI asks "What transits is Bowen experiencing today?"', () => {
       const birthJD = ephem.dateToJulianDay(birthDate);
       const currentJD = ephem.dateToJulianDay(FIXED_TEST_DATE);
 
-      const natalPlanets = ephem.getAllPlanets(birthJD, Object.values(PLANETS));
       const moonPosition = ephem.getAllPlanets(currentJD, [PLANETS.MOON]);
+      const natalPlanets = moonPosition.map((moon) => ({
+        ...moon,
+        planet: 'Sun' as const,
+        planetId: PLANETS.SUN,
+      }));
 
       const transits = transitCalc.findTransits(moonPosition, natalPlanets, currentJD);
 
-      // Moon moves fast, should have transits
-      expect(transits.length).toBeGreaterThanOrEqual(0);
+      expect(transits.length).toBeGreaterThan(0);
       
       transits.forEach(transit => {
         expect(transit.transitingPlanet).toBe('Moon');
@@ -192,11 +190,9 @@ describe('When an AI asks "What transits is Bowen experiencing today?"', () => {
       
       // Filter for close transits that might have exact times
       const closeTransits = transits.filter(t => t.orb < 2);
-      
+      expect(closeTransits.length).toBeGreaterThan(0);
       closeTransits.forEach(transit => {
-        if (transit.exactTime) {
-          expect(transit.exactTime).toBeInstanceOf(Date);
-        }
+        expect(transit.exactTime === undefined || transit.exactTime instanceof Date).toBe(true);
       });
     });
   });
@@ -235,8 +231,7 @@ describe('When an AI asks "What transits is Bowen experiencing today?"', () => {
 
       // Retrograde transits should be separating (moving backward)
       retrogradeTransits.forEach(transit => {
-        // When retrograde, applying/separating logic may be reversed
-        expect(transit.isApplying).toBeDefined();
+        expect(typeof transit.isApplying).toBe('boolean');
       });
     });
   });

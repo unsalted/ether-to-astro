@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { Command, Option } from 'commander';
 import pc from 'picocolors';
 import {
@@ -16,6 +17,12 @@ import type { HouseSystem, NatalChart } from './types.js';
 interface CliIO {
   stdout: (msg: string) => void;
   stderr: (msg: string) => void;
+}
+
+interface CliRuntimeOptions {
+  env?: NodeJS.ProcessEnv;
+  cwd?: string;
+  createService?: () => AstroServiceType | Promise<AstroServiceType>;
 }
 
 interface SharedOptions {
@@ -130,8 +137,8 @@ function toNumber(raw: string | undefined, field: string): number {
   return parsed;
 }
 
-async function loadNatalFromFile(path: string): Promise<SetNatalChartInput> {
-  const raw = await readFile(path, 'utf8');
+async function loadNatalFromFile(filePath: string): Promise<SetNatalChartInput> {
+  const raw = await readFile(filePath, 'utf8');
   const parsed = JSON.parse(raw) as Partial<SetNatalChartInput>;
   return {
     name: parsed.name ?? 'CLI User',
@@ -148,9 +155,13 @@ async function loadNatalFromFile(path: string): Promise<SetNatalChartInput> {
   };
 }
 
-async function resolveNatalInput(options: SharedOptions): Promise<SetNatalChartInput> {
+async function resolveNatalInput(
+  options: SharedOptions,
+  runtime: CliRuntimeOptions
+): Promise<SetNatalChartInput> {
   if (options.natalFile) {
-    return loadNatalFromFile(options.natalFile);
+    const cwd = runtime.cwd ?? process.cwd();
+    return loadNatalFromFile(path.resolve(cwd, options.natalFile));
   }
 
   return {
@@ -247,15 +258,18 @@ function commonNatalOptions(command: Command): Command {
 async function withNatalChart(
   service: AstroServiceType,
   options: SharedOptions,
+  runtime: CliRuntimeOptions,
   fn: (natalChart: NatalChart, pretty: boolean) => Promise<void>
 ): Promise<void> {
   let natalInput: SetNatalChartInput | null = null;
   if (options.natalFile || hasInlineNatalInput(options)) {
-    natalInput = await resolveNatalInput(options);
+    natalInput = await resolveNatalInput(options, runtime);
   } else {
     const profileSelection = await resolveProfileSelection({
       profileName: options.profile,
       profileFile: options.profileFile,
+      env: runtime.env,
+      cwd: runtime.cwd,
     });
     natalInput = profileSelection ? toNatalInput(profileSelection.profile) : null;
   }
@@ -278,20 +292,23 @@ async function withNatalChart(
   await fn(result.natalChart, options.pretty ?? false);
 }
 
-async function resolveCommandTimezone(options: SharedOptions): Promise<string> {
+async function resolveCommandTimezone(options: SharedOptions, runtime: CliRuntimeOptions): Promise<string> {
   if (options.timezone) {
     return options.timezone;
   }
+  const env = runtime.env ?? process.env;
   const explicitProfileRequested = Boolean(
     options.profile
       || options.profileFile
-      || process.env.ASTRO_PROFILE
-      || process.env.ASTRO_PROFILE_FILE
+      || env.ASTRO_PROFILE
+      || env.ASTRO_PROFILE_FILE
   );
   try {
     const profileSelection = await resolveProfileSelection({
       profileName: options.profile,
       profileFile: options.profileFile,
+      env,
+      cwd: runtime.cwd,
     });
     return profileSelection?.profile.timezone ?? 'UTC';
   } catch (error) {
@@ -317,11 +334,16 @@ export async function runCli(
   io: CliIO = {
     stdout: (msg) => console.log(msg),
     stderr: (msg) => console.error(msg),
-  }
+  },
+  runtime: CliRuntimeOptions = {}
 ): Promise<number> {
   (globalThis as { self?: unknown }).self ??= globalThis;
-  const { AstroService } = await import('./astro-service.js');
-  const service: AstroServiceType = new AstroService();
+  const service: AstroServiceType = runtime.createService
+    ? await runtime.createService()
+    : await (async () => {
+        const { AstroService } = await import('./astro-service.js');
+        return new AstroService();
+      })();
   await service.init();
 
   const program = new Command();
@@ -343,9 +365,11 @@ export async function runCli(
         : await resolveProfileSelection({
             profileName: options.profile,
             profileFile: options.profileFile,
+            env: runtime.env,
+            cwd: runtime.cwd,
           });
       const natalInput = options.natalFile || hasInlineNatalInput(options)
-        ? await resolveNatalInput(options)
+        ? await resolveNatalInput(options, runtime)
         : profileSelection
           ? toNatalInput(profileSelection.profile)
           : (() => {
@@ -370,7 +394,7 @@ export async function runCli(
     .option('--pretty', 'Human-readable output instead of JSON')
     .action(async (options: NonNatalTimezoneOptions) => {
       const spec = mustTool('get_retrograde_planets');
-      const timezone = await resolveCommandTimezone(options);
+      const timezone = await resolveCommandTimezone(options, runtime);
       const result = await spec.execute({ service, natalChart: null }, { timezone });
       emitExecution(io, result, options.pretty ?? false);
     });
@@ -384,7 +408,7 @@ export async function runCli(
     .option('--pretty', 'Human-readable output instead of JSON')
     .action(async (options: NonNatalTimezoneOptions) => {
       const spec = mustTool('get_asteroid_positions');
-      const timezone = await resolveCommandTimezone(options);
+      const timezone = await resolveCommandTimezone(options, runtime);
       const result = await spec.execute({ service, natalChart: null }, { timezone });
       emitExecution(io, result, options.pretty ?? false);
     });
@@ -398,7 +422,7 @@ export async function runCli(
     .option('--pretty', 'Human-readable output instead of JSON')
     .action(async (options: NonNatalTimezoneOptions) => {
       const spec = mustTool('get_next_eclipses');
-      const timezone = await resolveCommandTimezone(options);
+      const timezone = await resolveCommandTimezone(options, runtime);
       const result = await spec.execute({ service, natalChart: null }, { timezone });
       emitExecution(io, result, options.pretty ?? false);
     });
@@ -411,6 +435,8 @@ export async function runCli(
     .action(async (options: SharedOptions) => {
       const { filePath, file } = await loadResolvedProfileFile({
         profileFile: options.profileFile,
+        env: runtime.env,
+        cwd: runtime.cwd,
       });
       const names = Object.keys(file.profiles).sort();
       const data = {
@@ -431,6 +457,8 @@ export async function runCli(
     .action(async (options: SharedOptions) => {
       const { filePath, file } = await loadResolvedProfileFile({
         profileFile: options.profileFile,
+        env: runtime.env,
+        cwd: runtime.cwd,
       });
       const profileName = options.profile as string;
       const profile = file.profiles[profileName];
@@ -455,6 +483,8 @@ export async function runCli(
     .action(async (options: SharedOptions) => {
       const { filePath, file } = await loadResolvedProfileFile({
         profileFile: options.profileFile,
+        env: runtime.env,
+        cwd: runtime.cwd,
       });
       const data = {
         valid: true,
@@ -484,7 +514,7 @@ export async function runCli(
       toolSchemaProperty('get_transits', 'applying_only').description ?? 'Applying only'
     )
     .action(async (options: TransitOptions) => {
-      await withNatalChart(service, options, async (chart, pretty) => {
+      await withNatalChart(service, options, runtime, async (chart, pretty) => {
         const categories = options.categories?.split(',').map((v) => v.trim()).filter(Boolean);
         const input = {
           date: options.date,
@@ -509,7 +539,7 @@ export async function runCli(
       ).choices(['P', 'W', 'K', 'E'])
     )
     .action(async (options: HousesOptions) => {
-      await withNatalChart(service, options, async (chart, pretty) => {
+      await withNatalChart(service, options, runtime, async (chart, pretty) => {
         const spec = mustTool('get_houses');
         const result = await spec.execute(
           { service, natalChart: chart },
@@ -521,7 +551,7 @@ export async function runCli(
 
   commonNatalOptions(program.command('get-rise-set-times').description(mustTool('get_rise_set_times').description))
     .action(async (options: SharedOptions) => {
-      await withNatalChart(service, options, async (chart, pretty) => {
+      await withNatalChart(service, options, runtime, async (chart, pretty) => {
         const spec = mustTool('get_rise_set_times');
         const result = await spec.execute({ service, natalChart: chart }, {});
         emitExecution(io, result, pretty);
@@ -546,7 +576,7 @@ export async function runCli(
       toolSchemaProperty('generate_natal_chart', 'output_path').description ?? 'Output path'
     )
     .action(async (options: ChartOptions) => {
-      await withNatalChart(service, options, async (chart, pretty) => {
+      await withNatalChart(service, options, runtime, async (chart, pretty) => {
         const spec = mustTool('generate_natal_chart');
         const result = await spec.execute({ service, natalChart: chart }, {
           theme: options.theme,
@@ -579,7 +609,7 @@ export async function runCli(
       toolSchemaProperty('generate_transit_chart', 'output_path').description ?? 'Output path'
     )
     .action(async (options: ChartOptions) => {
-      await withNatalChart(service, options, async (chart, pretty) => {
+      await withNatalChart(service, options, runtime, async (chart, pretty) => {
         const spec = mustTool('generate_transit_chart');
         const result = await spec.execute({ service, natalChart: chart }, {
           date: options.date,

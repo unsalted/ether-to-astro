@@ -1,0 +1,299 @@
+import { describe, expect, it, vi } from 'vitest';
+import { AstroService, parseDateOnlyInput } from '../../src/astro-service.js';
+import type { NatalChart, PlanetPosition, RiseSetTime } from '../../src/types.js';
+
+function makePlanet(planet: PlanetPosition['planet'], longitude: number): PlanetPosition {
+  return {
+    planetId: 0,
+    planet,
+    longitude,
+    latitude: 0,
+    distance: 1,
+    speed: 1,
+    sign: 'Aries',
+    degree: longitude % 30,
+    isRetrograde: false,
+  };
+}
+
+function makeNatalChart(): NatalChart {
+  return {
+    name: 'Test User',
+    birthDate: { year: 1990, month: 6, day: 12, hour: 14, minute: 35 },
+    location: { latitude: 37.7749, longitude: -122.4194, timezone: 'America/Los_Angeles' },
+    planets: [makePlanet('Sun', 10), makePlanet('Moon', 20)],
+    julianDay: 2451545,
+    houseSystem: 'P',
+    utcDateTime: { year: 1990, month: 6, day: 12, hour: 21, minute: 35 },
+  };
+}
+
+function makeService() {
+  const ephem = {
+    eph: {},
+    init: vi.fn(async () => {}),
+    dateToJulianDay: vi.fn(() => 2451545),
+    getAllPlanets: vi.fn(() => [makePlanet('Sun', 204), makePlanet('Moon', 270)]),
+  };
+  const houseCalc = {
+    calculateHouses: vi.fn(() => ({
+      ascendant: 270,
+      mc: 204,
+      cusps: [0, 270, 300, 330, 0, 30, 60, 90, 120, 150, 204, 240, 260],
+      system: 'W' as const,
+    })),
+  };
+  const transitCalc = {
+    findTransits: vi.fn(() => [
+      {
+        transitingPlanet: 'Mars',
+        natalPlanet: 'Sun',
+        aspect: 'square',
+        orb: 1.25,
+        isApplying: true,
+        transitLongitude: 100,
+        natalLongitude: 10,
+        exactTime: new Date('2024-03-27T12:00:00Z'),
+      },
+    ]),
+  };
+  const riseSetCalc = {
+    getAllRiseSet: vi.fn(async () => [
+      {
+        planet: 'Sun',
+        rise: new Date('2024-03-26T13:00:00Z'),
+        set: new Date('2024-03-27T01:00:00Z'),
+      },
+    ] as RiseSetTime[]),
+  };
+  const eclipseCalc = {
+    findNextSolarEclipse: vi.fn(() => ({
+      type: 'solar' as const,
+      date: new Date('2024-04-08T18:00:00Z'),
+      eclipseType: 'Total',
+      maxTime: new Date('2024-04-08T18:00:00Z'),
+    })),
+    findNextLunarEclipse: vi.fn(() => null),
+  };
+  const chartRenderer = {
+    generateNatalChart: vi.fn(async (_chart, _theme, format) => {
+      if (format === 'svg') return '<svg>ok</svg>';
+      return Buffer.from([1, 2, 3]);
+    }),
+    generateTransitChart: vi.fn(async (_chart, _date, _theme, format) => {
+      if (format === 'svg') return '<svg>transit</svg>';
+      return Buffer.from([4, 5, 6]);
+    }),
+  };
+  const writeFile = vi.fn(async () => {});
+  const now = vi.fn(() => new Date('2024-03-26T12:00:00Z'));
+
+  const service = new AstroService({
+    ephem: ephem as any,
+    houseCalc: houseCalc as any,
+    transitCalc: transitCalc as any,
+    riseSetCalc: riseSetCalc as any,
+    eclipseCalc: eclipseCalc as any,
+    chartRenderer: chartRenderer as any,
+    writeFile,
+    now,
+  });
+
+  return { service, ephem, houseCalc, transitCalc, riseSetCalc, eclipseCalc, chartRenderer, writeFile, now };
+}
+
+describe('When using AstroService', () => {
+  it('Given a date-only input, then it parses valid values and rejects invalid calendar parts', () => {
+    expect(parseDateOnlyInput('2024-03-26')).toEqual({
+      year: 2024,
+      month: 3,
+      day: 26,
+      hour: 12,
+      minute: 0,
+    });
+    expect(() => parseDateOnlyInput('2024-13-01')).toThrow(/Invalid month/);
+    expect(() => parseDateOnlyInput('2024-02-00')).toThrow(/Invalid day/);
+  });
+
+  it('Given injected dependencies, then init initializes ephemeris', async () => {
+    const { service, ephem } = makeService();
+    await service.init();
+    expect(ephem.init).toHaveBeenCalledTimes(1);
+    expect(service.isInitialized()).toBe(true);
+  });
+
+  it('Given a polar latitude chart, then setNatalChart returns fallback house system details', () => {
+    const { service, houseCalc } = makeService();
+    const result = service.setNatalChart({
+      name: 'Polar User',
+      year: 1990,
+      month: 6,
+      day: 12,
+      hour: 14,
+      minute: 35,
+      latitude: 78,
+      longitude: 15,
+      timezone: 'UTC',
+      house_system: 'P',
+    });
+
+    expect(houseCalc.calculateHouses).toHaveBeenCalled();
+    expect(result.chart.houseSystem).toBe('W');
+    expect(result.data).toMatchObject({
+      name: 'Polar User',
+      requestedHouseSystem: 'P',
+      resolvedHouseSystem: 'W',
+      isPolar: true,
+    });
+  });
+
+  it('Given missing Sun or Moon data, then setNatalChart throws a clear error', () => {
+    const { service, ephem } = makeService();
+    ephem.getAllPlanets.mockReturnValue([makePlanet('Sun', 200)]);
+    expect(() =>
+      service.setNatalChart({
+        name: 'No Moon',
+        year: 1990,
+        month: 1,
+        day: 1,
+        hour: 1,
+        minute: 1,
+        latitude: 1,
+        longitude: 1,
+        timezone: 'UTC',
+      })
+    ).toThrow(/Sun\/Moon/);
+  });
+
+  it('Given transit filters, then getTransits returns filtered data and optional mundane payload', () => {
+    const { service } = makeService();
+    const natal = makeNatalChart();
+    const result = service.getTransits(natal, {
+      include_mundane: true,
+      days_ahead: 1,
+      max_orb: 2,
+      exact_only: true,
+      applying_only: true,
+    });
+
+    expect(result.data).toHaveProperty('transits');
+    expect(result.data).toHaveProperty('mundane');
+    expect(result.text).toContain('Transits');
+  });
+
+  it('Given a natal chart location, then getRiseSetTimes returns ISO payload and readable text', async () => {
+    const { service, riseSetCalc } = makeService();
+    const result = await service.getRiseSetTimes(makeNatalChart());
+    expect(riseSetCalc.getAllRiseSet).toHaveBeenCalledTimes(1);
+    expect(result.data).toMatchObject({
+      timezone: 'America/Los_Angeles',
+    });
+    expect(result.text).toContain('Rise/Set Times');
+  });
+
+  it('Given eclipse availability, then getNextEclipses returns summary or empty-state text', () => {
+    const { service, eclipseCalc } = makeService();
+    const withOne = service.getNextEclipses('UTC');
+    expect(withOne.data).toMatchObject({ timezone: 'UTC' });
+    expect(withOne.text).toContain('Upcoming Eclipses');
+
+    eclipseCalc.findNextSolarEclipse.mockReturnValue(null);
+    const none = service.getNextEclipses('UTC');
+    expect(none.text).toContain('No eclipses found');
+  });
+
+  it('Given current planetary motion, then getRetrogradePlanets returns retrograde payload', () => {
+    const { service, ephem } = makeService();
+    ephem.getAllPlanets.mockReturnValue([
+      { ...makePlanet('Mercury', 10), isRetrograde: true, speed: -0.2 },
+      { ...makePlanet('Venus', 20), isRetrograde: false, speed: 1.2 },
+    ]);
+
+    const result = service.getRetrogradePlanets('UTC');
+    expect(result.data).toMatchObject({ timezone: 'UTC' });
+    expect(result.text).toContain('Mercury');
+  });
+
+  it('Given output_path for natal chart generation, then it writes the file and returns path text', async () => {
+    const { service, writeFile } = makeService();
+    const result = await service.generateNatalChart(makeNatalChart(), {
+      format: 'svg',
+      output_path: '/tmp/chart.svg',
+      theme: 'light',
+    });
+    expect(writeFile).toHaveBeenCalledWith('/tmp/chart.svg', '<svg>ok</svg>', 'utf-8');
+    expect(result.outputPath).toBe('/tmp/chart.svg');
+  });
+
+  it('Given binary chart output, then it returns base64 image payload with mime type', async () => {
+    const { service } = makeService();
+    const result = await service.generateTransitChart(makeNatalChart(), {
+      format: 'png',
+      theme: 'dark',
+    });
+    expect(result.image?.mimeType).toBe('image/png');
+    expect(result.image?.data).toBe(Buffer.from([4, 5, 6]).toString('base64'));
+  });
+
+  it('Given natal chart presence or absence, then getServerStatus reports correct state', () => {
+    const { service } = makeService();
+    const empty = service.getServerStatus(null);
+    const loaded = service.getServerStatus(makeNatalChart());
+    expect(empty.data).toMatchObject({ hasNatalChart: false });
+    expect(loaded.data).toMatchObject({ hasNatalChart: true });
+  });
+
+  it('Given invalid transit filters or missing Julian day, then validation errors are thrown', () => {
+    const { service } = makeService();
+    expect(() => service.getTransits(makeNatalChart(), { days_ahead: -1 })).toThrow(/days_ahead/);
+    expect(() => service.getTransits(makeNatalChart(), { max_orb: -1 })).toThrow(/max_orb/);
+    expect(() => service.getHouses({ ...makeNatalChart(), julianDay: undefined })).toThrow(/missing julianDay/i);
+  });
+
+  it('Given empty transit/retrograde results, then user-facing empty-state text is returned', () => {
+    const { service, transitCalc, ephem } = makeService();
+    transitCalc.findTransits.mockReturnValue([]);
+    ephem.getAllPlanets.mockReturnValue([{ ...makePlanet('Sun', 10), isRetrograde: false, speed: 1 }]);
+    const transits = service.getTransits(makeNatalChart(), { include_mundane: false });
+    expect(transits.text).toContain('No transits found');
+    const retro = service.getRetrogradePlanets('UTC');
+    expect(retro.text).toContain('No planets are currently retrograde');
+  });
+
+  it('Given chart format/output variants, then chart generation returns the correct branch payload', async () => {
+    const { service, chartRenderer, writeFile } = makeService();
+    chartRenderer.generateNatalChart.mockResolvedValueOnce('<svg>inline</svg>');
+    const inlineSvg = await service.generateNatalChart(makeNatalChart(), { format: 'svg' });
+    expect(inlineSvg.svg).toBe('<svg>inline</svg>');
+
+    chartRenderer.generateNatalChart.mockResolvedValueOnce(Buffer.from([9, 9]));
+    const inlinePng = await service.generateNatalChart(makeNatalChart(), { format: 'png' });
+    expect(inlinePng.image?.mimeType).toBe('image/png');
+
+    chartRenderer.generateTransitChart.mockResolvedValueOnce('<svg>transit-inline</svg>');
+    const transitSvg = await service.generateTransitChart(makeNatalChart(), { format: 'svg', date: '2024-03-26' });
+    expect(transitSvg.svg).toContain('transit-inline');
+
+    chartRenderer.generateTransitChart.mockResolvedValueOnce(Buffer.from([8, 8]));
+    const saved = await service.generateTransitChart(makeNatalChart(), {
+      format: 'webp',
+      output_path: '/tmp/transit.webp',
+      date: '2024-03-26',
+    });
+    expect(writeFile).toHaveBeenCalledWith('/tmp/transit.webp', Buffer.from([8, 8]));
+    expect(saved.outputPath).toBe('/tmp/transit.webp');
+  });
+
+  it('Given both solar and lunar eclipses exist, then both are included in the response', () => {
+    const { service, eclipseCalc } = makeService();
+    eclipseCalc.findNextLunarEclipse.mockReturnValue({
+      type: 'lunar',
+      date: new Date('2024-09-18T00:00:00Z'),
+      eclipseType: 'Partial',
+      maxTime: new Date('2024-09-18T00:00:00Z'),
+    });
+    const result = service.getNextEclipses('UTC');
+    expect((result.data as any).eclipses).toHaveLength(2);
+    expect(result.text).toContain('Next Lunar Eclipse');
+  });
+});

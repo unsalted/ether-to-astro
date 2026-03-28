@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { ChartRenderer } from '../../src/charts.js';
 import { EphemerisCalculator } from '../../src/ephemeris.js';
 import { HouseCalculator } from '../../src/houses.js';
@@ -124,20 +124,6 @@ describe('When an AI requests "Generate a chart for Bowen"', () => {
       
       // Should contain both natal and transit data
       expect(result).toContain('radix');
-    });
-  });
-
-  describe('When saving chart to file', () => {
-    it('should save chart when output_path is provided', async () => {
-      const outputPath = '/tmp/test-chart.svg';
-      
-      // Mock file write
-      const writeSpy = vi.spyOn(require('fs/promises'), 'writeFile');
-      writeSpy.mockResolvedValue(undefined);
-      
-      await chartRenderer.generateNatalChart(bowenYangChart, 'light', 'svg');
-      
-      writeSpy.mockRestore();
     });
   });
 

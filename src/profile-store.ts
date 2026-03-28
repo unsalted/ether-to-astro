@@ -162,7 +162,7 @@ export async function resolveProfileFilePath(
 
   const explicitPath = options.profileFile ?? env.ASTRO_PROFILE_FILE;
   if (explicitPath) {
-    const resolved = path.resolve(explicitPath);
+    const resolved = path.resolve(cwd, explicitPath);
     if (!(await exists(resolved))) {
       throw new ProfileStoreError('PROFILE_FILE_NOT_FOUND', `Profile file not found: ${resolved}`);
     }

@@ -303,7 +303,11 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
   },
 ];
 
-const TOOL_INDEX = new Map(MCP_TOOL_SPECS.map((spec) => [spec.name, spec]));
+export function createToolSpecIndex(specs: ToolSpec[] = MCP_TOOL_SPECS): Map<string, ToolSpec> {
+  return new Map(specs.map((spec) => [spec.name, spec]));
+}
+
+const TOOL_INDEX = createToolSpecIndex();
 
 export function getToolSpec(name: string): ToolSpec | undefined {
   return TOOL_INDEX.get(name);

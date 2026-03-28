@@ -23,6 +23,17 @@ import {
   ZODIAC_SIGNS,
 } from './types.js';
 
+interface AstroServiceDependencies {
+  ephem?: EphemerisCalculator;
+  transitCalc?: TransitCalculator;
+  houseCalc?: HouseCalculator;
+  riseSetCalc?: RiseSetCalculator;
+  eclipseCalc?: EclipseCalculator;
+  chartRenderer?: ChartRenderer;
+  now?: () => Date;
+  writeFile?: (path: string, data: string | Buffer, encoding?: BufferEncoding) => Promise<void>;
+}
+
 export interface SetNatalChartInput {
   name: string;
   year: number;
@@ -116,14 +127,18 @@ export class AstroService {
   readonly riseSetCalc: RiseSetCalculator;
   readonly eclipseCalc: EclipseCalculator;
   readonly chartRenderer: ChartRenderer;
+  private readonly now: () => Date;
+  private readonly writeFileFn: (path: string, data: string | Buffer, encoding?: BufferEncoding) => Promise<void>;
 
-  constructor() {
-    this.ephem = new EphemerisCalculator();
-    this.transitCalc = new TransitCalculator(this.ephem);
-    this.houseCalc = new HouseCalculator(this.ephem);
-    this.riseSetCalc = new RiseSetCalculator(this.ephem);
-    this.eclipseCalc = new EclipseCalculator(this.ephem);
-    this.chartRenderer = new ChartRenderer(this.ephem, this.houseCalc);
+  constructor(deps: AstroServiceDependencies = {}) {
+    this.ephem = deps.ephem ?? new EphemerisCalculator();
+    this.houseCalc = deps.houseCalc ?? new HouseCalculator(this.ephem);
+    this.transitCalc = deps.transitCalc ?? new TransitCalculator(this.ephem);
+    this.riseSetCalc = deps.riseSetCalc ?? new RiseSetCalculator(this.ephem);
+    this.eclipseCalc = deps.eclipseCalc ?? new EclipseCalculator(this.ephem);
+    this.chartRenderer = deps.chartRenderer ?? new ChartRenderer(this.ephem, this.houseCalc);
+    this.now = deps.now ?? (() => new Date());
+    this.writeFileFn = deps.writeFile ?? writeFile;
   }
 
   async init(): Promise<void> {
@@ -298,7 +313,7 @@ export class AstroService {
       const parsed = parseDateOnlyInput(dateStr);
       targetDate = localToUTC(parsed, timezone);
     } else {
-      const now = new Date();
+      const now = this.now();
       const localNow = utcToLocal(now, timezone);
       const localNoon = { ...localNow, hour: 12, minute: 0, second: 0 };
       targetDate = localToUTC(localNoon, timezone);
@@ -405,7 +420,7 @@ export class AstroService {
   }
 
   getRetrogradePlanets(timezone = 'UTC'): ServiceResult<Record<string, unknown>> {
-    const now = new Date();
+    const now = this.now();
     const jd = this.ephem.dateToJulianDay(now);
     const allPlanetIds = Object.values(PLANETS);
     const positions = this.ephem.getAllPlanets(jd, allPlanetIds);
@@ -429,7 +444,7 @@ export class AstroService {
 
   async getRiseSetTimes(natalChart: NatalChart): Promise<ServiceResult<Record<string, unknown>>> {
     const timezone = natalChart.location.timezone;
-    const now = new Date();
+    const now = this.now();
     const localNow = utcToLocal(now, timezone);
     const localMidnight = { year: localNow.year, month: localNow.month, day: localNow.day, hour: 0, minute: 0, second: 0 };
     const midnightUTC = localToUTC(localMidnight, timezone);
@@ -465,7 +480,7 @@ export class AstroService {
   }
 
   getAsteroidPositions(timezone = 'UTC'): ServiceResult<Record<string, unknown>> {
-    const now = new Date();
+    const now = this.now();
     const jd = this.ephem.dateToJulianDay(now);
     const asteroidIds = [...ASTEROIDS, ...NODES];
     const positions = this.ephem.getAllPlanets(jd, asteroidIds);
@@ -493,7 +508,7 @@ export class AstroService {
   }
 
   getNextEclipses(timezone = 'UTC'): ServiceResult<Record<string, unknown>> {
-    const now = new Date();
+    const now = this.now();
     const jd = this.ephem.dateToJulianDay(now);
 
     const solarEclipse = this.eclipseCalc.findNextSolarEclipse(jd);
@@ -557,9 +572,9 @@ export class AstroService {
 
     if (outputPath) {
       if (format === 'svg') {
-        await writeFile(outputPath, chart as string, 'utf-8');
+        await this.writeFileFn(outputPath, chart as string, 'utf-8');
       } else {
-        await writeFile(outputPath, chart as Buffer);
+        await this.writeFileFn(outputPath, chart as Buffer);
       }
       return {
         format,
@@ -598,7 +613,7 @@ export class AstroService {
       const parsed = parseDateOnlyInput(dateStr);
       targetDate = localToUTC(parsed, natalChart.location.timezone);
     } else {
-      const now = new Date();
+      const now = this.now();
       const localNow = utcToLocal(now, natalChart.location.timezone);
       const localNoon = { ...localNow, hour: 12, minute: 0, second: 0 };
       targetDate = localToUTC(localNoon, natalChart.location.timezone);
@@ -610,9 +625,9 @@ export class AstroService {
 
     if (outputPath) {
       if (format === 'svg') {
-        await writeFile(outputPath, chart as string, 'utf-8');
+        await this.writeFileFn(outputPath, chart as string, 'utf-8');
       } else {
-        await writeFile(outputPath, chart as Buffer);
+        await this.writeFileFn(outputPath, chart as Buffer);
       }
       return {
         format,
