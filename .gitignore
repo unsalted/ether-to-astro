@@ -33,3 +33,6 @@ transit-test.*
 # OS
 .DS_Store
 Thumbs.db
+
+# Local private planning docs
+*.private.md

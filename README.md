@@ -18,17 +18,57 @@ This started as a side project because my wife is the real user, and I wasn’t 
 
 So I built the version I wanted to exist: local-first, scriptable, tested, and structured to work well both from the command line and through MCP. I built it, she uses it daily, and that feedback loop has made the product better.
 
+## Quick Start
+
+### MCP
+
+Add this to your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "astro": {
+      "command": "npx",
+      "args": ["--yes", "--package=ether-to-astro", "e2a-mcp"]
+    }
+  }
+}
+```
+
+Then restart your MCP client and call `set_natal_chart`.
+
+### CLI
+
+Run the CLI directly with `npx`:
+
+```bash
+npx --yes --package=ether-to-astro e2a --help
+```
+
+Or install globally:
+
+```bash
+npm install -g ether-to-astro
+e2a --help
+e2a-mcp --help
+```
+
+### Product Setup
+
+- End-user setup and examples: [SETUP.md](/Users/salted/Code/astro-mcp/SETUP.md)
+- Local repo setup and contributor workflow: [DEVELOPER.md](/Users/salted/Code/astro-mcp/DEVELOPER.md)
+
 ## Features
 
 You can ask your AI agent about:
 
 ### Transits
-- **Daily mundane transits** - Current planetary positions
+- **Daily mundane positions** - Current planetary positions
 - **Moon transits** - Fast-moving Moon aspects to natal planets
 - **Personal planet transits** - Sun, Mercury, Venus, Mars aspects to natal chart
 - **Outer planet transits** - Jupiter, Saturn, Uranus, Neptune, Pluto aspects
 - **Exact transit times** - Precise timing when transits become exact (0° orb)
-- **Upcoming transits** - Multi-day forecast for transits approaching within 2°
+- **Upcoming transit preview** - Best upcoming hits across a requested date range
 
 ### Advanced Features
 - **House cusps** - Ascendant, Midheaven, and all 12 houses (multiple systems)
@@ -40,8 +80,29 @@ You can ask your AI agent about:
 
 ## Installation
 
+### From npm
+
+For normal product usage, install from npm or use `npx`.
+
 ```bash
-./setup.sh
+npx --yes --package=ether-to-astro e2a --help
+```
+
+Or:
+
+```bash
+npm install -g ether-to-astro
+```
+
+You do not need to run `npm run build` when installing from npm.
+
+### From a local repo checkout
+
+If you cloned this repository and want to run the local source checkout:
+
+```bash
+npm install
+npm run build
 ```
 
 ### Ephemeris Data Configuration
@@ -68,75 +129,10 @@ EPHEMERIS_VERSION=moshier npm install
 Or manually:
 ```bash
 npm install
-npm run build
 ```
 
-## Contributing Contract
+## Package Names
 
-This repo uses a lightweight, agent-friendly operating contract:
-
-- Keep changes focused and avoid unrelated churn in the same diff.
-- Treat Biome as the source of truth for formatting, import order, and linting.
-- Use conventional commit messages: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `build`, `ci`.
-- Keep PR descriptions short and explicit about what changed and how it was verified.
-
-Required routine quality gate:
-
-```bash
-npm run quality:gate
-```
-
-This runs:
-
-- `npm run build`
-- `npm run lint`
-- `npm test -- --run`
-
-Use `npm run validate:astro` for high-risk astrology engine work such as ephemeris/root-solver/transit-timing changes. It is intentionally not part of the default routine gate.
-
-Commit examples:
-
-```text
-fix(cli): resolve injected cwd for relative profile paths
-test(profiles): cover default profile precedence
-refactor(transits): simplify exact-time formatting
-docs(readme): document remote-ready repo contract
-```
-
-Pull request checklist:
-
-- Scope is focused and coherent.
-- `npm run quality:gate` passed locally.
-- Tests were added or updated when behavior changed.
-- Docs were updated when workflow or interfaces changed.
-- PR description includes:
-  - What changed
-  - How it was verified
-
-## Setup
-
-1. Run setup script or install manually (see above)
-
-2. Build:
-
-```bash
-npm run build
-```
-
-3. Add MCP to your MCP settings (e.g., Claude Desktop config):
-
-```json
-{
-  "mcpServers": {
-    "astro": {
-      "command": "npx",
-      "args": ["--yes", "--package=ether-to-astro", "e2a-mcp"]
-    }
-  }
-}
-```
-
-Package/binary names:
 - Package: `ether-to-astro`
 - CLI command: `e2a`
 - MCP command: `e2a-mcp`
@@ -161,14 +157,6 @@ This design is **MCP-compliant** for stdio transport and ensures complete isolat
 
 `npx` usage note: this package is named `ether-to-astro`, so invoke bins with `--package`.
 `npx e2a` will not work by itself because npm resolves package names first.
-
-Install globally if you want direct commands without `--package`:
-
-```bash
-npm install -g ether-to-astro
-e2a --help
-e2a-mcp --help
-```
 
 Examples:
 
@@ -303,6 +291,10 @@ Ask your AI agent:
 - **Supported bodies**: All planets, Chiron, Ceres, Pallas, Juno, Vesta, North Node
 - **Exact time calculation**: Uses binary search interpolation for precision
 - **Advance warnings**: Shows transits within 2° orb
+
+## Development
+
+Contributor workflow, local repo setup, quality gates, and release-oriented notes live in [DEVELOPER.md](/Users/salted/Code/astro-mcp/DEVELOPER.md).
 
 ## License
 

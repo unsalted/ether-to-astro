@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Product triage backlog
+    url: https://github.com/unsalted/ether-to-astro/blob/main/docs/product/product-tenets.md
+    about: Start here for product boundaries and MCP-vs-skill guidance.
