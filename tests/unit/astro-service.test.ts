@@ -331,6 +331,24 @@ describe('When using AstroService', () => {
     expect(result.text).toContain('2024-03-27');
   });
 
+  it('Given non-finite transit numeric filters, then getTransits throws validation errors before mundane expansion', () => {
+    const { service } = makeService();
+    const natal = makeNatalChart();
+
+    expect(() =>
+      service.getTransits(natal, {
+        include_mundane: true,
+        days_ahead: Number.NaN,
+      })
+    ).toThrow(/days_ahead must be a finite number >= 0/);
+
+    expect(() =>
+      service.getTransits(natal, {
+        max_orb: Number.NaN,
+      })
+    ).toThrow(/max_orb must be a finite number >= 0/);
+  });
+
   it('Given exact-time lookup metadata, then getTransits serializes exactTimeStatus', () => {
     const { service, transitCalc } = makeService();
     transitCalc.findTransits.mockReturnValue([
