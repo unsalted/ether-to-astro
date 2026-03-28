@@ -16,10 +16,14 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { AstroService } from './astro-service.js';
-import { mapErrorMessageToToolIssueCode } from './error-mapping.js';
 import { logger } from './logger.js';
 import { getToolSpec, MCP_TOOL_SPECS } from './tool-registry.js';
-import { mcpError, mcpResult, missingNatalChart } from './tool-result.js';
+import {
+  mapToolErrorMessageToCode,
+  mcpError,
+  mcpResult,
+  missingNatalChart,
+} from './tool-result.js';
 import type { NatalChart } from './types.js';
 
 const server = new Server(
@@ -112,7 +116,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     return { content: result.content };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const code = mapErrorMessageToToolIssueCode(errorMessage);
+    const code = mapToolErrorMessageToCode(errorMessage);
 
     return mcpError({
       code,

@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { mapErrorMessageToToolIssueCode } from '../../src/error-mapping.js';
+import { mapToolErrorMessageToCode } from '../../src/tool-result.js';
 
-describe('mapErrorMessageToToolIssueCode', () => {
+describe('mapToolErrorMessageToCode', () => {
   it('maps rising-sign mode and coordinates validation failures to INVALID_INPUT', () => {
-    expect(mapErrorMessageToToolIssueCode('Invalid mode: fast')).toBe('INVALID_INPUT');
-    expect(mapErrorMessageToToolIssueCode('Invalid latitude: 95 (must be between -90 and 90)')).toBe(
+    expect(mapToolErrorMessageToCode('Invalid mode: fast')).toBe('INVALID_INPUT');
+    expect(mapToolErrorMessageToCode('Invalid latitude: 95 (must be between -90 and 90)')).toBe(
       'INVALID_INPUT'
     );
     expect(
-      mapErrorMessageToToolIssueCode('Invalid longitude: -190 (must be between -180 and 180)')
+      mapToolErrorMessageToCode('Invalid longitude: -190 (must be between -180 and 180)')
     ).toBe('INVALID_INPUT');
   });
 
   it('preserves existing timezone classification', () => {
-    expect(mapErrorMessageToToolIssueCode('Invalid timezone: Nope/Not-A-Timezone')).toBe(
+    expect(mapToolErrorMessageToCode('Invalid timezone: Nope/Not-A-Timezone')).toBe(
       'INVALID_TIMEZONE'
     );
   });

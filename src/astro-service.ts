@@ -10,7 +10,7 @@ import { RiseSetCalculator } from './riseset.js';
 import {
   addLocalDays,
   type Disambiguation,
-  getTimezoneOffset,
+  formatLocalTimestampWithOffset,
   localToUTC,
   utcToLocal,
 } from './time-utils.js';
@@ -516,17 +516,6 @@ export class AstroService {
       return hi;
     };
 
-    const toLocalTimestamp = (utcDate: Date): string => {
-      const local = utcToLocal(utcDate, input.timezone);
-      const offsetMinutes = getTimezoneOffset(utcDate, input.timezone);
-      const offsetSign = offsetMinutes >= 0 ? '+' : '-';
-      const offsetAbs = Math.abs(offsetMinutes);
-      const offsetHours = String(Math.floor(offsetAbs / 60)).padStart(2, '0');
-      const offsetMins = String(offsetAbs % 60).padStart(2, '0');
-
-      return `${String(local.year).padStart(4, '0')}-${String(local.month).padStart(2, '0')}-${String(local.day).padStart(2, '0')}T${String(local.hour).padStart(2, '0')}:${String(local.minute).padStart(2, '0')}:${String(local.second ?? 0).padStart(2, '0')}${offsetSign}${offsetHours}:${offsetMins}`;
-    };
-
     const findSignTransitionsInBucket = (start: Date, end: Date, probeStepMs: number): Date[] => {
       const boundaries: Date[] = [];
       let probeCursor = start;
@@ -562,8 +551,8 @@ export class AstroService {
       const sign = getAscSign(sample).sign;
       return {
         sign,
-        start: toLocalTimestamp(start),
-        end: toLocalTimestamp(end),
+        start: formatLocalTimestampWithOffset(start, input.timezone),
+        end: formatLocalTimestampWithOffset(end, input.timezone),
         durationMinutes: Math.round((end.getTime() - start.getTime()) / 60000),
       };
     });
