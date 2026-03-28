@@ -121,6 +121,10 @@ Skills should:
 
 The default target is a one-call or two-call skill flow.
 
+Skill-layer examples in this repo are primarily boundary examples and workflow incubators.
+
+They should not be read as automatic commitments to build or maintain every listed workflow as a first-class product artifact.
+
 ### Good Skill Flow
 
 1. Call forecast primitives.
@@ -199,7 +203,7 @@ Based on the current product direction:
 - electional primitives
 - rising-sign window helpers
 
-### Strong candidates for skills
+### Candidate workflow experiments after primitive stabilization
 
 - daily brief generation
 - weekly overview synthesis
