@@ -7,7 +7,7 @@
 ```
 
 This will:
-1. Install npm dependencies (including WebAssembly Swiss Ephemeris)
+1. Install npm dependencies (including native `sweph`)
 2. Build TypeScript to JavaScript
 
 ## Add to Claude Desktop
@@ -22,14 +22,24 @@ Add this MCP server:
 {
   "mcpServers": {
     "astro": {
-      "command": "node",
-      "args": ["/path/to/ether-to-astro-mcp/dist/index.js"]
+      "command": "npx",
+      "args": ["--yes", "--package=ether-to-astro", "e2a-mcp"]
     }
   }
 }
 ```
 
-**Important**: Replace `/path/to/ether-to-astro-mcp` with your actual path!
+Alternative (after global install):
+
+```json
+{
+  "mcpServers": {
+    "astro": {
+      "command": "e2a-mcp"
+    }
+  }
+}
+```
 
 ## First Use
 
@@ -55,16 +65,18 @@ When will the Moon conjunct my Venus be exact?
 ## MCP Tools Available
 
 - `set_natal_chart` - Store birth data
-- `get_daily_transits` - Current planetary positions
-- `get_moon_transits` - Moon aspects to natal planets
-- `get_personal_planet_transits` - Sun/Mercury/Venus/Mars aspects
-- `get_outer_planet_transits` - Jupiter/Saturn/Uranus/Neptune/Pluto aspects
-- `get_exact_transit_times` - Calculate exact times for current transits
-- `get_upcoming_transits` - Multi-day forecast (default 7 days)
+- `get_transits` - Category-filtered transit analysis with optional exact-time data
+- `get_houses` - House cusps plus angles (ASC/MC)
+- `get_retrograde_planets` - Current retrograde status
+- `get_rise_set_times` - Rise/set and meridian events
+- `get_asteroid_positions` - Asteroids and nodes
+- `get_next_eclipses` - Next solar/lunar eclipses
+- `generate_natal_chart` - Render natal chart (SVG/PNG/WebP)
+- `generate_transit_chart` - Render transit chart (SVG/PNG/WebP)
+- `get_server_status` - MCP-side loaded-chart and service status
 
 ## Technical Notes
 
-- Uses WebAssembly Swiss Ephemeris (no native compilation!)
-- Moshier mode provides ~1 arcsecond precision
-- No ephemeris data files needed
-- Works on Mac/Linux (Node.js required)
+- Uses native `sweph` bindings for Swiss Ephemeris calculations
+- Ephemeris files are downloaded/configured during install
+- Works on macOS/Linux (Node.js 22+)
