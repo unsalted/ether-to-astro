@@ -62,6 +62,14 @@ export interface GetHousesInput {
   system?: string;
 }
 
+export interface GetRisingSignWindowsInput {
+  date: string;
+  latitude: number;
+  longitude: number;
+  timezone: string;
+  mode?: 'approximate' | 'exact';
+}
+
 export interface GenerateChartInput {
   theme?: 'light' | 'dark';
   format?: 'svg' | 'png' | 'webp';
@@ -445,6 +453,109 @@ export class AstroService {
 
     return {
       data: houses as unknown as Record<string, unknown>,
+      text: humanText,
+    };
+  }
+
+  getRisingSignWindows(input: GetRisingSignWindowsInput): ServiceResult<Record<string, unknown>> {
+    const mode = input.mode ?? 'approximate';
+    if (mode !== 'approximate' && mode !== 'exact') {
+      throw new Error(`Invalid mode: ${mode} (must be approximate or exact)`);
+    }
+    if (input.latitude < -90 || input.latitude > 90) {
+      throw new Error(`Invalid latitude: ${input.latitude} (must be between -90 and 90)`);
+    }
+    if (input.longitude < -180 || input.longitude > 180) {
+      throw new Error(`Invalid longitude: ${input.longitude} (must be between -180 and 180)`);
+    }
+
+    const parsed = parseDateOnlyInput(input.date);
+    try {
+      utcToLocal(new Date(), input.timezone);
+    } catch {
+      throw new Error(`Invalid timezone: ${input.timezone}`);
+    }
+
+    const dayStartLocal = {
+      year: parsed.year,
+      month: parsed.month,
+      day: parsed.day,
+      hour: 0,
+      minute: 0,
+      second: 0,
+    };
+    const dayStartUtc = localToUTC(dayStartLocal, input.timezone);
+    const dayEndUtc = addLocalDays(dayStartLocal, input.timezone, 1);
+
+    const getAscSign = (date: Date): { sign: string; longitude: number } => {
+      const jd = this.ephem.dateToJulianDay(date);
+      const houses = this.houseCalc.calculateHouses(jd, input.latitude, input.longitude, 'P');
+      const normalized = ((houses.ascendant % 360) + 360) % 360;
+      return { sign: ZODIAC_SIGNS[Math.floor(normalized / 30)], longitude: normalized };
+    };
+
+    const refineBoundary = (left: Date, right: Date): Date => {
+      const leftSign = getAscSign(left).sign;
+      let lo = left;
+      let hi = right;
+      for (let i = 0; i < 25; i++) {
+        const mid = new Date((lo.getTime() + hi.getTime()) / 2);
+        const midSign = getAscSign(mid).sign;
+        if (midSign === leftSign) {
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+      }
+      return hi;
+    };
+
+    const stepMs = mode === 'exact' ? 60 * 60 * 1000 : 2 * 60 * 60 * 1000;
+    const boundaries: Date[] = [dayStartUtc];
+    let cursor = dayStartUtc;
+    while (cursor < dayEndUtc) {
+      const next = new Date(Math.min(cursor.getTime() + stepMs, dayEndUtc.getTime()));
+      const currentSign = getAscSign(cursor).sign;
+      const nextSign = getAscSign(next).sign;
+      if (currentSign !== nextSign) {
+        boundaries.push(mode === 'exact' ? refineBoundary(cursor, next) : next);
+      }
+      cursor = next;
+    }
+    boundaries.push(dayEndUtc);
+
+    const windows = boundaries.slice(0, -1).map((start, i) => {
+      const end = boundaries[i + 1];
+      const sample = new Date((start.getTime() + end.getTime()) / 2);
+      const sign = getAscSign(sample).sign;
+      return {
+        sign,
+        start: start.toISOString(),
+        end: end.toISOString(),
+        durationMinutes: Math.round((end.getTime() - start.getTime()) / 60000),
+      };
+    });
+
+    const structuredData = {
+      date: input.date,
+      timezone: input.timezone,
+      location: {
+        latitude: input.latitude,
+        longitude: input.longitude,
+      },
+      mode,
+      windows,
+    };
+
+    const humanText = `Rising Sign Windows (${input.date}, ${input.timezone}, ${mode}):\n\n${windows
+      .map(
+        (window) =>
+          `${window.sign}: ${formatInTimezone(new Date(window.start), input.timezone)} → ${formatInTimezone(new Date(window.end), input.timezone)}`
+      )
+      .join('\n')}`;
+
+    return {
+      data: structuredData,
       text: humanText,
     };
   }

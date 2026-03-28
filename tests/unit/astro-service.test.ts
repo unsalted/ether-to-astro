@@ -32,7 +32,7 @@ function makeService() {
   const ephem = {
     eph: {},
     init: vi.fn(async () => {}),
-    dateToJulianDay: vi.fn(() => 2451545),
+    dateToJulianDay: vi.fn((date: Date) => date.getTime() / 86400000 + 2440587.5),
     getAllPlanets: vi.fn(() => [makePlanet('Sun', 204), makePlanet('Moon', 270)]),
   };
   const houseCalc = {
@@ -319,5 +319,93 @@ describe('When using AstroService', () => {
     const result = service.getNextEclipses('UTC');
     expect((result.data as any).eclipses).toHaveLength(2);
     expect(result.text).toContain('Next Lunar Eclipse');
+  });
+
+  it('Given date/location inputs, then getRisingSignWindows returns deterministic sign intervals', () => {
+    const { service, houseCalc } = makeService();
+    houseCalc.calculateHouses.mockImplementation((jd: number) => {
+      const dayFraction = ((jd % 1) + 1) % 1;
+      const ascendant = (dayFraction * 360 * 12) % 360;
+      return {
+        ascendant,
+        mc: 204,
+        cusps: [0, 270, 300, 330, 0, 30, 60, 90, 120, 150, 204, 240, 260],
+        system: 'P' as const,
+      };
+    });
+
+    const result = service.getRisingSignWindows({
+      date: '2026-03-28',
+      latitude: 40.7128,
+      longitude: -74.006,
+      timezone: 'America/New_York',
+      mode: 'exact',
+    });
+
+    const windows = (result.data as any).windows;
+    expect((result.data as any)).toMatchObject({
+      date: '2026-03-28',
+      timezone: 'America/New_York',
+      mode: 'exact',
+    });
+    expect(windows.length).toBeGreaterThan(0);
+    expect(windows[0]).toMatchObject({
+      sign: expect.any(String),
+      start: expect.any(String),
+      end: expect.any(String),
+      durationMinutes: expect.any(Number),
+    });
+    expect(result.text).toContain('Rising Sign Windows');
+    expect(result.text.toLowerCase()).not.toContain('best');
+  });
+
+  it('Given invalid rising-sign inputs, then getRisingSignWindows throws clear validation errors', () => {
+    const { service } = makeService();
+
+    expect(() =>
+      service.getRisingSignWindows({
+        date: '2026-03-28',
+        latitude: 95,
+        longitude: -74,
+        timezone: 'America/New_York',
+      })
+    ).toThrow(/Invalid latitude/);
+
+    expect(() =>
+      service.getRisingSignWindows({
+        date: '2026-03-28',
+        latitude: 40,
+        longitude: -190,
+        timezone: 'America/New_York',
+      })
+    ).toThrow(/Invalid longitude/);
+
+    expect(() =>
+      service.getRisingSignWindows({
+        date: '2026/03/28',
+        latitude: 40,
+        longitude: -74,
+        timezone: 'America/New_York',
+      })
+    ).toThrow(/Invalid date format/);
+
+    expect(() =>
+      service.getRisingSignWindows({
+        date: '2026-03-28',
+        latitude: 40,
+        longitude: -74,
+        timezone: 'Nope/Not-A-Timezone',
+      })
+    ).toThrow(/Invalid timezone/);
+
+    expect(() =>
+      service.getRisingSignWindows({
+        date: '2026-03-28',
+        latitude: 40,
+        longitude: -74,
+        timezone: 'UTC',
+        mode: 'fast' as any,
+      })
+    ).toThrow(/Invalid mode/);
   });
 });
