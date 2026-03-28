@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Purpose
-This file is for coding agents working in `astro-mcp`. It documents the real architecture and safe change workflow so edits stay correct and low-risk.
+This file is for coding agents working in `ether-to-astro`. It documents the real architecture and safe change workflow so edits stay correct, low-risk, and release-safe.
 
 ## Current Runtime Facts
 - Engine is native Node binding: `sweph` (not WASM/WASI).
@@ -68,7 +68,14 @@ Defined in `tests/validation/utils/tolerances.ts`:
 - `EphemerisCalculator.findExactTransitTimes()` in `src/ephemeris.ts`.
 - Transit root-selection policy in `src/transits.ts`.
 - Time conversion/disambiguation in `src/time-utils.ts`.
+- CLI/MCP surface drift between `src/cli.ts`, `src/index.ts`, and `src/astro-service.ts`.
+- Packaging / bin / publish behavior for `e2a` and `e2a-mcp`.
 - Capability checks and comparator severity in validation harness.
+
+## Review Priority Ladder
+- **P1** - Wrong astro math, wrong timezone/DST handling, wrong transit/root behavior, CLI/MCP contract drift, packaging/bin/publish breakage, or validation regressions that could ship incorrect results.
+- **P2** - Missing or weak tests for high-risk changes, docs/help-text drift, profile resolution regressions, or changes that make validation/debugging harder.
+- **P3** - Style, cleanup, wording, and low-risk refactors with no behavioral impact.
 
 ## Safe Change Workflow
 1. Make focused edits (avoid broad refactors).
@@ -86,6 +93,8 @@ Defined in `tests/validation/utils/tolerances.ts`:
 - Routine merge gate is `npm run build`, `npm run lint`, and `npm test -- --run`.
 - `npm run validate:astro` is targeted validation, not the default gate for every change.
 - Biome is the source of truth for formatting, import order, and linting.
+- CLI profile resolution is adapter-only behavior; do not leak `.astro.json`, `--profile`, or profile-file semantics into MCP tool contracts.
+- `src/astro-service.ts` is the shared behavior layer; prefer fixing logic there before adding surface-specific patches in CLI or MCP.
 - Preferred commit types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `build`, `ci`.
 - Keep commits scoped to one coherent change whenever possible.
 
@@ -102,9 +111,13 @@ Defined in `tests/validation/utils/tolerances.ts`:
 
 ## Known Gotchas
 - `sweph` has process-wide settings (e.g., ephemeris path); avoid per-request mutation.
+- In the normal Node runtime, rise/set and eclipse functionality are expected to work. Treat breakage there as a real regression, not as optional capability drift.
+- `get_server_status` is the source of truth for loaded-chart state on the MCP side. Do not invent parallel state reporting elsewhere.
 
 ## Agent Style for This Repo
 - Prefer minimal, typed, fixture-driven changes.
 - Keep adapter normalization stable when comparing outputs.
 - Do not mask solver regressions with broad dedupe/tolerance changes.
 - Keep external CLI parity optional and auto-skippable.
+- If changing command/tool signatures, update all three together: schema/help text, implementation, and tests.
+- For release-facing changes, check README/help text/package metadata for drift.
