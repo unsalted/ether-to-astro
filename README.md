@@ -280,4 +280,8 @@ Ask your AI agent:
 
 ## License
 
-MIT
+AGPL-3.0-or-later
+
+This package adopts the AGPL path because it depends on `sweph`, which declares
+`(AGPL-3.0-or-later OR LGPL-3.0-or-later)` and reserves the LGPL path for the
+conditions described by the Swiss Ephemeris licensing terms.
