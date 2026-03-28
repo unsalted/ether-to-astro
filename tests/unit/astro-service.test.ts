@@ -355,8 +355,45 @@ describe('When using AstroService', () => {
       end: expect.any(String),
       durationMinutes: expect.any(Number),
     });
+    expect(windows[0].start).toMatch(/[-+]\d{2}:\d{2}$/);
+    expect(windows[0].start.endsWith('Z')).toBe(false);
     expect(result.text).toContain('Rising Sign Windows');
     expect(result.text.toLowerCase()).not.toContain('best');
+  });
+
+  it('Given multiple sign transitions inside one scan bucket, then exact mode emits all boundary windows', () => {
+    const { service, houseCalc } = makeService();
+    const transitions = [
+      Date.parse('2026-03-28T00:10:00Z'),
+      Date.parse('2026-03-28T00:30:00Z'),
+      Date.parse('2026-03-28T00:50:00Z'),
+    ];
+    houseCalc.calculateHouses.mockImplementation((jd: number) => {
+      const date = new Date((jd - 2440587.5) * 86400000);
+      const millis = date.getTime();
+      const signIndex =
+        transitions.filter((transitionMs) => millis >= transitionMs).length % 2 === 0 ? 0 : 1;
+      return {
+        ascendant: signIndex * 30 + 0.1,
+        mc: 204,
+        cusps: [0, 270, 300, 330, 0, 30, 60, 90, 120, 150, 204, 240, 260],
+        system: 'P' as const,
+      };
+    });
+
+    const result = service.getRisingSignWindows({
+      date: '2026-03-28',
+      latitude: 40.7128,
+      longitude: -74.006,
+      timezone: 'UTC',
+      mode: 'exact',
+    });
+
+    const windows = (result.data as any).windows as Array<{ start: string; end: string; sign: string }>;
+    const firstHourWindows = windows.filter((window) => window.start < '2026-03-28T01:00:00+00:00');
+
+    expect(firstHourWindows).toHaveLength(4);
+    expect(firstHourWindows.map((window) => window.sign)).toEqual(['Aries', 'Taurus', 'Aries', 'Taurus']);
   });
 
   it('Given invalid rising-sign inputs, then getRisingSignWindows throws clear validation errors', () => {

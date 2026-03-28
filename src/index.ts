@@ -16,6 +16,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { AstroService } from './astro-service.js';
+import { mapErrorMessageToToolIssueCode } from './error-mapping.js';
 import { logger } from './logger.js';
 import { getToolSpec, MCP_TOOL_SPECS } from './tool-registry.js';
 import { mcpError, mcpResult, missingNatalChart } from './tool-result.js';
@@ -111,36 +112,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     return { content: result.content };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-
-    // Map known error patterns to appropriate codes
-    let code: import('./tool-result.js').ToolIssueCode;
-    if (
-      errorMessage.includes('Invalid date format') ||
-      errorMessage.includes('Invalid calendar date') ||
-      errorMessage.includes('Invalid month') ||
-      errorMessage.includes('Invalid day') ||
-      errorMessage.includes('days_ahead') ||
-      errorMessage.includes('max_orb') ||
-      errorMessage.includes('missing julianDay')
-    ) {
-      code = 'INVALID_INPUT';
-    } else if (errorMessage.includes('Invalid timezone') || errorMessage.includes('timezone')) {
-      code = 'INVALID_TIMEZONE';
-    } else if (errorMessage.includes('Invalid house system')) {
-      code = 'INVALID_HOUSE_SYSTEM';
-    } else if (errorMessage.includes('Ephemeris') || errorMessage.includes('ephemeris')) {
-      code = 'EPHEMERIS_COMPUTE_FAILED';
-    } else if (
-      errorMessage.includes('write') ||
-      errorMessage.includes('ENOENT') ||
-      errorMessage.includes('EACCES')
-    ) {
-      code = 'FILE_WRITE_FAILED';
-    } else if (errorMessage.includes('render') || errorMessage.includes('chart')) {
-      code = 'CHART_RENDER_FAILED';
-    } else {
-      code = 'INTERNAL_ERROR';
-    }
+    const code = mapErrorMessageToToolIssueCode(errorMessage);
 
     return mcpError({
       code,

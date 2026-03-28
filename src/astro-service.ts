@@ -7,7 +7,13 @@ import { EphemerisCalculator } from './ephemeris.js';
 import { formatDateOnly, formatInTimezone } from './formatter.js';
 import { HouseCalculator } from './houses.js';
 import { RiseSetCalculator } from './riseset.js';
-import { addLocalDays, type Disambiguation, localToUTC, utcToLocal } from './time-utils.js';
+import {
+  addLocalDays,
+  type Disambiguation,
+  getTimezoneOffset,
+  localToUTC,
+  utcToLocal,
+} from './time-utils.js';
 import { deduplicateTransits, TransitCalculator } from './transits.js';
 import {
   ASTEROIDS,
@@ -510,16 +516,42 @@ export class AstroService {
       return hi;
     };
 
+    const toLocalTimestamp = (utcDate: Date): string => {
+      const local = utcToLocal(utcDate, input.timezone);
+      const offsetMinutes = getTimezoneOffset(utcDate, input.timezone);
+      const offsetSign = offsetMinutes >= 0 ? '+' : '-';
+      const offsetAbs = Math.abs(offsetMinutes);
+      const offsetHours = String(Math.floor(offsetAbs / 60)).padStart(2, '0');
+      const offsetMins = String(offsetAbs % 60).padStart(2, '0');
+
+      return `${String(local.year).padStart(4, '0')}-${String(local.month).padStart(2, '0')}-${String(local.day).padStart(2, '0')}T${String(local.hour).padStart(2, '0')}:${String(local.minute).padStart(2, '0')}:${String(local.second ?? 0).padStart(2, '0')}${offsetSign}${offsetHours}:${offsetMins}`;
+    };
+
+    const findSignTransitionsInBucket = (start: Date, end: Date, probeStepMs: number): Date[] => {
+      const boundaries: Date[] = [];
+      let probeCursor = start;
+      let currentSign = getAscSign(probeCursor).sign;
+
+      while (probeCursor < end) {
+        const probeNext = new Date(Math.min(probeCursor.getTime() + probeStepMs, end.getTime()));
+        const nextSign = getAscSign(probeNext).sign;
+        if (nextSign !== currentSign) {
+          boundaries.push(mode === 'exact' ? refineBoundary(probeCursor, probeNext) : probeNext);
+        }
+        probeCursor = probeNext;
+        currentSign = nextSign;
+      }
+
+      return boundaries;
+    };
+
     const stepMs = mode === 'exact' ? 60 * 60 * 1000 : 2 * 60 * 60 * 1000;
+    const probeStepMs = mode === 'exact' ? 5 * 60 * 1000 : 30 * 60 * 1000;
     const boundaries: Date[] = [dayStartUtc];
     let cursor = dayStartUtc;
     while (cursor < dayEndUtc) {
       const next = new Date(Math.min(cursor.getTime() + stepMs, dayEndUtc.getTime()));
-      const currentSign = getAscSign(cursor).sign;
-      const nextSign = getAscSign(next).sign;
-      if (currentSign !== nextSign) {
-        boundaries.push(mode === 'exact' ? refineBoundary(cursor, next) : next);
-      }
+      boundaries.push(...findSignTransitionsInBucket(cursor, next, probeStepMs));
       cursor = next;
     }
     boundaries.push(dayEndUtc);
@@ -530,8 +562,8 @@ export class AstroService {
       const sign = getAscSign(sample).sign;
       return {
         sign,
-        start: start.toISOString(),
-        end: end.toISOString(),
+        start: toLocalTimestamp(start),
+        end: toLocalTimestamp(end),
         durationMinutes: Math.round((end.getTime() - start.getTime()) / 60000),
       };
     });
