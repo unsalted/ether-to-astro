@@ -249,7 +249,10 @@ Ask your AI agent:
 - `set_natal_chart` - Store birth chart data
 
 ### Transits
-- `get_transits` - Category-filtered transits with optional exact-time data
+- `get_transits` - Category-filtered transits with optional exact-time data and explicit `mode` semantics:
+  - `snapshot`: single-day view at the selected date
+  - `best_hit` (default): deduplicated best-hit view across the selected date window
+  - `forecast`: day-by-day, non-compressed transit output across the selected date window
 
 ### Advanced Tools
 - `get_houses` - House cusps, Ascendant, Midheaven (Placidus, Koch, Whole Sign, Equal)

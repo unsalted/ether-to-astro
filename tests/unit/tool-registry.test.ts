@@ -178,6 +178,24 @@ describe('When resolving tool specs from the registry', () => {
     expect(required.has('generate_transit_chart')).toBe(true);
   });
 
+  it('Given get_transits schema and execution, then mode contract is exposed and forwarded', async () => {
+    const spec = getToolSpec('get_transits');
+    expect(spec).toBeDefined();
+    const modeProp = spec?.inputSchema.properties?.mode as any;
+    expect(modeProp?.enum).toEqual(['snapshot', 'best_hit', 'forecast']);
+    expect(modeProp?.default).toBe('best_hit');
+
+    const service = makeService();
+    await spec!.execute(
+      { service: service as any, natalChart: { name: 'chart' } as any },
+      { mode: 'forecast' }
+    );
+    expect(service.getTransits).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ mode: 'forecast' })
+    );
+  });
+
   it('Given chart tools return no payload, then execution throws explicit errors', async () => {
     const service = makeService();
     service.generateNatalChart.mockResolvedValue({ format: 'svg', text: 'oops' });

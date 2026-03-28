@@ -179,7 +179,69 @@ describe('When using AstroService', () => {
 
     expect(result.data).toHaveProperty('transits');
     expect(result.data).toHaveProperty('mundane');
-    expect(result.text).toContain('Transits');
+    expect(result.text.toLowerCase()).toContain('transits');
+  });
+
+  it('Given no explicit mode, then getTransits defaults to best_hit metadata', () => {
+    const { service } = makeService();
+    const result = service.getTransits(makeNatalChart(), { days_ahead: 2 });
+    expect(result.text).toContain('Best-hit transits');
+    expect(result.data).toMatchObject({
+      mode: 'best_hit',
+      days_ahead: 2,
+      window_start: '2024-03-26',
+      window_end: '2024-03-28',
+    });
+  });
+
+  it('Given snapshot mode with days_ahead, then only one day is queried and reported', () => {
+    const { service, transitCalc } = makeService();
+    service.getTransits(makeNatalChart(), { mode: 'snapshot', days_ahead: 5 });
+    expect(transitCalc.findTransits).toHaveBeenCalledTimes(1);
+  });
+
+  it('Given forecast mode across multiple days, then response preserves day-grouped transits', () => {
+    const { service, transitCalc } = makeService();
+    transitCalc.findTransits
+      .mockReturnValueOnce([
+        {
+          transitingPlanet: 'Mars',
+          natalPlanet: 'Sun',
+          aspect: 'square',
+          orb: 1.25,
+          isApplying: true,
+          exactTimeStatus: 'within_preview',
+          transitLongitude: 100,
+          natalLongitude: 10,
+          exactTime: new Date('2024-03-27T12:00:00Z'),
+        },
+      ])
+      .mockReturnValueOnce([
+        {
+          transitingPlanet: 'Mars',
+          natalPlanet: 'Sun',
+          aspect: 'square',
+          orb: 0.8,
+          isApplying: false,
+          exactTimeStatus: 'within_preview',
+          transitLongitude: 101,
+          natalLongitude: 10,
+          exactTime: new Date('2024-03-28T12:00:00Z'),
+        },
+      ]);
+
+    const result = service.getTransits(makeNatalChart(), { mode: 'forecast', days_ahead: 1 });
+    expect(result.text).toContain('Forecast transits');
+    expect(result.data).toMatchObject({
+      mode: 'forecast',
+      days_ahead: 1,
+      window_start: '2024-03-26',
+      window_end: '2024-03-27',
+      forecast: [
+        { date: '2024-03-26', transits: [{ orb: 1.25 }] },
+        { date: '2024-03-27', transits: [{ orb: 0.8 }] },
+      ],
+    });
   });
 
   it('Given exact-time lookup metadata, then getTransits serializes exactTimeStatus', () => {
@@ -271,6 +333,7 @@ describe('When using AstroService', () => {
     const { service } = makeService();
     expect(() => service.getTransits(makeNatalChart(), { days_ahead: -1 })).toThrow(/days_ahead/);
     expect(() => service.getTransits(makeNatalChart(), { max_orb: -1 })).toThrow(/max_orb/);
+    expect(() => service.getTransits(makeNatalChart(), { mode: 'weekly' as any })).toThrow(/mode/);
     expect(() => service.getHouses({ ...makeNatalChart(), julianDay: undefined })).toThrow(/missing julianDay/i);
   });
 
