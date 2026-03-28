@@ -4,6 +4,7 @@ import { createToolSpecIndex, getToolSpec, MCP_TOOL_SPECS } from '../../src/tool
 function makeService() {
   return {
     setNatalChart: vi.fn(() => ({ data: { ok: true }, text: 'set', chart: { name: 'x' } })),
+    getRisingSignWindows: vi.fn(() => ({ data: { windows: [] }, text: 'rising windows' })),
     getTransits: vi.fn(() => ({ data: { transits: [] }, text: 'transits' })),
     getHouses: vi.fn(() => ({ data: { system: 'P' }, text: 'houses' })),
     getRetrogradePlanets: vi.fn(() => ({ data: { planets: [] }, text: 'retro' })),
@@ -56,6 +57,29 @@ describe('When resolving tool specs from the registry', () => {
     expect(status.kind).toBe('state');
     expect(service.getRetrogradePlanets).toHaveBeenCalledWith('UTC');
     expect(service.getServerStatus).toHaveBeenCalled();
+  });
+
+  it('Given rising-sign window arguments, then tool routes to the shared service with deterministic shape', async () => {
+    const service = makeService();
+    const result = await getToolSpec('get_rising_sign_windows')!.execute(
+      { service: service as any, natalChart: null },
+      {
+        date: '2026-03-28',
+        latitude: 40.7128,
+        longitude: -74.006,
+        timezone: 'America/New_York',
+        mode: 'exact',
+      }
+    );
+
+    expect(result.kind).toBe('state');
+    expect(service.getRisingSignWindows).toHaveBeenCalledWith({
+      date: '2026-03-28',
+      latitude: 40.7128,
+      longitude: -74.006,
+      timezone: 'America/New_York',
+      mode: 'exact',
+    });
   });
 
   it('Given async state tool handlers, then they resolve to state payloads', async () => {
@@ -176,6 +200,7 @@ describe('When resolving tool specs from the registry', () => {
     expect(required.has('get_rise_set_times')).toBe(true);
     expect(required.has('generate_natal_chart')).toBe(true);
     expect(required.has('generate_transit_chart')).toBe(true);
+    expect(required.has('get_rising_sign_windows')).toBe(false);
   });
 
   it('Given get_transits schema and execution, then mode contract is exposed and forwarded', async () => {

@@ -71,6 +71,12 @@ Examples:
 - electional scoring using a specific user’s preferences
 - preference-aware section ordering and tone
 
+Skill ideas are the default incubation layer for new workflow concepts.
+
+That does not make every skill example in this repo a committed product roadmap item.
+
+Treat skill-layer examples and issue ideas as candidate workflows unless they are explicitly promoted into committed work.
+
 ### MCP Prompts Own
 
 Use MCP prompts as thin, discoverable entry points into common workflows.
@@ -114,6 +120,8 @@ Examples:
 ## Promotion Rule
 
 New workflow ideas should start life as skills or prompts.
+
+That is an incubation step, not an automatic commitment to ship a repo-owned skill or workflow.
 
 They should graduate into MCP only when:
 
