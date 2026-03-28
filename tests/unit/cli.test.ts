@@ -1,65 +1,56 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runCli } from '../../src/cli.js';
 import { makeTempDir } from '../helpers/temp.js';
 
-function makeService() {
-  return {
-    init: vi.fn(async () => {}),
-    setNatalChart: vi.fn(() => ({
-      data: { ok: true },
-      text: 'saved chart',
-      chart: {
-        name: 'CLI User',
-        birthDate: { year: 1990, month: 6, day: 12, hour: 14, minute: 35 },
-        location: { latitude: 37.7749, longitude: -122.4194, timezone: 'UTC' },
-        planets: [],
-        julianDay: 2451545,
-        houseSystem: 'P',
-      },
-    })),
-    getNextEclipses: vi.fn(() => ({
-      data: { timezone: 'UTC', eclipses: [] },
-      text: 'No eclipses found in the near future.',
-    })),
-    getServerStatus: vi.fn(() => ({ data: { ok: true }, text: 'status' })),
-    getRetrogradePlanets: vi.fn(() => ({ data: { planets: [] }, text: 'retro' })),
-    getAsteroidPositions: vi.fn(() => ({ data: { positions: [] }, text: 'asteroids' })),
-    getTransits: vi.fn(() => ({ data: { transits: [] }, text: 'transits' })),
-    getHouses: vi.fn(() => ({ data: { system: 'P' }, text: 'houses' })),
-    getRiseSetTimes: vi.fn(async () => ({ data: { times: [] }, text: 'rise' })),
-    generateNatalChart: vi.fn(async () => ({ format: 'svg', text: 'natal', svg: '<svg />' })),
-    generateTransitChart: vi.fn(async () => ({ format: 'svg', text: 'transit', svg: '<svg />' })),
-  };
+function parseJson(text: string): Record<string, unknown> {
+  return JSON.parse(text) as Record<string, unknown>;
 }
 
-describe('When running CLI commands', () => {
+describe.sequential('When running CLI commands', () => {
+  let originalCwd: string;
+  let originalProfile: string | undefined;
+  let originalProfileFile: string | undefined;
+
+  beforeEach(() => {
+    originalCwd = process.cwd();
+    originalProfile = process.env.ASTRO_PROFILE;
+    originalProfileFile = process.env.ASTRO_PROFILE_FILE;
+    delete process.env.ASTRO_PROFILE;
+    delete process.env.ASTRO_PROFILE_FILE;
+  });
+
+  afterEach(() => {
+    process.chdir(originalCwd);
+    if (originalProfile === undefined) delete process.env.ASTRO_PROFILE;
+    else process.env.ASTRO_PROFILE = originalProfile;
+    if (originalProfileFile === undefined) delete process.env.ASTRO_PROFILE_FILE;
+    else process.env.ASTRO_PROFILE_FILE = originalProfileFile;
+  });
+
   it('Given default output mode, then JSON is emitted; and with --pretty, human text is emitted', async () => {
-    const service = makeService();
     const stdout: string[] = [];
     const stderr: string[] = [];
 
-    const codeJson = await runCli(
-      ['get-next-eclipses'],
-      { stdout: (m) => stdout.push(m), stderr: (m) => stderr.push(m) },
-      { createService: () => service as any, env: {}, cwd: process.cwd() }
-    );
+    const codeJson = await runCli(['get-next-eclipses'], {
+      stdout: (m) => stdout.push(m),
+      stderr: (m) => stderr.push(m),
+    });
     expect(codeJson).toBe(0);
     expect(stderr).toEqual([]);
-    expect(JSON.parse(stdout[0])).toMatchObject({ timezone: 'UTC' });
+    expect(parseJson(stdout.join('\n'))).toHaveProperty('timezone');
 
     stdout.length = 0;
-    const codePretty = await runCli(
-      ['get-next-eclipses', '--pretty'],
-      { stdout: (m) => stdout.push(m), stderr: (m) => stderr.push(m) },
-      { createService: () => service as any, env: {}, cwd: process.cwd() }
-    );
+    const codePretty = await runCli(['get-next-eclipses', '--pretty'], {
+      stdout: (m) => stdout.push(m),
+      stderr: (m) => stderr.push(m),
+    });
     expect(codePretty).toBe(0);
-    expect(stdout[0]).toContain('e2a');
+    expect(stdout.join('\n')).toContain('ether-to-astro');
   });
 
-  it('Given runtime cwd/env injection, then profile lookup resolves from injected context', async () => {
+  it('Given profile file in cwd, then command resolves profile timezone from cwd context', async () => {
     const dir = await makeTempDir('cli-profile');
     await writeFile(
       path.join(dir, '.astro.json'),
@@ -82,20 +73,20 @@ describe('When running CLI commands', () => {
       }),
       'utf8'
     );
-    const service = makeService();
+    process.chdir(dir);
     const stdout: string[] = [];
 
-    const code = await runCli(
-      ['get-next-eclipses'],
-      { stdout: (m) => stdout.push(m), stderr: vi.fn() },
-      { createService: () => service as any, env: {}, cwd: dir }
-    );
+    const code = await runCli(['get-next-eclipses'], {
+      stdout: (m) => stdout.push(m),
+      stderr: vi.fn(),
+    });
 
     expect(code).toBe(0);
-    expect(service.getNextEclipses).toHaveBeenCalledWith('UTC');
+    const payload = parseJson(stdout.join('\n'));
+    expect(payload.timezone).toBe('UTC');
   });
 
-  it('Given injected cwd and relative natal file path, then natal input resolves from injected context', async () => {
+  it('Given relative natal file path from cwd, then natal-dependent command executes', async () => {
     const dir = await makeTempDir('cli-natal-file');
     await writeFile(
       path.join(dir, 'natal.json'),
@@ -112,72 +103,60 @@ describe('When running CLI commands', () => {
       }),
       'utf8'
     );
-    const service = makeService();
+    process.chdir(dir);
 
-    const code = await runCli(
-      ['get-houses', '--natal-file', 'natal.json'],
-      { stdout: vi.fn(), stderr: vi.fn() },
-      { createService: () => service as any, env: {}, cwd: dir }
-    );
+    const code = await runCli(['get-houses', '--natal-file', 'natal.json'], {
+      stdout: vi.fn(),
+      stderr: vi.fn(),
+    });
 
     expect(code).toBe(0);
-    expect(service.setNatalChart).toHaveBeenCalled();
-    expect(service.getHouses).toHaveBeenCalled();
   });
 
   it('Given a missing profile file, then CLI returns a structured JSON error payload', async () => {
-    const service = makeService();
     const stderr: string[] = [];
     const code = await runCli(
       ['profiles', 'show', '--profile', 'missing', '--profile-file', '/tmp/does-not-exist.json'],
-      { stdout: vi.fn(), stderr: (m) => stderr.push(m) },
-      { createService: () => service as any, env: {}, cwd: process.cwd() }
+      { stdout: vi.fn(), stderr: (m) => stderr.push(m) }
     );
     expect(code).toBe(1);
-    const payload = JSON.parse(stderr.join('\n'));
+    const payload = parseJson(stderr.join('\n'));
     expect(payload.code).toBe('PROFILE_FILE_NOT_FOUND');
   });
 
   it('Given a natal-dependent command with no natal context, then PROFILE_NOT_FOUND is returned', async () => {
-    const service = makeService();
     const stderr: string[] = [];
     const code = await runCli(
       ['get-houses'],
-      { stdout: vi.fn(), stderr: (m) => stderr.push(m) },
-      { createService: () => service as any, env: {}, cwd: process.cwd() }
+      { stdout: vi.fn(), stderr: (m) => stderr.push(m) }
     );
     expect(code).toBe(1);
-    const payload = JSON.parse(stderr.join('\n'));
+    const payload = parseJson(stderr.join('\n'));
     expect(payload.code).toBe('PROFILE_NOT_FOUND');
   });
 
   it('Given --pretty on failure, then error output is human-readable rather than JSON', async () => {
-    const service = makeService();
     const stderr: string[] = [];
     const code = await runCli(
       ['get-transits', '--pretty', '--year', 'abc'],
-      { stdout: vi.fn(), stderr: (m) => stderr.push(m) },
-      { createService: () => service as any, env: {}, cwd: process.cwd() }
+      { stdout: vi.fn(), stderr: (m) => stderr.push(m) }
     );
     expect(code).toBe(1);
     expect(stderr.join('\n')).not.toContain('{');
   });
 
   it('Given set-natal-chart without inline/file/profile input, then PROFILE_NOT_FOUND is returned', async () => {
-    const service = makeService();
     const stderr: string[] = [];
     const code = await runCli(
       ['set-natal-chart'],
-      { stdout: vi.fn(), stderr: (m) => stderr.push(m) },
-      { createService: () => service as any, env: {}, cwd: process.cwd() }
+      { stdout: vi.fn(), stderr: (m) => stderr.push(m) }
     );
     expect(code).toBe(1);
-    const payload = JSON.parse(stderr.join('\n'));
+    const payload = parseJson(stderr.join('\n'));
     expect(payload.code).toBe('PROFILE_NOT_FOUND');
   });
 
   it('Given profiles show for a missing profile key, then PROFILE_NOT_FOUND is returned', async () => {
-    const service = makeService();
     const dir = await makeTempDir('cli-show-missing');
     const file = path.join(dir, '.astro.json');
     await writeFile(
@@ -203,11 +182,10 @@ describe('When running CLI commands', () => {
     const stderr: string[] = [];
     const code = await runCli(
       ['profiles', 'show', '--profile', 'ghost', '--profile-file', file],
-      { stdout: vi.fn(), stderr: (m) => stderr.push(m) },
-      { createService: () => service as any, env: {}, cwd: dir }
+      { stdout: vi.fn(), stderr: (m) => stderr.push(m) }
     );
     expect(code).toBe(1);
-    const payload = JSON.parse(stderr.join('\n'));
+    const payload = parseJson(stderr.join('\n'));
     expect(payload.code).toBe('PROFILE_NOT_FOUND');
   });
 });

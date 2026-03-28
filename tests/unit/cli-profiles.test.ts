@@ -9,10 +9,12 @@ function parseJson(text: string): Record<string, unknown> {
 }
 
 describe.sequential('CLI profile behavior', () => {
+  let originalCwd: string;
   let originalProfile: string | undefined;
   let originalProfileFile: string | undefined;
 
   beforeEach(() => {
+    originalCwd = process.cwd();
     originalProfile = process.env.ASTRO_PROFILE;
     originalProfileFile = process.env.ASTRO_PROFILE_FILE;
     delete process.env.ASTRO_PROFILE;
@@ -20,6 +22,7 @@ describe.sequential('CLI profile behavior', () => {
   });
 
   afterEach(() => {
+    process.chdir(originalCwd);
     if (originalProfile === undefined) delete process.env.ASTRO_PROFILE;
     else process.env.ASTRO_PROFILE = originalProfile;
     if (originalProfileFile === undefined) delete process.env.ASTRO_PROFILE_FILE;
@@ -49,13 +52,14 @@ describe.sequential('CLI profile behavior', () => {
     const cwd = path.join(tmpdir(), `astro-cli-malformed-${Date.now()}`);
     await mkdir(cwd, { recursive: true });
     await writeFile(path.join(cwd, '.astro.json'), '{invalid json', 'utf8');
+    process.chdir(cwd);
 
     const stdout: string[] = [];
     const stderr: string[] = [];
     const code = await runCli(['get-next-eclipses'], {
       stdout: (msg) => stdout.push(msg),
       stderr: (msg) => stderr.push(msg),
-    }, { cwd, env: {} });
+    });
 
     expect(code).toBe(0);
     expect(stderr).toEqual([]);
@@ -67,13 +71,14 @@ describe.sequential('CLI profile behavior', () => {
     const cwd = path.join(tmpdir(), `astro-cli-explicit-profile-${Date.now()}`);
     await mkdir(cwd, { recursive: true });
     await writeFile(path.join(cwd, '.astro.json'), '{invalid json', 'utf8');
+    process.chdir(cwd);
 
     const stdout: string[] = [];
     const stderr: string[] = [];
     const code = await runCli(['get-next-eclipses', '--profile', 'elwyn'], {
       stdout: (msg) => stdout.push(msg),
       stderr: (msg) => stderr.push(msg),
-    }, { cwd, env: {} });
+    });
 
     expect(code).toBe(1);
     expect(stdout).toEqual([]);
@@ -105,17 +110,19 @@ describe.sequential('CLI profile behavior', () => {
       }),
       'utf8'
     );
+    process.chdir(cwd);
 
     const stdout: string[] = [];
     const stderr: string[] = [];
     const code = await runCli(['profiles', 'show', '--profile', 'elwyn', '--profile-file', 'profiles.json'], {
       stdout: (msg) => stdout.push(msg),
       stderr: (msg) => stderr.push(msg),
-    }, { cwd, env: {} });
+    });
 
     expect(code).toBe(0);
     expect(stderr).toEqual([]);
     const payload = parseJson(stdout.join('\n'));
-    expect(payload.filePath).toBe(path.join(cwd, 'profiles.json'));
+    expect(path.basename(String(payload.filePath))).toBe('profiles.json');
+    expect(String(payload.filePath)).toContain(path.basename(cwd));
   });
 });

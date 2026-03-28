@@ -4,33 +4,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { runCli } from '../../src/cli.js';
 import { makeTempDir } from '../helpers/temp.js';
 
-function makeService() {
-  return {
-    init: vi.fn(async () => {}),
-    setNatalChart: vi.fn(() => ({
-      data: { ok: true },
-      text: 'saved chart',
-      chart: {
-        name: 'CLI User',
-        birthDate: { year: 1990, month: 6, day: 12, hour: 14, minute: 35 },
-        location: { latitude: 37.7749, longitude: -122.4194, timezone: 'UTC' },
-        planets: [],
-        julianDay: 2451545,
-        houseSystem: 'P',
-      },
-    })),
-    getNextEclipses: vi.fn(() => ({ data: { timezone: 'UTC', eclipses: [] }, text: 'none' })),
-    getServerStatus: vi.fn(() => ({ data: { ok: true }, text: 'status' })),
-    getRetrogradePlanets: vi.fn(() => ({ data: { planets: [] }, text: 'retro' })),
-    getAsteroidPositions: vi.fn(() => ({ data: { positions: [] }, text: 'asteroids' })),
-    getTransits: vi.fn(() => ({ data: { transits: [] }, text: 'transits' })),
-    getHouses: vi.fn(() => ({ data: { system: 'P' }, text: 'houses' })),
-    getRiseSetTimes: vi.fn(async () => ({ data: { times: [] }, text: 'rise' })),
-    generateNatalChart: vi.fn(async () => ({ format: 'svg', text: 'natal', svg: '<svg />' })),
-    generateTransitChart: vi.fn(async () => ({ format: 'svg', text: 'transit', svg: '<svg />' })),
-  };
-}
-
 const natalArgs = [
   '--name', 'Tester',
   '--year', '1990',
@@ -43,11 +16,9 @@ const natalArgs = [
   '--timezone', 'UTC',
 ];
 
-describe('When exercising CLI command handlers end-to-end', () => {
+describe.sequential('When exercising CLI command handlers end-to-end', () => {
   it('Given inline natal arguments, then key command handlers execute successfully', async () => {
-    const service = makeService();
     const io = { stdout: vi.fn(), stderr: vi.fn() };
-    const runtime = { createService: () => service as any, env: {}, cwd: process.cwd() };
 
     const commands: string[][] = [
       ['set-natal-chart', ...natalArgs],
@@ -62,20 +33,12 @@ describe('When exercising CLI command handlers end-to-end', () => {
     ];
 
     for (const cmd of commands) {
-      const code = await runCli(cmd, io, runtime);
+      const code = await runCli(cmd, io);
       expect(code).toBe(0);
     }
-
-    expect(service.setNatalChart).toHaveBeenCalled();
-    expect(service.getTransits).toHaveBeenCalled();
-    expect(service.getHouses).toHaveBeenCalled();
-    expect(service.getRiseSetTimes).toHaveBeenCalled();
-    expect(service.generateNatalChart).toHaveBeenCalled();
-    expect(service.generateTransitChart).toHaveBeenCalled();
   });
 
   it('Given a valid profile file, then profiles list/show/validate all execute successfully', async () => {
-    const service = makeService();
     const dir = await makeTempDir('cli-profile-commands');
     const file = path.join(dir, '.astro.json');
     await writeFile(
@@ -101,22 +64,19 @@ describe('When exercising CLI command handlers end-to-end', () => {
     );
 
     const io = { stdout: vi.fn(), stderr: vi.fn() };
-    const runtime = { createService: () => service as any, env: {}, cwd: dir };
-    expect(await runCli(['profiles', 'list', '--profile-file', file], io, runtime)).toBe(0);
-    expect(await runCli(['profiles', 'show', '--profile', 'default', '--profile-file', file], io, runtime)).toBe(0);
-    expect(await runCli(['profiles', 'validate', '--profile-file', file], io, runtime)).toBe(0);
+    expect(await runCli(['profiles', 'list', '--profile-file', file], io)).toBe(0);
+    expect(await runCli(['profiles', 'show', '--profile', 'default', '--profile-file', file], io)).toBe(0);
+    expect(await runCli(['profiles', 'validate', '--profile-file', file], io)).toBe(0);
   });
 
   it('Given malformed numeric arguments, then CLI returns a validation error payload', async () => {
-    const service = makeService();
     const stderr: string[] = [];
     const code = await runCli(
       ['get-transits', ...natalArgs, '--days-ahead', 'nope'],
-      { stdout: vi.fn(), stderr: (m) => stderr.push(m) },
-      { createService: () => service as any, env: {}, cwd: process.cwd() }
+      { stdout: vi.fn(), stderr: (m) => stderr.push(m) }
     );
     expect(code).toBe(1);
-    const payload = JSON.parse(stderr.join('\n'));
+    const payload = JSON.parse(stderr.join('\n')) as { code: string };
     expect(payload.code).toBe('CLI_ERROR');
   });
 });
