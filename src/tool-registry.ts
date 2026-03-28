@@ -153,7 +153,7 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
         include_mundane: {
           type: 'boolean',
           description:
-            'Include current planetary positions (not transits to natal chart). Defaults to false.',
+            'Include planetary positions (not transits to natal chart) for the start date only; this payload is not range-expanded in forecast mode. Defaults to false.',
         },
         days_ahead: {
           type: 'number',
@@ -165,8 +165,7 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
           type: 'string',
           enum: ['snapshot', 'best_hit', 'forecast'],
           description:
-            'Transit output mode: snapshot=single-day, best_hit=deduped best aspect hit across range, forecast=day-by-day uncompressed output. Defaults to best_hit.',
-          default: 'best_hit',
+            'Transit output mode: snapshot=single-day, best_hit=deduped best aspect hit across range, forecast=day-by-day output with per-day dedupe. If omitted, days_ahead=0 behaves as snapshot; days_ahead>0 behaves as best_hit.',
         },
         max_orb: {
           type: 'number',

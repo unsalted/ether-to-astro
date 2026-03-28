@@ -182,7 +182,7 @@ describe('When using AstroService', () => {
     expect(result.text.toLowerCase()).toContain('transits');
   });
 
-  it('Given no explicit mode, then getTransits defaults to best_hit metadata', () => {
+  it('Given no explicit mode with multi-day range, then getTransits defaults to best_hit metadata', () => {
     const { service } = makeService();
     const result = service.getTransits(makeNatalChart(), { days_ahead: 2 });
     expect(result.text).toContain('Best-hit transits');
@@ -191,6 +191,19 @@ describe('When using AstroService', () => {
       days_ahead: 2,
       window_start: '2024-03-26',
       window_end: '2024-03-28',
+    });
+  });
+
+  it('Given no explicit mode and single-day request, then getTransits preserves snapshot semantics', () => {
+    const { service, transitCalc } = makeService();
+    const result = service.getTransits(makeNatalChart(), { days_ahead: 0 });
+    expect(transitCalc.findTransits).toHaveBeenCalledTimes(1);
+    expect(result.text).toContain('Transit snapshot');
+    expect(result.data).toMatchObject({
+      mode: 'snapshot',
+      days_ahead: 0,
+      window_start: '2024-03-26',
+      window_end: '2024-03-26',
     });
   });
 
@@ -242,6 +255,64 @@ describe('When using AstroService', () => {
         { date: '2024-03-27', transits: [{ orb: 0.8 }] },
       ],
     });
+  });
+
+  it('Given forecast mode with same-day duplicate hits, then each day is deduplicated deterministically', () => {
+    const { service, transitCalc } = makeService();
+    transitCalc.findTransits
+      .mockReturnValueOnce([
+        {
+          transitingPlanet: 'Mars',
+          natalPlanet: 'Sun',
+          aspect: 'square',
+          orb: 1.4,
+          isApplying: true,
+          exactTimeStatus: undefined,
+          transitLongitude: 100,
+          natalLongitude: 10,
+          exactTime: undefined,
+        },
+        {
+          transitingPlanet: 'Mars',
+          natalPlanet: 'Sun',
+          aspect: 'square',
+          orb: 0.6,
+          isApplying: true,
+          exactTimeStatus: undefined,
+          transitLongitude: 100.5,
+          natalLongitude: 10,
+          exactTime: undefined,
+        },
+      ])
+      .mockReturnValueOnce([
+        {
+          transitingPlanet: 'Mars',
+          natalPlanet: 'Sun',
+          aspect: 'square',
+          orb: 0.9,
+          isApplying: false,
+          exactTimeStatus: undefined,
+          transitLongitude: 101,
+          natalLongitude: 10,
+          exactTime: undefined,
+        },
+      ]);
+
+    const result = service.getTransits(makeNatalChart(), { mode: 'forecast', days_ahead: 1 });
+    expect(result.data).toMatchObject({
+      forecast: [
+        {
+          date: '2024-03-26',
+          transits: [{ orb: 0.6 }],
+        },
+        {
+          date: '2024-03-27',
+          transits: [{ orb: 0.9 }],
+        },
+      ],
+    });
+    const firstDay = ((result.data as any).forecast?.[0]?.transits ?? []) as Array<unknown>;
+    expect(firstDay).toHaveLength(1);
   });
 
   it('Given exact-time lookup metadata, then getTransits serializes exactTimeStatus', () => {

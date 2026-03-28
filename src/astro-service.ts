@@ -312,7 +312,7 @@ export class AstroService {
     const categories = input.categories ?? ['all'];
     const includeMundane = input.include_mundane ?? false;
     const daysAhead = input.days_ahead ?? 0;
-    const mode = input.mode ?? 'best_hit';
+    const mode = input.mode ?? (daysAhead === 0 ? 'snapshot' : 'best_hit');
     const maxOrb = input.max_orb ?? 8;
     const exactOnly = input.exact_only ?? false;
     const applyingOnly = input.applying_only ?? false;
@@ -426,7 +426,7 @@ export class AstroService {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([dayDate, dayTransits]) => ({
           date: dayDate,
-          transits: filterTransits(dayTransits).map(toTransitData),
+          transits: filterTransits(deduplicateTransits(dayTransits)).map(toTransitData),
         }));
       responseData = {
         mode,

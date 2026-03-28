@@ -274,8 +274,9 @@ Ask your AI agent:
 ### Transits
 - `get_transits` - Category-filtered transits with optional exact-time data and explicit `mode` semantics:
   - `snapshot`: single-day view at the selected date
-  - `best_hit` (default): deduplicated best-hit view across the selected date window
-  - `forecast`: day-by-day, non-compressed transit output across the selected date window
+  - `best_hit`: deduplicated best-hit view across the selected date window
+  - `forecast`: day-by-day transit output across the selected date window (deduplicated within each day)
+  - omitted `mode`: `snapshot` when `days_ahead=0`; otherwise `best_hit`
 
 ### Advanced Tools
 - `get_houses` - House cusps, Ascendant, Midheaven (Placidus, Koch, Whole Sign, Equal)

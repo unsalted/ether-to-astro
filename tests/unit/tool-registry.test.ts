@@ -208,7 +208,7 @@ describe('When resolving tool specs from the registry', () => {
     expect(spec).toBeDefined();
     const modeProp = spec?.inputSchema.properties?.mode as any;
     expect(modeProp?.enum).toEqual(['snapshot', 'best_hit', 'forecast']);
-    expect(modeProp?.default).toBe('best_hit');
+    expect(modeProp?.default).toBeUndefined();
 
     const service = makeService();
     await spec!.execute(
