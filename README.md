@@ -58,6 +58,29 @@ e2a-mcp --help
 - End-user setup and examples: [SETUP.md](/Users/salted/Code/astro-mcp/SETUP.md)
 - Local repo setup and contributor workflow: [DEVELOPER.md](/Users/salted/Code/astro-mcp/DEVELOPER.md)
 
+### Agent Skills
+
+This repo also includes repo-owned agent skills in a standard `skills/` layout.
+
+If you use the [Vercel `skills` CLI](https://github.com/vercel-labs/skills), you can inspect or install them from a local checkout:
+
+```bash
+# List skills available in this repo
+npx skills add . --list
+
+# Install the repo's skills to Codex for this project
+npx skills add . --agent codex --skill daily-brief --skill weekly-overview --skill electional-overlay
+
+# Install the repo's write-skill helper to Codex for this project
+npx skills add . --agent codex --skill write-skill
+```
+
+You can also install from GitHub instead of a local checkout:
+
+```bash
+npx skills add unsalted/ether-to-astro --agent codex --skill write-skill
+```
+
 ## Features
 
 You can ask your AI agent about:
