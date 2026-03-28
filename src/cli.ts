@@ -282,11 +282,24 @@ async function resolveCommandTimezone(options: SharedOptions): Promise<string> {
   if (options.timezone) {
     return options.timezone;
   }
-  const profileSelection = await resolveProfileSelection({
-    profileName: options.profile,
-    profileFile: options.profileFile,
-  });
-  return profileSelection?.profile.timezone ?? 'UTC';
+  const explicitProfileRequested = Boolean(
+    options.profile
+      || options.profileFile
+      || process.env.ASTRO_PROFILE
+      || process.env.ASTRO_PROFILE_FILE
+  );
+  try {
+    const profileSelection = await resolveProfileSelection({
+      profileName: options.profile,
+      profileFile: options.profileFile,
+    });
+    return profileSelection?.profile.timezone ?? 'UTC';
+  } catch (error) {
+    if (error instanceof ProfileStoreError && !explicitProfileRequested) {
+      return 'UTC';
+    }
+    throw error;
+  }
 }
 
 function emitCliError(io: CliIO, pretty: boolean, err: unknown): number {
@@ -416,19 +429,23 @@ export async function runCli(
     .option('--profile-file <path>', 'Explicit path to profile file')
     .option('--pretty', 'Human-readable output instead of JSON')
     .action(async (options: SharedOptions) => {
-      const selection = await resolveProfileSelection({
+      const { filePath, file } = await loadResolvedProfileFile({
         profileFile: options.profileFile,
-        profileName: options.profile,
       });
-      if (!selection) {
-        throw new ProfileStoreError('PROFILE_NOT_FOUND', 'Profile was not resolved.');
+      const profileName = options.profile as string;
+      const profile = file.profiles[profileName];
+      if (!profile) {
+        throw new ProfileStoreError(
+          'PROFILE_NOT_FOUND',
+          `Profile "${profileName}" not found in ${filePath}`
+        );
       }
       const data = {
-        filePath: selection.filePath,
-        profileName: selection.profileName,
-        profile: selection.profile,
+        filePath,
+        profileName,
+        profile,
       };
-      const text = `Profile "${selection.profileName}" from ${selection.filePath}`;
+      const text = `Profile "${profileName}" from ${filePath}`;
       emit(io, data, text, options.pretty ?? false);
     });
 
