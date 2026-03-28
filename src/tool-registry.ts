@@ -92,6 +92,48 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
     },
   },
   {
+    name: 'get_rising_sign_windows',
+    description:
+      'Get local-time windows for which zodiac signs are rising on a given date and location. Returns deterministic intervals only (no ranking or interpretation).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        date: {
+          type: 'string',
+          description: 'Target local date (YYYY-MM-DD)',
+        },
+        latitude: { type: 'number', description: 'Latitude in decimal degrees (-90 to 90)' },
+        longitude: {
+          type: 'number',
+          description: 'Longitude in decimal degrees (-180 to 180)',
+        },
+        timezone: {
+          type: 'string',
+          description: 'IANA timezone (e.g., America/New_York)',
+        },
+        mode: {
+          type: 'string',
+          enum: ['approximate', 'exact'],
+          description:
+            'Boundary mode. approximate uses coarser stepping; exact refines sign-change boundaries.',
+          default: 'approximate',
+        },
+      },
+      required: ['date', 'latitude', 'longitude', 'timezone'],
+    },
+    requiresNatalChart: false,
+    execute: (ctx, args) => {
+      const result = ctx.service.getRisingSignWindows({
+        date: args.date as string,
+        latitude: args.latitude as number,
+        longitude: args.longitude as number,
+        timezone: args.timezone as string,
+        mode: args.mode as 'approximate' | 'exact' | undefined,
+      });
+      return { kind: 'state', data: result.data, text: result.text };
+    },
+  },
+  {
     name: 'get_transits',
     description:
       'Get transits (aspects between current/future planets and natal chart). Returns aspects within orb, with exact timing when close. Date defaults to today at local noon in the natal chart timezone.',
