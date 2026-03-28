@@ -116,6 +116,20 @@ Defined in `tests/validation/utils/tolerances.ts`:
 - If a competent LLM can solve the request in one or two calls using stable MCP primitives, prefer keeping it out of MCP unless there is strong evidence the pattern should become a reusable primitive.
 - For incoming product requests, prefer extending an existing tool with flags, fields, modes, or range support before proposing a new narrowly scoped MCP tool.
 
+## Writing Skills
+- When a request is classified as a `skill`, default the deliverable to a concrete `SKILL.md` or equivalent workflow spec, not a broad product narrative.
+- Repo-owned `SKILL.md` files should follow the Agent Skills spec, including YAML frontmatter with at least `name` and `description`.
+- Treat repo-owned skills as boring, compliant instruction bundles:
+  - clear purpose
+  - required inputs and assumptions
+  - exact MCP/tools to call
+  - output shape
+  - boundaries and non-goals
+- Prefer one or two stable MCP calls plus synthesis over embedding custom astro math, hidden heuristics, or pseudo-tool contracts in the skill.
+- Keep deterministic astro facts in MCP and user-specific ranking, emphasis, and interpretation in the skill.
+- Do not treat every skill idea in product docs or issues as a committed repo artifact. Many skill ideas are incubation examples unless explicitly promoted.
+- If authoring or revising a skill, prefer following the repo-local skill authoring guidance in `skills/.system/write-skill/SKILL.md`.
+
 ## Release Governance
 - `main` is PR-only and branch-protected; do not push directly.
 - Use Conventional Commits / commitizen-style messages for all commits.
