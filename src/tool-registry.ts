@@ -136,7 +136,7 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
   {
     name: 'get_transits',
     description:
-      'Get transits (aspects between current/future planets and natal chart). Returns aspects within orb, with exact timing when close. Date defaults to today at local noon in the natal chart timezone.',
+      'Get transits (aspects between current/future planets and natal chart). Supports mode=snapshot (single-day), mode=best_hit (multi-day compressed preview), and mode=forecast (day-grouped output). If mode is omitted, legacy behavior is preserved: days_ahead=0 resolves to snapshot and days_ahead>0 resolves to best_hit.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -158,8 +158,14 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
         days_ahead: {
           type: 'number',
           description:
-            'Number of days to look ahead for upcoming transits. 0 = today only. Defaults to 0.',
+            'Number of days to look ahead. In snapshot mode only the start day is used. If mode is omitted, legacy behavior is preserved: 0 resolves to snapshot and values > 0 resolve to best_hit.',
           default: 0,
+        },
+        mode: {
+          type: 'string',
+          enum: ['snapshot', 'best_hit', 'forecast'],
+          description:
+            'Transit output mode: snapshot=single-day, best_hit=compressed preview across range, forecast=day-grouped output. If omitted, legacy behavior is preserved.',
         },
         max_orb: {
           type: 'number',
@@ -184,6 +190,7 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
         categories: args.categories as string[] | undefined,
         include_mundane: args.include_mundane as boolean | undefined,
         days_ahead: args.days_ahead as number | undefined,
+        mode: args.mode as 'snapshot' | 'best_hit' | 'forecast' | undefined,
         max_orb: args.max_orb as number | undefined,
         exact_only: args.exact_only as boolean | undefined,
         applying_only: args.applying_only as boolean | undefined,

@@ -203,6 +203,25 @@ describe('When resolving tool specs from the registry', () => {
     expect(required.has('get_rising_sign_windows')).toBe(false);
   });
 
+  it('Given get_transits schema and execution, then mode semantics are exposed and forwarded', async () => {
+    const spec = getToolSpec('get_transits');
+    expect(spec).toBeDefined();
+    const modeProp = spec?.inputSchema.properties?.mode as any;
+    expect(modeProp?.enum).toEqual(['snapshot', 'best_hit', 'forecast']);
+    expect(modeProp?.default).toBeUndefined();
+    expect(modeProp?.description).toContain('If omitted, legacy behavior is preserved');
+
+    const service = makeService();
+    await spec!.execute(
+      { service: service as any, natalChart: { name: 'chart' } as any },
+      { mode: 'forecast' }
+    );
+    expect(service.getTransits).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ mode: 'forecast' })
+    );
+  });
+
   it('Given chart tools return no payload, then execution throws explicit errors', async () => {
     const service = makeService();
     service.generateNatalChart.mockResolvedValue({ format: 'svg', text: 'oops' });
