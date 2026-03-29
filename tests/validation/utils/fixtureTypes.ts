@@ -1,4 +1,10 @@
-import type { PlanetName } from '../../../src/types.js';
+import type {
+  GetElectionalContextInput,
+  GetRisingSignWindowsInput,
+  GetTransitsInput,
+} from '../../../src/astro-service/service-types.js';
+import type { McpStartupDefaults } from '../../../src/entrypoint.js';
+import type { HouseSystem, PlanetName } from '../../../src/types.js';
 
 export interface NormalizedBody {
   body: PlanetName | string;
@@ -42,6 +48,70 @@ export interface NormalizedEclipse {
   type: 'solar' | 'lunar';
   eclipseType: string;
   maxTime: string;
+}
+
+export interface NormalizedElectionalContext {
+  houseSystem: string;
+  classification: 'day' | 'night';
+  isDayChart: boolean;
+  sunAltitudeDegrees: number;
+  rawSunAltitudeDegrees: number;
+  sunAltitudeDisplaysZero: boolean;
+  warnings: string[];
+  hasApplyingAspects: boolean;
+  applyingAspectCount: number;
+  hasMoonApplyingAspects: boolean;
+  moonApplyingAspectCount: number;
+  hasRulerBasics: boolean;
+}
+
+export interface NormalizedRisingSignWindow {
+  sign: string;
+  start: string;
+  end: string;
+  durationMs: number;
+}
+
+export interface NormalizedRisingSignWindowResult {
+  date: string;
+  timezone: string;
+  mode: 'approximate' | 'exact';
+  windows: NormalizedRisingSignWindow[];
+}
+
+export interface NormalizedServiceTransit {
+  transitingPlanet: string;
+  natalPlanet: string;
+  aspect: string;
+  orb: number;
+  exactTime?: string;
+  exactTimeStatus?: 'within_preview' | 'outside_preview' | 'not_found' | 'unsupported_body';
+  isApplying: boolean;
+  transitSign?: string;
+  transitDegree?: number;
+  transitHouse?: number;
+  natalSign?: string;
+  natalDegree?: number;
+  natalHouse?: number;
+}
+
+export interface NormalizedServiceTransitForecastDay {
+  date: string;
+  transits: NormalizedServiceTransit[];
+}
+
+export interface NormalizedServiceTransitResult {
+  mode?: 'snapshot' | 'best_hit' | 'forecast';
+  modeSource?: 'legacy_default' | 'explicit';
+  date?: string;
+  timezone: string;
+  calculationTimezone?: string;
+  reportingTimezone?: string;
+  daysAhead?: number;
+  windowStart?: string;
+  windowEnd?: string;
+  transits?: NormalizedServiceTransit[];
+  forecast?: NormalizedServiceTransitForecastDay[];
 }
 
 export interface PositionFixture {
@@ -143,4 +213,72 @@ export interface AstrologEdgeParityFixture {
   };
   timezone?: string;
   disambiguation?: 'compatible' | 'earlier' | 'later' | 'reject';
+}
+
+export interface ElectionalFixture {
+  name: string;
+  input: GetElectionalContextInput;
+  expected: {
+    classification: 'day' | 'night';
+    isDayChart: boolean;
+    houseSystem?: string;
+    rawSunAltitudeSign?: 'positive' | 'negative' | 'zero';
+    sunAltitudeDisplaysZero?: boolean;
+    warningsContain?: string[];
+    hasApplyingAspects?: boolean;
+    hasMoonApplyingAspects?: boolean;
+    hasRulerBasics?: boolean;
+  };
+}
+
+export interface RisingSignWindowsFixture {
+  name: string;
+  input: GetRisingSignWindowsInput;
+  expectedTotalDurationMinutes: number;
+  minWindows?: number;
+  expectOffsetChange?: boolean;
+}
+
+export interface RisingSignModeComparisonFixture {
+  name: string;
+  baseInput: Omit<GetRisingSignWindowsInput, 'mode'>;
+}
+
+export interface ServiceTransitNatalFixture {
+  name: string;
+  latitude: number;
+  longitude: number;
+  timezone: string;
+  julianDayIsoUtc: string;
+  houseSystem?: HouseSystem;
+  planetOffsets: Array<{
+    transitingPlanetId: number;
+    natalPlanetId: number;
+    natalOffsetDegrees: number;
+  }>;
+}
+
+export interface ServiceTransitFixture {
+  name: string;
+  natalChart: ServiceTransitNatalFixture;
+  input: GetTransitsInput;
+  startupDefaults?: McpStartupDefaults;
+  expected: {
+    mode: 'snapshot' | 'best_hit' | 'forecast';
+    timezone: string;
+    calculationTimezone: string;
+    reportingTimezone: string;
+    windowStart?: string;
+    windowEnd?: string;
+    forecastDays?: number;
+    expectTransit: {
+      transitingPlanet: string;
+      natalPlanet: string;
+      aspect: string;
+      transitSign?: string;
+      transitDegree?: number;
+      natalSign?: string;
+      natalDegree?: number;
+    };
+  };
 }

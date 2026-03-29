@@ -4,9 +4,15 @@ import { localToUTC } from '../../src/time-utils.js';
 import { PLANETS, type PlanetPosition } from '../../src/types.js';
 import { getAstrologHouses, getAstrologPositions, probeAstrolog } from './adapters/astrolog.js';
 import { InternalValidationAdapter } from './adapters/internal.js';
+import { compareElectionalContext } from './compare/electional.js';
 import { compareHouses } from './compare/houses.js';
 import { comparePositions } from './compare/positions.js';
+import {
+  compareRisingSignModePrecision,
+  compareRisingSignWindows,
+} from './compare/rising-sign-windows.js';
 import { compareRoots } from './compare/roots.js';
+import { compareServiceTransitFixture } from './compare/service-transits.js';
 import { assertTransitStatus, findTransit } from './compare/transits.js';
 import {
   astrologEdgeParityFixtures,
@@ -15,10 +21,16 @@ import {
   astrologTransitSnapshotFixtures,
 } from './fixtures/astrolog-parity/core.js';
 import { eclipseFixtures } from './fixtures/eclipses/core.js';
+import { electionalFixtures } from './fixtures/electional/core.js';
 import { houseFixtures } from './fixtures/houses/core.js';
 import { positionFixtures } from './fixtures/positions/core.js';
 import { riseSetFixtures } from './fixtures/rise-set/core.js';
+import {
+  risingSignModeComparisonFixtures,
+  risingSignWindowFixtures,
+} from './fixtures/rising-sign-windows/core.js';
 import { rootFixtures } from './fixtures/roots/core.js';
+import { serviceTransitFixtures } from './fixtures/service-transits/core.js';
 import { transitFixtures } from './fixtures/transits/core.js';
 import { dstFixtures } from './fixtures/transits/dst.js';
 import { denseScanRootOracleWithDebug } from './utils/denseRootOracle.js';
@@ -820,6 +832,76 @@ describe('Astro Validation Harness', () => {
           });
         }
       }
+      aggregateReport.hardFailures.push(...report.hardFailures);
+      aggregateReport.warnings.push(...report.warnings);
+      assertNoHardFailures(report);
+    });
+  });
+
+  describe('H. Electional context invariants', () => {
+    it('covers sect classification, near-horizon warnings, fallback semantics, and optional fields', () => {
+      const report = new ValidationReport();
+
+      for (const fixture of electionalFixtures) {
+        const actual = adapter.getElectionalContext(fixture.input);
+        compareElectionalContext(fixture, actual, report);
+      }
+
+      aggregateReport.hardFailures.push(...report.hardFailures);
+      aggregateReport.warnings.push(...report.warnings);
+      assertNoHardFailures(report);
+    });
+  });
+
+  describe('I. Rising-sign window invariants', () => {
+    it('validates contiguous local-day coverage, DST offsets, and deterministic repeats', () => {
+      const report = new ValidationReport();
+
+      for (const fixture of risingSignWindowFixtures) {
+        const actual = adapter.getRisingSignWindows(fixture.input);
+        const repeated = adapter.getRisingSignWindows(fixture.input);
+        compareRisingSignWindows(fixture, actual, repeated, report);
+      }
+
+      aggregateReport.hardFailures.push(...report.hardFailures);
+      aggregateReport.warnings.push(...report.warnings);
+      assertNoHardFailures(report);
+    });
+
+    it('checks that exact mode is at least as precise as approximate mode for the same day', () => {
+      const report = new ValidationReport();
+
+      for (const fixture of risingSignModeComparisonFixtures) {
+        const approximate = adapter.getRisingSignWindows({
+          ...fixture.baseInput,
+          mode: 'approximate',
+        });
+        const exact = adapter.getRisingSignWindows({
+          ...fixture.baseInput,
+          mode: 'exact',
+        });
+        compareRisingSignModePrecision(fixture, approximate, exact, adapter, report);
+      }
+
+      aggregateReport.hardFailures.push(...report.hardFailures);
+      aggregateReport.warnings.push(...report.warnings);
+      assertNoHardFailures(report);
+    });
+  });
+
+  describe('J. Service-level transit serialization invariants', () => {
+    it('covers enriched placement fields, explicit timezones, forecast grouping, and sign carry', () => {
+      const report = new ValidationReport();
+
+      for (const fixture of serviceTransitFixtures) {
+        const actual = adapter.getServiceTransits({
+          natalChart: fixture.natalChart,
+          transitInput: fixture.input,
+          startupDefaults: fixture.startupDefaults,
+        });
+        compareServiceTransitFixture(fixture, actual, report);
+      }
+
       aggregateReport.hardFailures.push(...report.hardFailures);
       aggregateReport.warnings.push(...report.warnings);
       assertNoHardFailures(report);

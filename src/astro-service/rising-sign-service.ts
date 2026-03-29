@@ -86,7 +86,7 @@ export class RisingSignService {
         sign,
         start: formatLocalTimestampWithOffset(start, input.timezone),
         end: formatLocalTimestampWithOffset(end, input.timezone),
-        durationMinutes: Math.round((end.getTime() - start.getTime()) / 60000),
+        durationMs: end.getTime() - start.getTime(),
       };
     });
 

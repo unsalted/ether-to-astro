@@ -54,7 +54,7 @@ describe('When using the extracted RisingSignService', () => {
       sign: expect.any(String),
       start: expect.any(String),
       end: expect.any(String),
-      durationMinutes: expect.any(Number),
+      durationMs: expect.any(Number),
     });
     expect(windows[0].start).toMatch(/[-+]\d{2}:\d{2}$/);
     expect(result.text).toContain('Rising Sign Windows');
