@@ -1,22 +1,22 @@
 {
   "name": "ether-to-astro",
   "version": "1.1.0",
-  "description": "Local-first astrology toolkit with a CLI (e2a) and MCP server (e2a-mcp) for charts, transits, rendering, and agent workflows.",
+  "description": "Local-first astrology toolkit with a unified e2a binary for CLI and MCP workflows, plus an e2a-mcp compatibility alias.",
   "type": "module",
   "main": "dist/index.js",
   "engines": {
     "node": ">=22"
   },
   "bin": {
-    "e2a-mcp": "dist/loader.js",
-    "e2a": "dist/cli.js"
+    "e2a": "dist/loader.js",
+    "e2a-mcp": "dist/loader.js"
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "dev:watch": "tsx watch src/loader.ts",
-    "start": "node dist/loader.js",
-    "start:cli": "node dist/cli.js",
+    "start": "node dist/loader.js --mcp",
+    "start:cli": "node dist/loader.js",
     "postinstall": "node scripts/download-ephemeris.js",
     "test": "vitest tests/unit",
     "validate:astro": "vitest run tests/validation",

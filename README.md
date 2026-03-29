@@ -12,7 +12,7 @@
 
 Astrology tooling for agent workflows.
 
-`ether-to-astro` is a local-first astrology toolkit with two surfaces: `e2a`, a CLI, and `e2a-mcp`, an MCP server.
+`ether-to-astro` is a local-first astrology toolkit with a unified `e2a` binary for CLI and MCP usage, plus an `e2a-mcp` compatibility alias for existing MCP setups.
 
 This started as a side project because my wife is the real user, and I wasn’t impressed with the tooling around her astrology fascination. I’ve worked on plenty of AI tools and have a pretty high bar for them. Most of what I found in this space felt flimsy, closed-off, or not designed for serious agent workflows.
 
@@ -29,7 +29,7 @@ Add this to your MCP client config:
   "mcpServers": {
     "astro": {
       "command": "npx",
-      "args": ["--yes", "--package=ether-to-astro", "e2a-mcp"]
+      "args": ["--yes", "--package=ether-to-astro", "e2a", "--mcp"]
     }
   }
 }
@@ -50,7 +50,7 @@ Or install globally:
 ```bash
 npm install -g ether-to-astro
 e2a --help
-e2a-mcp --help
+e2a --mcp --help
 ```
 
 ### Product Setup
@@ -158,11 +158,26 @@ npm install
 
 - Package: `ether-to-astro`
 - CLI command: `e2a`
-- MCP command: `e2a-mcp`
+- Canonical MCP command: `e2a --mcp`
+- Compatibility MCP alias: `e2a-mcp`
 
 ## Runtime Surfaces
 
 ### MCP server (stateful per process)
+
+Launch MCP mode with:
+
+```bash
+e2a --mcp --help
+```
+
+Optional deterministic startup defaults:
+
+```bash
+e2a --mcp --preferred-tz America/Los_Angeles --preferred-house-style W --weekday-labels
+```
+
+The `e2a-mcp` binary remains available as a compatibility alias and starts MCP mode automatically.
 
 ### In-Memory Storage
 The MCP server uses **in-memory storage** for natal chart data:

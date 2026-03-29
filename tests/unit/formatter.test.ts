@@ -26,4 +26,10 @@ describe('When formatting timestamps for users', () => {
     expect(ny).toMatch(/AM|PM/);
     expect(la).toMatch(/AM|PM/);
   });
+
+  it('Given weekday formatting is requested, then output includes a weekday label', () => {
+    const date = new Date('2024-03-20T12:00:00Z');
+    const formatted = formatInTimezone(date, 'America/New_York', { weekday: true });
+    expect(formatted).toMatch(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/);
+  });
 });

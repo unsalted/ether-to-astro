@@ -227,8 +227,10 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
     inputSchema: { type: 'object', properties: {} },
     requiresNatalChart: false,
     execute: (ctx, args) => {
-      const timezone =
-        (args.timezone as string | undefined) ?? ctx.natalChart?.location.timezone ?? 'UTC';
+      const timezone = ctx.service.resolveReportingTimezone(
+        args.timezone as string | undefined,
+        ctx.natalChart?.location?.timezone
+      );
       const result = ctx.service.getRetrogradePlanets(timezone);
       return { kind: 'state', data: result.data, text: result.text };
     },
@@ -249,8 +251,10 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
     inputSchema: { type: 'object', properties: {} },
     requiresNatalChart: false,
     execute: (ctx, args) => {
-      const timezone =
-        (args.timezone as string | undefined) ?? ctx.natalChart?.location.timezone ?? 'UTC';
+      const timezone = ctx.service.resolveReportingTimezone(
+        args.timezone as string | undefined,
+        ctx.natalChart?.location?.timezone
+      );
       const result = ctx.service.getAsteroidPositions(timezone);
       return { kind: 'state', data: result.data, text: result.text };
     },
@@ -261,8 +265,10 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
     inputSchema: { type: 'object', properties: {} },
     requiresNatalChart: false,
     execute: (ctx, args) => {
-      const timezone =
-        (args.timezone as string | undefined) ?? ctx.natalChart?.location.timezone ?? 'UTC';
+      const timezone = ctx.service.resolveReportingTimezone(
+        args.timezone as string | undefined,
+        ctx.natalChart?.location?.timezone
+      );
       const result = ctx.service.getNextEclipses(timezone);
       return { kind: 'state', data: result.data, text: result.text };
     },
