@@ -9,20 +9,8 @@ import {
 } from '../time-utils.js';
 import { ZODIAC_SIGNS } from '../types.js';
 import { parseDateOnlyInput } from './date-input.js';
+import type { GetRisingSignWindowsInput, ServiceResult } from './service-types.js';
 import { normalizeLongitude } from './shared.js';
-
-interface RisingSignWindowsInput {
-  date: string;
-  latitude: number;
-  longitude: number;
-  timezone: string;
-  mode?: 'approximate' | 'exact';
-}
-
-interface RisingSignServiceResult {
-  data: Record<string, unknown>;
-  text: string;
-}
 
 interface RisingSignServiceDependencies {
   ephem: EphemerisCalculator;
@@ -49,7 +37,7 @@ export class RisingSignService {
   /**
    * Find rising-sign windows across a local calendar day.
    */
-  getRisingSignWindows(input: RisingSignWindowsInput): RisingSignServiceResult {
+  getRisingSignWindows(input: GetRisingSignWindowsInput): ServiceResult<Record<string, unknown>> {
     const mode = input.mode ?? 'approximate';
     if (mode !== 'approximate' && mode !== 'exact') {
       throw new Error(`Invalid mode: ${mode} (must be approximate or exact)`);
@@ -130,7 +118,7 @@ export class RisingSignService {
    * Sample the ascendant sign for a specific moment.
    */
   private getAscSign(
-    input: Pick<RisingSignWindowsInput, 'latitude' | 'longitude'>,
+    input: Pick<GetRisingSignWindowsInput, 'latitude' | 'longitude'>,
     date: Date
   ): { sign: string; longitude: number } {
     const jd = this.ephem.dateToJulianDay(date);
@@ -143,7 +131,7 @@ export class RisingSignService {
    * Binary-search a sign change down to a stable exact-mode boundary.
    */
   private refineBoundary(
-    input: Pick<RisingSignWindowsInput, 'latitude' | 'longitude'>,
+    input: Pick<GetRisingSignWindowsInput, 'latitude' | 'longitude'>,
     left: Date,
     right: Date
   ): Date {
@@ -166,7 +154,7 @@ export class RisingSignService {
    * Probe a scan bucket and emit every sign transition inside it.
    */
   private findSignTransitionsInBucket(
-    input: Pick<RisingSignWindowsInput, 'latitude' | 'longitude'>,
+    input: Pick<GetRisingSignWindowsInput, 'latitude' | 'longitude'>,
     mode: 'approximate' | 'exact',
     start: Date,
     end: Date,

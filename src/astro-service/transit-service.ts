@@ -17,28 +17,13 @@ import {
   type TransitResponse,
 } from '../types.js';
 import { parseDateOnlyInput } from './date-input.js';
+import type { GetTransitsInput, ServiceResult } from './service-types.js';
 import {
   getHouseNumber,
   getSignAndDegree,
   resolveHouseSystem,
   resolveTimezones,
 } from './shared.js';
-
-interface TransitQueryInput {
-  date?: string;
-  categories?: string[];
-  include_mundane?: boolean;
-  days_ahead?: number;
-  mode?: 'snapshot' | 'best_hit' | 'forecast';
-  max_orb?: number;
-  exact_only?: boolean;
-  applying_only?: boolean;
-}
-
-interface TransitServiceResult {
-  data: Record<string, unknown>;
-  text: string;
-}
 
 /**
  * Serialized transit-to-transit aspect used for the optional mundane payload.
@@ -113,7 +98,10 @@ export class TransitService {
   /**
    * Build the transit payload and readable text for a natal chart query.
    */
-  getTransits(natalChart: NatalChart, input: TransitQueryInput = {}): TransitServiceResult {
+  getTransits(
+    natalChart: NatalChart,
+    input: GetTransitsInput = {}
+  ): ServiceResult<Record<string, unknown>> {
     const dateStr = input.date;
     const categories = input.categories ?? ['all'];
     const includeMundane = input.include_mundane ?? false;

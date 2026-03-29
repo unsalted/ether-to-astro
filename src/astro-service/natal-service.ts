@@ -1,32 +1,10 @@
 import type { McpStartupDefaults } from '../entrypoint.js';
 import type { EphemerisCalculator } from '../ephemeris.js';
 import type { HouseCalculator } from '../houses.js';
-import { type Disambiguation, localToUTC, utcToLocal } from '../time-utils.js';
+import { localToUTC, utcToLocal } from '../time-utils.js';
 import { type HouseSystem, type NatalChart, PLANETS, ZODIAC_SIGNS } from '../types.js';
+import type { GetHousesInput, ServiceResult, SetNatalChartInput } from './service-types.js';
 import { resolveHouseSystem } from './shared.js';
-
-interface SetNatalChartInput {
-  name: string;
-  year: number;
-  month: number;
-  day: number;
-  hour: number;
-  minute: number;
-  latitude: number;
-  longitude: number;
-  timezone: string;
-  house_system?: HouseSystem;
-  birth_time_disambiguation?: Disambiguation;
-}
-
-interface GetHousesInput {
-  system?: string;
-}
-
-interface ServiceResult<T> {
-  data: T;
-  text: string;
-}
 
 interface NatalServiceDependencies {
   ephem: EphemerisCalculator;
