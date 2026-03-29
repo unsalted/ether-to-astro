@@ -38,6 +38,11 @@ function makeService(mcpStartupDefaults: McpStartupDefaults = {}) {
       const diff = Math.abs(a - b);
       return diff > 180 ? 360 - diff : diff;
     }),
+    getHorizontalCoordinates: vi.fn(() => ({
+      azimuth: 180,
+      trueAltitude: 25,
+      apparentAltitude: 25,
+    })),
     getAllPlanets: vi.fn(() => [makePlanet('Sun', 204), makePlanet('Moon', 270)]),
   };
   const houseCalc = {
@@ -229,6 +234,153 @@ describe('When using AstroService', () => {
       ])
     );
     expect(result.text).toContain('Current Planetary Positions');
+  });
+
+  it('Given stateless electional inputs, then getElectionalContext returns deterministic ascendant, sect, moon, and optional ruler basics', () => {
+    const { service, ephem } = makeService();
+    ephem.getAllPlanets.mockReturnValue([
+      { ...makePlanet('Sun', 0), sign: 'Aries', speed: 1 },
+      { ...makePlanet('Moon', 58), sign: 'Taurus', speed: 13 },
+      { ...makePlanet('Mercury', 120), sign: 'Leo', speed: 1.2 },
+      { ...makePlanet('Venus', 180), sign: 'Libra', speed: 1.1 },
+      { ...makePlanet('Mars', 240), sign: 'Sagittarius', speed: 0.7 },
+      { ...makePlanet('Jupiter', 300), sign: 'Aquarius', speed: 0.2 },
+      { ...makePlanet('Saturn', 315), sign: 'Aquarius', speed: 0.05, isRetrograde: true },
+      { ...makePlanet('Uranus', 30), sign: 'Taurus', speed: 0.03 },
+      { ...makePlanet('Neptune', 330), sign: 'Pisces', speed: 0.02 },
+      { ...makePlanet('Pluto', 270), sign: 'Capricorn', speed: 0.01 },
+    ]);
+
+    const result = service.getElectionalContext({
+      date: '2026-03-28',
+      time: '09:30',
+      timezone: 'America/Los_Angeles',
+      latitude: 37.7749,
+      longitude: -122.4194,
+      include_ruler_basics: true,
+    });
+
+    expect(result.data).toMatchObject({
+      input: {
+        date: '2026-03-28',
+        time: '09:30',
+        timezone: 'America/Los_Angeles',
+        house_system: 'W',
+      },
+      ascendant: {
+        sign: 'Capricorn',
+      },
+      sect: {
+        is_day_chart: true,
+        classification: 'day',
+        sun_altitude_degrees: 25,
+      },
+      moon: {
+        sign: 'Taurus',
+        phase_name: 'crescent',
+        is_void_of_course: null,
+      },
+      ruler_basics: {
+        asc_sign_ruler: {
+          body: 'Saturn',
+          sign: 'Aquarius',
+          is_retrograde: true,
+        },
+      },
+      meta: {
+        deterministic: true,
+        requires_natal: false,
+      },
+    });
+    expect((result.data as any).applying_aspects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          from_body: 'Sun',
+          to_body: 'Moon',
+          aspect: 'sextile',
+          applying: true,
+        }),
+      ])
+    );
+    expect((result.data as any).meta.warnings).toContain(
+      'Moon void-of-course is deferred in this slice and returns null.'
+    );
+    expect(result.text).toContain('Electional context');
+  });
+
+  it('Given electional toggles and invalid inputs, then getElectionalContext honors the raw contract and validates clearly', () => {
+    const { service, ephem } = makeService();
+    ephem.getAllPlanets.mockReturnValue([
+      { ...makePlanet('Sun', 0), sign: 'Aries', speed: 1 },
+      { ...makePlanet('Moon', 120), sign: 'Leo', speed: 1 },
+      { ...makePlanet('Mercury', 210), sign: 'Scorpio', speed: 1 },
+      { ...makePlanet('Venus', 300), sign: 'Aquarius', speed: 1 },
+      { ...makePlanet('Mars', 45), sign: 'Taurus', speed: 1 },
+      { ...makePlanet('Jupiter', 90), sign: 'Cancer', speed: 0.1 },
+      { ...makePlanet('Saturn', 180), sign: 'Libra', speed: 0.1 },
+      { ...makePlanet('Uranus', 240), sign: 'Sagittarius', speed: 0.1 },
+      { ...makePlanet('Neptune', 270), sign: 'Capricorn', speed: 0.1 },
+      { ...makePlanet('Pluto', 330), sign: 'Pisces', speed: 0.1 },
+    ]);
+
+    const result = service.getElectionalContext({
+      date: '2026-03-28',
+      time: '09:30:15',
+      timezone: 'UTC',
+      latitude: 40.7,
+      longitude: -74,
+      include_planetary_applications: false,
+    });
+
+    expect((result.data as any).applying_aspects).toBeUndefined();
+    expect((result.data as any).moon.applying_aspects).toBeUndefined();
+    expect((result.data as any).ruler_basics).toBeUndefined();
+    expect(result.text).not.toContain('Applying Aspects:');
+
+    expect(() =>
+      service.getElectionalContext({
+        date: '2026-03-28',
+        time: '25:61',
+        timezone: 'UTC',
+        latitude: 40.7,
+        longitude: -74,
+      })
+    ).toThrow(/Invalid clock time/);
+
+    expect(() =>
+      service.getElectionalContext({
+        date: '2026-03-28',
+        time: '09:30',
+        timezone: 'UTC',
+        latitude: 40.7,
+        longitude: -74,
+        orb_degrees: 11,
+      })
+    ).toThrow(/Invalid orb_degrees/);
+  });
+
+  it('Given DST-gap or overlap electional times, then getElectionalContext rejects ambiguous local instants', () => {
+    const { service } = makeService();
+
+    expect(() =>
+      service.getElectionalContext({
+        date: '2026-03-08',
+        time: '02:30',
+        timezone: 'America/Los_Angeles',
+        latitude: 37.7749,
+        longitude: -122.4194,
+      })
+    ).toThrow(/ambiguous or nonexistent due to a DST transition/);
+
+    expect(() =>
+      service.getElectionalContext({
+        date: '2026-11-01',
+        time: '01:30',
+        timezone: 'America/Los_Angeles',
+        latitude: 37.7749,
+        longitude: -122.4194,
+      })
+    ).toThrow(/ambiguous or nonexistent due to a DST transition/);
   });
 
   it('Given omitted mode and days_ahead 0, then getTransits resolves to snapshot semantics', () => {

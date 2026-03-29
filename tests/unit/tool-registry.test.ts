@@ -5,6 +5,7 @@ function makeService() {
   return {
     setNatalChart: vi.fn(() => ({ data: { ok: true }, text: 'set', chart: { name: 'x' } })),
     getRisingSignWindows: vi.fn(() => ({ data: { windows: [] }, text: 'rising windows' })),
+    getElectionalContext: vi.fn(() => ({ data: { ascendant: {} }, text: 'electional' })),
     getTransits: vi.fn(() => ({ data: { transits: [] }, text: 'transits' })),
     getHouses: vi.fn(() => ({ data: { system: 'P' }, text: 'houses' })),
     resolveReportingTimezone: vi.fn((explicit?: string, natal?: string) => {
@@ -111,6 +112,37 @@ describe('When resolving tool specs from the registry', () => {
       longitude: -74.006,
       timezone: 'America/New_York',
       mode: 'exact',
+    });
+  });
+
+  it('Given get_electional_context args, then the stateless tool forwards them without natal state', async () => {
+    const service = makeService();
+    const result = await getToolSpec('get_electional_context')!.execute(
+      { service: service as any, natalChart: null },
+      {
+        date: '2026-03-28',
+        time: '09:30',
+        timezone: 'America/Los_Angeles',
+        latitude: 37.7749,
+        longitude: -122.4194,
+        house_system: 'R',
+        include_ruler_basics: true,
+        include_planetary_applications: false,
+        orb_degrees: 2.5,
+      }
+    );
+
+    expect(result.kind).toBe('state');
+    expect(service.getElectionalContext).toHaveBeenCalledWith({
+      date: '2026-03-28',
+      time: '09:30',
+      timezone: 'America/Los_Angeles',
+      latitude: 37.7749,
+      longitude: -122.4194,
+      house_system: 'R',
+      include_ruler_basics: true,
+      include_planetary_applications: false,
+      orb_degrees: 2.5,
     });
   });
 
@@ -233,6 +265,7 @@ describe('When resolving tool specs from the registry', () => {
     expect(required.has('generate_natal_chart')).toBe(true);
     expect(required.has('generate_transit_chart')).toBe(true);
     expect(required.has('get_rising_sign_windows')).toBe(false);
+    expect(required.has('get_electional_context')).toBe(false);
   });
 
   it('Given get_transits schema and execution, then mode semantics are exposed and forwarded', async () => {

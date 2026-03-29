@@ -95,6 +95,7 @@ You can ask your AI agent about:
 
 ### Advanced Features
 - **House cusps** - Ascendant, Midheaven, and all 12 houses (multiple systems)
+- **Electional context** - Stateless ascendant, sect, Moon phase, and applying-aspect context for a specific date, time, and location
 - **Retrograde status** - Which planets are currently retrograde
 - **Rise/Set times** - Sunrise, sunset, moonrise, moonset
 - **Asteroids & Nodes** - Chiron, Ceres, Pallas, Juno, Vesta, North Node
@@ -294,6 +295,9 @@ Ask your AI agent:
   - if `mode` is omitted, legacy behavior is preserved: `days_ahead=0` resolves to `snapshot`, and `days_ahead>0` resolves to `best_hit`
 
 In this release, `include_mundane` remains anchored to the forecast start date even when `mode=forecast`. Range-aware mundane output is tracked separately.
+
+### Electional
+- `get_electional_context` - Stateless electional context for a local date, time, and location. Returns deterministic ascendant, sect/day-night classification, Moon phase, applying aspects, and optional ASC-ruler basics without requiring a natal chart.
 
 ### Advanced Tools
 - `get_houses` - House cusps, Ascendant, Midheaven (Placidus, Koch, Whole Sign, Equal)
