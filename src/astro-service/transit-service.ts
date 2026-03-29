@@ -1,11 +1,7 @@
 import type { McpStartupDefaults } from '../entrypoint.js';
 import type { EphemerisCalculator } from '../ephemeris.js';
 import type { HouseCalculator } from '../houses.js';
-import {
-  addLocalDays,
-  localToUTC,
-  utcToLocal,
-} from '../time-utils.js';
+import { addLocalDays, localToUTC, utcToLocal } from '../time-utils.js';
 import { deduplicateTransits, type TransitCalculator } from '../transits.js';
 import {
   ASPECTS,
@@ -13,10 +9,10 @@ import {
   type HouseData,
   type NatalChart,
   OUTER_PLANETS,
-  type PlanetPosition,
+  PERSONAL_PLANETS,
   PLANET_NAMES,
   PLANETS,
-  PERSONAL_PLANETS,
+  type PlanetPosition,
   type Transit,
   type TransitResponse,
 } from '../types.js';
@@ -117,10 +113,7 @@ export class TransitService {
   /**
    * Build the transit payload and readable text for a natal chart query.
    */
-  getTransits(
-    natalChart: NatalChart,
-    input: TransitQueryInput = {}
-  ): TransitServiceResult {
+  getTransits(natalChart: NatalChart, input: TransitQueryInput = {}): TransitServiceResult {
     const dateStr = input.date;
     const categories = input.categories ?? ['all'];
     const includeMundane = input.include_mundane ?? false;
@@ -194,10 +187,7 @@ export class TransitService {
       return filtered;
     };
 
-    const chartHouseSystem = resolveHouseSystem(
-      natalChart,
-      this.mcpStartupDefaults
-    );
+    const chartHouseSystem = resolveHouseSystem(natalChart, this.mcpStartupDefaults);
     const natalHouses = this.houseCalc.calculateHouses(
       natalChart.julianDay,
       natalChart.location.latitude,
@@ -262,7 +252,10 @@ export class TransitService {
     const filteredTransits = filterTransits(deduplicateTransits(allTransits));
     const dateLabel = this.formatDateLabel(utcToLocal(targetDate, reportingTimezone));
     const windowEndLabel = this.formatDateLabel(
-      utcToLocal(addLocalDays(startLocal, calculationTimezone, effectiveDaysAhead), reportingTimezone)
+      utcToLocal(
+        addLocalDays(startLocal, calculationTimezone, effectiveDaysAhead),
+        reportingTimezone
+      )
     );
 
     const structuredData: TransitResponse = {
@@ -501,11 +494,7 @@ export class TransitService {
    * @param transitingPlanetIds - Planet ids included in the mundane calculation
    * @returns Daily mundane bundle with positions, aspects, and weather
    */
-  private getMundaneDay(
-    dayUTC: Date,
-    timezone: string,
-    transitingPlanetIds: number[]
-  ): MundaneDay {
+  private getMundaneDay(dayUTC: Date, timezone: string, transitingPlanetIds: number[]): MundaneDay {
     const localDay = utcToLocal(dayUTC, timezone);
     const dateLabel = this.formatDateLabel(localDay);
     const currentJD = this.ephem.dateToJulianDay(dayUTC);
@@ -524,11 +513,7 @@ export class TransitService {
   /**
    * Format a local date tuple into the service's canonical YYYY-MM-DD label.
    */
-  private formatDateLabel(localDate: {
-    year: number;
-    month: number;
-    day: number;
-  }): string {
+  private formatDateLabel(localDate: { year: number; month: number; day: number }): string {
     return `${localDate.year}-${String(localDate.month).padStart(2, '0')}-${String(localDate.day).padStart(2, '0')}`;
   }
 }

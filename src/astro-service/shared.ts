@@ -1,10 +1,5 @@
 import type { McpStartupDefaults } from '../entrypoint.js';
-import {
-  type HouseData,
-  type HouseSystem,
-  type NatalChart,
-  ZODIAC_SIGNS,
-} from '../types.js';
+import { type HouseData, type HouseSystem, type NatalChart, ZODIAC_SIGNS } from '../types.js';
 
 /**
  * Normalize any longitude into the standard 0-360 range.

@@ -22,7 +22,6 @@ import { TransitCalculator } from './transits.js';
 import {
   ASPECTS,
   ASTEROIDS,
-  type AspectType,
   type ElectionalAspect,
   type ElectionalContextResponse,
   type ElectionalHouseSystem,
