@@ -4,12 +4,8 @@ import type { EphemerisCalculator } from '../ephemeris.js';
 import type { RiseSetCalculator } from '../riseset.js';
 import { localToUTC, utcToLocal } from '../time-utils.js';
 import { ASTEROIDS, type NatalChart, NODES, PLANETS } from '../types.js';
+import type { ServiceResult } from './service-types.js';
 import { resolveReportingTimezone } from './shared.js';
-
-interface ServiceResult<T> {
-  data: T;
-  text: string;
-}
 
 interface SkyServiceDependencies {
   ephem: EphemerisCalculator;

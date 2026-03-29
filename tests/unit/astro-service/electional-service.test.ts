@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ElectionalService } from '../../src/astro-service/electional-service.js';
-import type { PlanetPosition } from '../../src/types.js';
+import { ElectionalService } from '../../../src/astro-service/electional-service.js';
+import type { PlanetPosition } from '../../../src/types.js';
 
 function makePlanet(planet: PlanetPosition['planet'], longitude: number): PlanetPosition {
   return {
@@ -138,5 +138,45 @@ describe('When using the extracted ElectionalService', () => {
         orb_degrees: 11,
       })
     ).toThrow(/Invalid orb_degrees/);
+  });
+
+  it('Given applying-aspect toggles and invalid clock input, then it preserves the raw electional contract', () => {
+    const { electionalService, ephem } = makeElectionalService();
+    ephem.getAllPlanets.mockReturnValue([
+      { ...makePlanet('Sun', 0), sign: 'Aries', speed: 1 },
+      { ...makePlanet('Moon', 120), sign: 'Leo', speed: 1 },
+      { ...makePlanet('Mercury', 210), sign: 'Scorpio', speed: 1 },
+      { ...makePlanet('Venus', 300), sign: 'Aquarius', speed: 1 },
+      { ...makePlanet('Mars', 45), sign: 'Taurus', speed: 1 },
+      { ...makePlanet('Jupiter', 90), sign: 'Cancer', speed: 0.1 },
+      { ...makePlanet('Saturn', 180), sign: 'Libra', speed: 0.1 },
+      { ...makePlanet('Uranus', 240), sign: 'Sagittarius', speed: 0.1 },
+      { ...makePlanet('Neptune', 270), sign: 'Capricorn', speed: 0.1 },
+      { ...makePlanet('Pluto', 330), sign: 'Pisces', speed: 0.1 },
+    ]);
+
+    const result = electionalService.getElectionalContext({
+      date: '2026-03-28',
+      time: '09:30:15',
+      timezone: 'UTC',
+      latitude: 40.7,
+      longitude: -74,
+      include_planetary_applications: false,
+    });
+
+    expect((result.data as any).applying_aspects).toBeUndefined();
+    expect((result.data as any).moon.applying_aspects).toBeUndefined();
+    expect((result.data as any).ruler_basics).toBeUndefined();
+    expect(result.text).not.toContain('Applying Aspects:');
+
+    expect(() =>
+      electionalService.getElectionalContext({
+        date: '2026-03-28',
+        time: '25:61',
+        timezone: 'UTC',
+        latitude: 40.7,
+        longitude: -74,
+      })
+    ).toThrow(/Invalid clock time/);
   });
 });

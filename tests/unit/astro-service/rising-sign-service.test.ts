@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RisingSignService } from '../../src/astro-service/rising-sign-service.js';
+import { RisingSignService } from '../../../src/astro-service/rising-sign-service.js';
 
 function makeRisingSignService() {
   const ephem = {
@@ -23,6 +23,43 @@ function makeRisingSignService() {
 }
 
 describe('When using the extracted RisingSignService', () => {
+  it('Given date and location inputs, then it preserves deterministic sign-interval payloads', () => {
+    const { risingSignService, houseCalc } = makeRisingSignService();
+    houseCalc.calculateHouses.mockImplementation((jd: number) => {
+      const dayFraction = ((jd % 1) + 1) % 1;
+      const ascendant = (dayFraction * 360 * 12) % 360;
+      return {
+        ascendant,
+        mc: 204,
+        cusps: [0, 270, 300, 330, 0, 30, 60, 90, 120, 150, 204, 240, 260],
+        system: 'P' as const,
+      };
+    });
+
+    const result = risingSignService.getRisingSignWindows({
+      date: '2026-03-28',
+      latitude: 40.7128,
+      longitude: -74.006,
+      timezone: 'America/New_York',
+      mode: 'exact',
+    });
+
+    const windows = (result.data as any).windows;
+    expect((result.data as any)).toMatchObject({
+      date: '2026-03-28',
+      timezone: 'America/New_York',
+      mode: 'exact',
+    });
+    expect(windows[0]).toMatchObject({
+      sign: expect.any(String),
+      start: expect.any(String),
+      end: expect.any(String),
+      durationMinutes: expect.any(Number),
+    });
+    expect(windows[0].start).toMatch(/[-+]\d{2}:\d{2}$/);
+    expect(result.text).toContain('Rising Sign Windows');
+  });
+
   it('Given multiple transitions inside one scan bucket, then exact mode emits every sign window', () => {
     const { risingSignService, houseCalc } = makeRisingSignService();
     const transitions = [
@@ -94,5 +131,15 @@ describe('When using the extracted RisingSignService', () => {
         timezone: 'Nope/Not-A-Timezone',
       })
     ).toThrow(/Invalid timezone/);
+
+    expect(() =>
+      risingSignService.getRisingSignWindows({
+        date: '2026-03-28',
+        latitude: 40,
+        longitude: -74,
+        timezone: 'UTC',
+        mode: 'fast' as any,
+      })
+    ).toThrow(/Invalid mode/);
   });
 });

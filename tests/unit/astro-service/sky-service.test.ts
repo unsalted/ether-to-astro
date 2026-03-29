@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SkyService } from '../../src/astro-service/sky-service.js';
-import type { McpStartupDefaults } from '../../src/entrypoint.js';
-import type { NatalChart, PlanetPosition, RiseSetTime } from '../../src/types.js';
+import { SkyService } from '../../../src/astro-service/sky-service.js';
+import type { McpStartupDefaults } from '../../../src/entrypoint.js';
+import type { NatalChart, PlanetPosition, RiseSetTime } from '../../../src/types.js';
 
 function makePlanet(planet: PlanetPosition['planet'], longitude: number): PlanetPosition {
   return {
@@ -88,15 +88,23 @@ describe('When using the extracted SkyService', () => {
     expect(asteroidPositions.text).toContain('Rx');
   });
 
+  it('Given no retrograde planets, then it preserves the retrograde empty-state text', () => {
+    const { skyService, ephem } = makeSkyService();
+    ephem.getAllPlanets.mockReturnValue([{ ...makePlanet('Sun', 10), isRetrograde: false, speed: 1 }]);
+
+    const result = skyService.getRetrogradePlanets('UTC');
+    expect(result.text).toContain('No planets are currently retrograde');
+  });
+
   it('Given runtime rise-set and eclipse lookups, then it preserves readable summaries', async () => {
-    const { skyService } = makeSkyService({ preferredTimezone: 'UTC' });
+    const { skyService } = makeSkyService({ preferredTimezone: 'America/New_York' });
 
     const riseSet = await skyService.getRiseSetTimes(makeNatalChart());
     expect(riseSet.data).toMatchObject({
       date: '2024-03-26',
       timezone: 'America/Los_Angeles',
     });
-    expect(riseSet.text).toContain('Rise/Set Times');
+    expect(riseSet.text).toContain('America/New_York');
 
     const eclipses = skyService.getNextEclipses('UTC');
     expect(eclipses.data).toMatchObject({
@@ -104,5 +112,19 @@ describe('When using the extracted SkyService', () => {
       eclipses: [expect.objectContaining({ type: 'solar', eclipseType: 'Total' })],
     });
     expect(eclipses.text).toContain('Next Solar Eclipse');
+  });
+
+  it('Given both eclipse types, then it includes both in the response payload', () => {
+    const { skyService, eclipseCalc } = makeSkyService();
+    eclipseCalc.findNextLunarEclipse.mockReturnValue({
+      type: 'lunar',
+      date: new Date('2024-09-18T00:00:00Z'),
+      eclipseType: 'Partial',
+      maxTime: new Date('2024-09-18T00:00:00Z'),
+    });
+
+    const result = skyService.getNextEclipses('UTC');
+    expect((result.data as any).eclipses).toHaveLength(2);
+    expect(result.text).toContain('Next Lunar Eclipse');
   });
 });

@@ -4,16 +4,7 @@ import { formatDateOnly } from '../formatter.js';
 import { localToUTC, utcToLocal } from '../time-utils.js';
 import type { NatalChart } from '../types.js';
 import { parseDateOnlyInput } from './date-input.js';
-
-interface GenerateChartInput {
-  theme?: 'light' | 'dark';
-  format?: 'svg' | 'png' | 'webp';
-  output_path?: string;
-}
-
-interface GenerateTransitChartInput extends GenerateChartInput {
-  date?: string;
-}
+import type { GenerateChartInput, GenerateTransitChartInput } from './service-types.js';
 
 interface ChartServiceResult {
   format: 'svg' | 'png' | 'webp';

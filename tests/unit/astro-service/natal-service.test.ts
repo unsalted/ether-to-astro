@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { NatalService } from '../../src/astro-service/natal-service.js';
-import type { McpStartupDefaults } from '../../src/entrypoint.js';
-import type { NatalChart, PlanetPosition } from '../../src/types.js';
+import { NatalService } from '../../../src/astro-service/natal-service.js';
+import type { McpStartupDefaults } from '../../../src/entrypoint.js';
+import type { NatalChart, PlanetPosition } from '../../../src/types.js';
 
 function makePlanet(planet: PlanetPosition['planet'], longitude: number): PlanetPosition {
   return {
@@ -103,5 +103,24 @@ describe('When using the extracted NatalService', () => {
     expect(() => natalService.getHouses({ ...makeNatalChart(), julianDay: undefined })).toThrow(
       /missing julianDay/i
     );
+  });
+
+  it('Given missing Sun or Moon data, then it preserves the natal ephemeris error contract', () => {
+    const { natalService, ephem } = makeNatalService();
+    ephem.getAllPlanets.mockReturnValue([makePlanet('Sun', 200)]);
+
+    expect(() =>
+      natalService.setNatalChart({
+        name: 'No Moon',
+        year: 1990,
+        month: 1,
+        day: 1,
+        hour: 1,
+        minute: 1,
+        latitude: 1,
+        longitude: 1,
+        timezone: 'UTC',
+      })
+    ).toThrow(/Sun\/Moon/);
   });
 });

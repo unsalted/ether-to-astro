@@ -2,11 +2,11 @@ import { Temporal } from '@js-temporal/polyfill';
 import type { EphemerisCalculator } from '../ephemeris.js';
 import type { HouseCalculator } from '../houses.js';
 import { localToUTC } from '../time-utils.js';
+import type { ElectionalHouseSystem } from '../types.js';
 import {
   ASPECTS,
   type ElectionalAspect,
   type ElectionalContextResponse,
-  type ElectionalHouseSystem,
   type ElectionalPhaseName,
   PLANETS,
   type PlanetName,
@@ -14,24 +14,8 @@ import {
   ZODIAC_SIGNS,
 } from '../types.js';
 import { parseDateOnlyInput } from './date-input.js';
+import type { GetElectionalContextInput, ServiceResult } from './service-types.js';
 import { normalizeLongitude } from './shared.js';
-
-interface ElectionalContextInput {
-  date: string;
-  time: string;
-  timezone: string;
-  latitude: number;
-  longitude: number;
-  house_system?: ElectionalHouseSystem;
-  include_ruler_basics?: boolean;
-  include_planetary_applications?: boolean;
-  orb_degrees?: number;
-}
-
-interface ElectionalServiceResult {
-  data: Record<string, unknown>;
-  text: string;
-}
 
 interface ElectionalServiceDependencies {
   ephem: EphemerisCalculator;
@@ -73,7 +57,7 @@ export class ElectionalService {
   /**
    * Produce deterministic electional context for a single local instant.
    */
-  getElectionalContext(input: ElectionalContextInput): ElectionalServiceResult {
+  getElectionalContext(input: GetElectionalContextInput): ServiceResult<Record<string, unknown>> {
     if (input.latitude < -90 || input.latitude > 90) {
       throw new Error(`Invalid latitude: ${input.latitude} (must be between -90 and 90)`);
     }

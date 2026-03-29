@@ -3,6 +3,16 @@ import { ChartOutputService } from './astro-service/chart-output-service.js';
 import { ElectionalService } from './astro-service/electional-service.js';
 import { NatalService } from './astro-service/natal-service.js';
 import { RisingSignService } from './astro-service/rising-sign-service.js';
+import type {
+  GenerateChartInput,
+  GenerateTransitChartInput,
+  GetElectionalContextInput,
+  GetHousesInput,
+  GetRisingSignWindowsInput,
+  GetTransitsInput,
+  ServiceResult,
+  SetNatalChartInput,
+} from './astro-service/service-types.js';
 import { resolveReportingTimezone } from './astro-service/shared.js';
 import { SkyService } from './astro-service/sky-service.js';
 import { TransitService } from './astro-service/transit-service.js';
@@ -13,9 +23,8 @@ import { EphemerisCalculator } from './ephemeris.js';
 import { formatInTimezone } from './formatter.js';
 import { HouseCalculator } from './houses.js';
 import { RiseSetCalculator } from './riseset.js';
-import type { Disambiguation } from './time-utils.js';
 import { TransitCalculator } from './transits.js';
-import type { ElectionalHouseSystem, HouseSystem, NatalChart } from './types.js';
+import type { NatalChart } from './types.js';
 
 interface AstroServiceDependencies {
   ephem?: EphemerisCalculator;
@@ -27,70 +36,6 @@ interface AstroServiceDependencies {
   mcpStartupDefaults?: McpStartupDefaults;
   now?: () => Date;
   writeFile?: (path: string, data: string | Buffer, encoding?: BufferEncoding) => Promise<void>;
-}
-
-export interface SetNatalChartInput {
-  name: string;
-  year: number;
-  month: number;
-  day: number;
-  hour: number;
-  minute: number;
-  latitude: number;
-  longitude: number;
-  timezone: string;
-  house_system?: HouseSystem;
-  birth_time_disambiguation?: Disambiguation;
-}
-
-export interface GetTransitsInput {
-  date?: string;
-  categories?: string[];
-  include_mundane?: boolean;
-  days_ahead?: number;
-  mode?: 'snapshot' | 'best_hit' | 'forecast';
-  max_orb?: number;
-  exact_only?: boolean;
-  applying_only?: boolean;
-}
-
-export interface GetElectionalContextInput {
-  date: string;
-  time: string;
-  timezone: string;
-  latitude: number;
-  longitude: number;
-  house_system?: ElectionalHouseSystem;
-  include_ruler_basics?: boolean;
-  include_planetary_applications?: boolean;
-  orb_degrees?: number;
-}
-
-export interface GetHousesInput {
-  system?: string;
-}
-
-export interface GetRisingSignWindowsInput {
-  date: string;
-  latitude: number;
-  longitude: number;
-  timezone: string;
-  mode?: 'approximate' | 'exact';
-}
-
-export interface GenerateChartInput {
-  theme?: 'light' | 'dark';
-  format?: 'svg' | 'png' | 'webp';
-  output_path?: string;
-}
-
-export interface GenerateTransitChartInput extends GenerateChartInput {
-  date?: string;
-}
-
-export interface ServiceResult<T> {
-  data: T;
-  text: string;
 }
 
 interface ChartServiceResult {
@@ -105,6 +50,16 @@ interface ChartServiceResult {
 }
 
 export { parseDateOnlyInput } from './astro-service/date-input.js';
+export type {
+  GenerateChartInput,
+  GenerateTransitChartInput,
+  GetElectionalContextInput,
+  GetHousesInput,
+  GetRisingSignWindowsInput,
+  GetTransitsInput,
+  ServiceResult,
+  SetNatalChartInput,
+} from './astro-service/service-types.js';
 
 /**
  * Shared service facade used by both the MCP server and the CLI.
@@ -181,6 +136,9 @@ export class AstroService {
     });
   }
 
+  /**
+   * Format user-facing timestamps using the current startup default weekday policy.
+   */
   private formatTimestamp(date: Date, timezone: string): string {
     return formatInTimezone(date, timezone, {
       weekday: this.mcpStartupDefaults.weekdayLabels ?? false,
@@ -189,6 +147,10 @@ export class AstroService {
 
   /**
    * Resolve the timezone used for user-facing timestamps and labels.
+   *
+   * @remarks
+   * Explicit per-call timezone wins, then startup defaults, then the natal chart
+   * timezone, and finally UTC.
    */
   resolveReportingTimezone(explicitTimezone?: string, natalTimezone?: string): string {
     return resolveReportingTimezone(this.mcpStartupDefaults, explicitTimezone, natalTimezone);
@@ -210,6 +172,10 @@ export class AstroService {
 
   /**
    * Build and cache the shared natal chart payload used by later workflows.
+   *
+   * @remarks
+   * This preserves the existing natal contract, including polar-latitude house
+   * fallback behavior and the current user-facing summary text.
    */
   setNatalChart(
     input: SetNatalChartInput
@@ -219,6 +185,10 @@ export class AstroService {
 
   /**
    * Calculate natal transits while preserving the public service contract.
+   *
+   * @remarks
+   * Transit day interpretation uses the natal chart timezone for calculation and
+   * may use a different reporting timezone for labels when startup defaults are set.
    */
   getTransits(
     natalChart: NatalChart,
@@ -229,6 +199,10 @@ export class AstroService {
 
   /**
    * Produce deterministic electional context for a single local instant.
+   *
+   * @remarks
+   * Electional local times keep strict DST rejection semantics for ambiguous or
+   * nonexistent wall-clock instants.
    */
   getElectionalContext(input: GetElectionalContextInput): ServiceResult<Record<string, unknown>> {
     return this.electionalService.getElectionalContext(input);
@@ -236,6 +210,10 @@ export class AstroService {
 
   /**
    * Calculate house cusps and angles for a natal chart.
+   *
+   * @remarks
+   * House-system resolution still respects explicit per-call input, then stored
+   * chart preference, then startup defaults.
    */
   getHouses(
     natalChart: NatalChart,
@@ -246,6 +224,10 @@ export class AstroService {
 
   /**
    * Find rising-sign windows across a calendar day at a specific location.
+   *
+   * @remarks
+   * `exact` mode refines sign boundaries more aggressively; `approximate` mode
+   * keeps the cheaper bucketed scan behavior.
    */
   getRisingSignWindows(input: GetRisingSignWindowsInput): ServiceResult<Record<string, unknown>> {
     return this.risingSignService.getRisingSignWindows(input);
@@ -260,6 +242,10 @@ export class AstroService {
 
   /**
    * Return the next rise and set events after the local day anchor for the chart location.
+   *
+   * @remarks
+   * The lookup anchor remains local midnight in the natal chart timezone even
+   * when reporting text uses a preferred reporting timezone.
    */
   async getRiseSetTimes(natalChart: NatalChart): Promise<ServiceResult<Record<string, unknown>>> {
     return this.skyService.getRiseSetTimes(natalChart);
@@ -288,6 +274,10 @@ export class AstroService {
 
   /**
    * Generate a natal chart image or SVG for the current chart.
+   *
+   * @remarks
+   * When `output_path` is omitted the payload is returned inline; otherwise the
+   * rendered asset is written to disk and only path metadata is returned.
    */
   async generateNatalChart(
     natalChart: NatalChart,
@@ -298,6 +288,10 @@ export class AstroService {
 
   /**
    * Generate a transit chart image or SVG for a target date.
+   *
+   * @remarks
+   * Omitted dates still resolve to local noon in the natal chart timezone before
+   * rendering so date-only behavior stays stable across timezone conversions.
    */
   async generateTransitChart(
     natalChart: NatalChart,

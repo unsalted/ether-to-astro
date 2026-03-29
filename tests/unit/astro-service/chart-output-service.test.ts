@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ChartOutputService } from '../../src/astro-service/chart-output-service.js';
-import type { NatalChart, PlanetPosition } from '../../src/types.js';
+import { ChartOutputService } from '../../../src/astro-service/chart-output-service.js';
+import type { NatalChart, PlanetPosition } from '../../../src/types.js';
 
 function makePlanet(planet: PlanetPosition['planet'], longitude: number): PlanetPosition {
   return {
@@ -84,5 +84,19 @@ describe('When using the extracted ChartOutputService', () => {
     expect(writeFile).toHaveBeenCalledWith('/tmp/test.webp', Buffer.from([4, 5, 6]));
     expect(saved.text).toContain('Transit Chart for Test User');
     expect(saved.text).toContain('/tmp/test.webp');
+  });
+
+  it('Given transit SVG output, then it preserves the inline SVG branch', async () => {
+    const { chartOutputService } = makeChartOutputService();
+
+    const result = await chartOutputService.generateTransitChart(makeNatalChart(), {
+      format: 'svg',
+      date: '2024-03-26',
+    });
+
+    expect(result).toMatchObject({
+      format: 'svg',
+      svg: '<svg>transit</svg>',
+    });
   });
 });
