@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "bin": {
+    "ether-to-astro": "dist/loader.js",
     "e2a": "dist/loader.js",
     "e2a-mcp": "dist/mcp-alias.js"
   },
