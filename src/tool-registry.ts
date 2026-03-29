@@ -201,7 +201,7 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
   {
     name: 'get_transits',
     description:
-      'Get transits (aspects between current/future planets and natal chart). Supports mode=snapshot (single-day), mode=best_hit (multi-day compressed preview), and mode=forecast (day-grouped output). If mode is omitted, legacy behavior is preserved: days_ahead=0 resolves to snapshot and days_ahead>0 resolves to best_hit.',
+      'Get transits (aspects between current/future planets and natal chart). Each transit includes additive placement metadata for both sides (sign, degree, house) so clients can render activation context without reconstructing house logic. Supports mode=snapshot (single-day), mode=best_hit (multi-day compressed preview), and mode=forecast (day-grouped output). If mode is omitted, legacy behavior is preserved: days_ahead=0 resolves to snapshot and days_ahead>0 resolves to best_hit.',
     inputSchema: {
       type: 'object',
       properties: {

@@ -9,7 +9,7 @@
   },
   "bin": {
     "e2a": "dist/loader.js",
-    "e2a-mcp": "dist/loader.js"
+    "e2a-mcp": "dist/mcp-alias.js"
   },
   "scripts": {
     "build": "tsc",

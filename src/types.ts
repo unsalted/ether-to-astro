@@ -87,6 +87,12 @@ export interface NatalChart {
    */
   houseSystem?: HouseSystem;
   /**
+   * Explicit house system requested when the natal chart was created
+   * @remarks
+   * This stays undefined when the caller relied on runtime defaults.
+   */
+  requestedHouseSystem?: HouseSystem;
+  /**
    * UTC equivalent of birth time
    * @remarks
    * Calculated from local birth time using timezone conversion.
@@ -217,6 +223,18 @@ export interface TransitData extends BaseTransit {
    * May be undefined if aspect is not within orb or exact time not calculated
    */
   exactTime?: string; // ISO timestamp
+  /** Zodiac sign of the transiting planet */
+  transitSign?: string;
+  /** Degree of the transiting planet within its sign (0-30) */
+  transitDegree?: number;
+  /** House occupied by the transiting planet at the transit calculation time */
+  transitHouse?: number;
+  /** Zodiac sign of the natal planet */
+  natalSign?: string;
+  /** Degree of the natal planet within its sign (0-30) */
+  natalDegree?: number;
+  /** House occupied by the natal planet in the natal chart */
+  natalHouse?: number;
 }
 
 /**
@@ -229,8 +247,12 @@ export interface TransitData extends BaseTransit {
 export interface TransitResponse {
   /** ISO date of the transit calculation (YYYY-MM-DD) */
   date: string;
-  /** Timezone used for the calculation */
+  /** Timezone used for reporting and user-facing day labels */
   timezone: string;
+  /** Natal/local timezone used for date interpretation and astro calculations */
+  calculation_timezone?: string;
+  /** Timezone used for reporting and user-facing day labels */
+  reporting_timezone?: string;
   /** Array of all active transits for the date */
   transits: TransitData[];
 }
