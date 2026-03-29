@@ -141,8 +141,9 @@ export class ElectionalService {
       input.longitude,
       input.latitude
     );
-    const sunAltitudeDegrees = Number.parseFloat(sunHorizontal.trueAltitude.toFixed(2));
-    const isDayChart = sunAltitudeDegrees >= 0;
+    const rawSunAltitudeDegrees = sunHorizontal.trueAltitude;
+    const sunAltitudeDegrees = Number.parseFloat(rawSunAltitudeDegrees.toFixed(2));
+    const isDayChart = rawSunAltitudeDegrees >= 0;
 
     const applyingAspects = includePlanetaryApplications
       ? this.getElectionalApplyingAspects(positions, orbDegrees)
@@ -155,7 +156,7 @@ export class ElectionalService {
       normalizeLongitude(moon.longitude - sun.longitude).toFixed(2)
     );
     const warnings: string[] = [];
-    if (Math.abs(sunAltitudeDegrees) < 0.5) {
+    if (Math.abs(rawSunAltitudeDegrees) < 0.5) {
       warnings.push('Sun is near the horizon; day/night classification is close to the boundary.');
     }
     warnings.push('Moon void-of-course is deferred in this slice and returns null.');
