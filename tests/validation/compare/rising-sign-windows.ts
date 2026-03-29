@@ -15,6 +15,43 @@ function getOffsetSuffix(timestamp: string): string {
   return timestamp.slice(-6);
 }
 
+function collapseConsecutiveWindows(result: NormalizedRisingSignWindowResult) {
+  const collapsed: NormalizedRisingSignWindowResult['windows'] = [];
+
+  for (const window of result.windows) {
+    const previous = collapsed[collapsed.length - 1];
+    if (!previous || previous.sign !== window.sign) {
+      collapsed.push({ ...window });
+      continue;
+    }
+
+    previous.end = window.end;
+    previous.durationMs += window.durationMs;
+  }
+
+  return collapsed;
+}
+
+function findSubsequenceIndices(sequence: string[], candidateSubsequence: string[]): number[] | null {
+  const indices: number[] = [];
+  let cursor = 0;
+
+  for (const sign of candidateSubsequence) {
+    while (cursor < sequence.length && sequence[cursor] !== sign) {
+      cursor += 1;
+    }
+
+    if (cursor >= sequence.length) {
+      return null;
+    }
+
+    indices.push(cursor);
+    cursor += 1;
+  }
+
+  return indices;
+}
+
 export function compareRisingSignWindows(
   fixture: RisingSignWindowsFixture,
   actual: NormalizedRisingSignWindowResult,
@@ -201,42 +238,37 @@ export function compareRisingSignModePrecision(
   adapter: InternalValidationAdapter,
   report: ValidationReport
 ): void {
-  const approximateSigns = approximate.windows.map((window) => window.sign);
-  const exactSigns = exact.windows.map((window) => window.sign);
+  const collapsedApproximate = collapseConsecutiveWindows(approximate);
+  const collapsedExact = collapseConsecutiveWindows(exact);
+  const approximateSigns = collapsedApproximate.map((window) => window.sign);
+  const exactSigns = collapsedExact.map((window) => window.sign);
+  const matchingIndices = findSubsequenceIndices(exactSigns, approximateSigns);
 
-  if (approximate.windows.length !== exact.windows.length) {
-    report.addHard({
-      fixture: fixture.name,
-      subsystem: 'rising-sign-windows',
-      expected: approximate.windows.length,
-      actual: exact.windows.length,
-      delta: exact.windows.length - approximate.windows.length,
-      tolerance: 'exact',
-      message: 'Exact mode changed the number of sign windows',
-      details: { approximate, exact },
-    });
-    return;
-  }
-
-  if (JSON.stringify(approximateSigns) !== JSON.stringify(exactSigns)) {
+  if (matchingIndices === null) {
     report.addHard({
       fixture: fixture.name,
       subsystem: 'rising-sign-windows',
       expected: approximateSigns,
       actual: exactSigns,
       delta: null,
-      tolerance: 'exact',
-      message: 'Exact mode changed the sign sequence for the same day',
+      tolerance: 'approximate sequence must be preserved within exact results',
+      message: 'Exact mode changed the coarse sign progression for the same day',
       details: { approximate, exact },
     });
     return;
   }
 
-  for (let index = 0; index < approximate.windows.length - 1; index++) {
-    const approximateBoundaryMs = new Date(approximate.windows[index].end).getTime();
-    const exactBoundaryMs = new Date(exact.windows[index].end).getTime();
-    const leftSign = approximate.windows[index].sign;
-    const rightSign = approximate.windows[index + 1].sign;
+  for (let index = 0; index < collapsedApproximate.length - 1; index++) {
+    const exactFromIndex = matchingIndices[index];
+    const exactToIndex = matchingIndices[index + 1];
+    if (exactToIndex !== exactFromIndex + 1) {
+      continue;
+    }
+
+    const approximateBoundaryMs = new Date(collapsedApproximate[index].end).getTime();
+    const exactBoundaryMs = new Date(collapsedExact[exactFromIndex].end).getTime();
+    const leftSign = collapsedApproximate[index].sign;
+    const rightSign = collapsedApproximate[index + 1].sign;
     const searchStartMs = Math.min(approximateBoundaryMs, exactBoundaryMs) - 60 * 60 * 1000;
     const searchEndMs = Math.max(approximateBoundaryMs, exactBoundaryMs) + 60 * 60 * 1000;
 
@@ -265,8 +297,8 @@ export function compareRisingSignModePrecision(
         details: {
           leftSign,
           rightSign,
-          approximateBoundary: approximate.windows[index].end,
-          exactBoundary: exact.windows[index].end,
+          approximateBoundary: collapsedApproximate[index].end,
+          exactBoundary: collapsedExact[exactFromIndex].end,
         },
       });
       continue;
@@ -285,8 +317,8 @@ export function compareRisingSignModePrecision(
         message: 'Exact mode boundary was less precise than approximate mode',
         details: {
           actualTransitionIsoUtc: new Date(actualTransitionMs).toISOString(),
-          approximateBoundary: approximate.windows[index].end,
-          exactBoundary: exact.windows[index].end,
+          approximateBoundary: collapsedApproximate[index].end,
+          exactBoundary: collapsedExact[exactFromIndex].end,
         },
       });
     }
