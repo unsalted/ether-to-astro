@@ -181,7 +181,111 @@ describe('When using AstroService', () => {
 
     expect(result.data).toHaveProperty('transits');
     expect(result.data).toHaveProperty('mundane');
-    expect(result.text).toContain('Transits');
+    expect(result.text.toLowerCase()).toContain('transits');
+  });
+
+  it('Given omitted mode and days_ahead 0, then getTransits resolves to snapshot semantics', () => {
+    const { service, transitCalc } = makeService();
+    const result = service.getTransits(makeNatalChart(), {});
+
+    expect(transitCalc.findTransits).toHaveBeenCalledTimes(1);
+    expect(result.data).toMatchObject({
+      mode: 'snapshot',
+      mode_source: 'legacy_default',
+      days_ahead: 0,
+      window_start: '2024-03-26',
+      window_end: '2024-03-26',
+    });
+    expect(result.text).toContain('Transit snapshot');
+  });
+
+  it('Given omitted mode and days_ahead > 0, then getTransits resolves to best_hit semantics', () => {
+    const { service, transitCalc } = makeService();
+    const result = service.getTransits(makeNatalChart(), { days_ahead: 2 });
+
+    expect(transitCalc.findTransits).toHaveBeenCalledTimes(3);
+    expect(result.data).toMatchObject({
+      mode: 'best_hit',
+      mode_source: 'legacy_default',
+      days_ahead: 2,
+      window_start: '2024-03-26',
+      window_end: '2024-03-28',
+    });
+    expect(result.text).toContain('Best-hit transits');
+  });
+
+  it('Given explicit snapshot mode with days_ahead, then only one day is queried and reported', () => {
+    const { service, transitCalc } = makeService();
+    const result = service.getTransits(makeNatalChart(), { mode: 'snapshot', days_ahead: 5 });
+
+    expect(transitCalc.findTransits).toHaveBeenCalledTimes(1);
+    expect(result.data).toMatchObject({
+      mode: 'snapshot',
+      mode_source: 'explicit',
+      days_ahead: 0,
+      window_start: '2024-03-26',
+      window_end: '2024-03-26',
+    });
+  });
+
+  it('Given forecast mode across multiple days, then response preserves day-grouped transits with per-day dedupe', () => {
+    const { service, transitCalc } = makeService();
+    transitCalc.findTransits
+      .mockReturnValueOnce([
+        {
+          transitingPlanet: 'Mars',
+          natalPlanet: 'Sun',
+          aspect: 'square',
+          orb: 1.25,
+          isApplying: true,
+          exactTimeStatus: 'within_preview',
+          transitLongitude: 100,
+          natalLongitude: 10,
+          exactTime: new Date('2024-03-26T12:00:00Z'),
+        },
+        {
+          transitingPlanet: 'Mars',
+          natalPlanet: 'Sun',
+          aspect: 'square',
+          orb: 0.75,
+          isApplying: true,
+          exactTimeStatus: 'within_preview',
+          transitLongitude: 100.5,
+          natalLongitude: 10,
+          exactTime: new Date('2024-03-26T13:00:00Z'),
+        },
+      ])
+      .mockReturnValueOnce([
+        {
+          transitingPlanet: 'Mars',
+          natalPlanet: 'Sun',
+          aspect: 'square',
+          orb: 0.5,
+          isApplying: false,
+          exactTimeStatus: 'within_preview',
+          transitLongitude: 101,
+          natalLongitude: 10,
+          exactTime: new Date('2024-03-27T12:00:00Z'),
+        },
+      ]);
+
+    const result = service.getTransits(makeNatalChart(), { mode: 'forecast', days_ahead: 1 });
+
+    expect(result.data).toMatchObject({
+      mode: 'forecast',
+      mode_source: 'explicit',
+      days_ahead: 1,
+      window_start: '2024-03-26',
+      window_end: '2024-03-27',
+      forecast: [
+        { date: '2024-03-26', transits: [{ orb: 0.75 }] },
+        { date: '2024-03-27', transits: [{ orb: 0.5 }] },
+      ],
+    });
+    expect(((result.data as any).forecast[0].transits as Array<unknown>)).toHaveLength(1);
+    expect(result.text).toContain('Forecast transits');
+    expect(result.text).toContain('2024-03-26');
+    expect(result.text).toContain('2024-03-27');
   });
 
   it('Given exact-time lookup metadata, then getTransits serializes exactTimeStatus', () => {
@@ -355,6 +459,7 @@ describe('When using AstroService', () => {
     const { service } = makeService();
     expect(() => service.getTransits(makeNatalChart(), { days_ahead: -1 })).toThrow(/days_ahead/);
     expect(() => service.getTransits(makeNatalChart(), { max_orb: -1 })).toThrow(/max_orb/);
+    expect(() => service.getTransits(makeNatalChart(), { mode: 'weekly' as any })).toThrow(/mode/);
     expect(() => service.getHouses({ ...makeNatalChart(), julianDay: undefined })).toThrow(/missing julianDay/i);
   });
 

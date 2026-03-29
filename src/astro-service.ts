@@ -61,6 +61,7 @@ export interface GetTransitsInput {
   categories?: string[];
   include_mundane?: boolean;
   days_ahead?: number;
+  mode?: 'snapshot' | 'best_hit' | 'forecast';
   max_orb?: number;
   exact_only?: boolean;
   applying_only?: boolean;
@@ -325,6 +326,7 @@ export class AstroService {
     const categories = input.categories ?? ['all'];
     const includeMundane = input.include_mundane ?? false;
     const daysAhead = input.days_ahead ?? 0;
+    const requestedMode = input.mode;
     const maxOrb = input.max_orb ?? 8;
     const exactOnly = input.exact_only ?? false;
     const applyingOnly = input.applying_only ?? false;
@@ -335,6 +337,17 @@ export class AstroService {
     if (maxOrb < 0) {
       throw new Error('max_orb must be >= 0');
     }
+    if (
+      requestedMode !== undefined &&
+      requestedMode !== 'snapshot' &&
+      requestedMode !== 'best_hit' &&
+      requestedMode !== 'forecast'
+    ) {
+      throw new Error('mode must be one of: snapshot, best_hit, forecast');
+    }
+
+    const mode = requestedMode ?? (daysAhead === 0 ? 'snapshot' : 'best_hit');
+    const modeSource = requestedMode === undefined ? 'legacy_default' : 'explicit';
 
     let transitingPlanetIds: number[] = [];
     if (categories.includes('all')) {
@@ -365,8 +378,10 @@ export class AstroService {
     }
 
     const allTransits: Transit[] = [];
+    const transitsByDay = new Map<string, Transit[]>();
     const startLocal = utcToLocal(targetDate, timezone);
-    for (let day = 0; day <= daysAhead; day++) {
+    const effectiveDaysAhead = mode === 'snapshot' ? 0 : daysAhead;
+    for (let day = 0; day <= effectiveDaysAhead; day++) {
       const dayUTC = addLocalDays(startLocal, timezone, day);
       const jd = this.ephem.dateToJulianDay(dayUTC);
       const transitingPlanets = this.ephem.getAllPlanets(jd, transitingPlanetIds);
@@ -376,31 +391,52 @@ export class AstroService {
         jd
       );
       allTransits.push(...transits);
+      const dayLocal = utcToLocal(dayUTC, timezone);
+      const dayLabel = `${dayLocal.year}-${String(dayLocal.month).padStart(2, '0')}-${String(dayLocal.day).padStart(2, '0')}`;
+      transitsByDay.set(dayLabel, transits);
     }
 
-    let filteredTransits = deduplicateTransits(allTransits);
-    filteredTransits = filteredTransits.filter((t) => t.orb <= maxOrb);
-    if (exactOnly) filteredTransits = filteredTransits.filter((t) => t.exactTime !== undefined);
-    if (applyingOnly) filteredTransits = filteredTransits.filter((t) => t.isApplying);
-    filteredTransits.sort((a, b) => a.orb - b.orb);
+    const filterTransits = (transits: Transit[]): Transit[] => {
+      let filtered = transits.filter((t) => t.orb <= maxOrb);
+      if (exactOnly) filtered = filtered.filter((t) => t.exactTime !== undefined);
+      if (applyingOnly) filtered = filtered.filter((t) => t.isApplying);
+      filtered.sort((a, b) => a.orb - b.orb);
+      return filtered;
+    };
+    const serializeTransit = (t: Transit) => ({
+      transitingPlanet: t.transitingPlanet,
+      aspect: t.aspect,
+      natalPlanet: t.natalPlanet,
+      orb: Number.parseFloat(t.orb.toFixed(2)),
+      isApplying: t.isApplying,
+      exactTimeStatus: t.exactTimeStatus,
+      exactTime: t.exactTime?.toISOString(),
+      transitLongitude: t.transitLongitude,
+      natalLongitude: t.natalLongitude,
+    });
+
+    const filteredTransits =
+      mode === 'forecast'
+        ? filterTransits(deduplicateTransits(allTransits))
+        : filterTransits(deduplicateTransits(allTransits));
 
     const localDate = utcToLocal(targetDate, timezone);
     const dateLabel = `${localDate.year}-${String(localDate.month).padStart(2, '0')}-${String(localDate.day).padStart(2, '0')}`;
+    const endLocal = utcToLocal(addLocalDays(startLocal, timezone, effectiveDaysAhead), timezone);
+    const windowEndLabel = `${endLocal.year}-${String(endLocal.month).padStart(2, '0')}-${String(endLocal.day).padStart(2, '0')}`;
 
     const structuredData: TransitResponse = {
       date: dateLabel,
       timezone,
-      transits: filteredTransits.map((t) => ({
-        transitingPlanet: t.transitingPlanet,
-        aspect: t.aspect,
-        natalPlanet: t.natalPlanet,
-        orb: Number.parseFloat(t.orb.toFixed(2)),
-        isApplying: t.isApplying,
-        exactTimeStatus: t.exactTimeStatus,
-        exactTime: t.exactTime?.toISOString(),
-        transitLongitude: t.transitLongitude,
-        natalLongitude: t.natalLongitude,
-      })),
+      transits: filteredTransits.map(serializeTransit),
+    };
+
+    const metadata = {
+      mode,
+      mode_source: modeSource,
+      days_ahead: effectiveDaysAhead,
+      window_start: dateLabel,
+      window_end: windowEndLabel,
     };
 
     let responseData: Record<string, unknown> = structuredData as unknown as Record<
@@ -408,6 +444,25 @@ export class AstroService {
       unknown
     >;
     let mundaneText = '';
+
+    if (mode === 'forecast') {
+      const forecastDays = Array.from(transitsByDay.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([dayDate, dayTransits]) => ({
+          date: dayDate,
+          transits: filterTransits(deduplicateTransits(dayTransits)).map(serializeTransit),
+        }));
+      responseData = {
+        ...metadata,
+        timezone,
+        forecast: forecastDays,
+      };
+    } else {
+      responseData = {
+        ...structuredData,
+        ...metadata,
+      };
+    }
 
     if (includeMundane) {
       const currentJD = this.ephem.dateToJulianDay(targetDate);
@@ -417,33 +472,52 @@ export class AstroService {
         timezone,
         positions: currentPositions,
       };
-      responseData = { transits: structuredData, mundane: mundaneData };
+      responseData = { transits: responseData, mundane: mundaneData };
       mundaneText = `\n\nCurrent Planetary Positions:\n\n${currentPositions
         .map(
           (p) =>
             `${p.planet}: ${p.degree.toFixed(1)}° ${p.sign} (${p.isRetrograde ? 'Rx' : 'Direct'})`
         )
         .join('\n')}`;
+      if (mode === 'forecast') {
+        mundaneText +=
+          '\n\nNote: mundane positions remain anchored to the forecast start date in this mode.';
+      }
     }
 
-    const humanLines = filteredTransits
-      .map((t) => {
-        const exactStr = t.exactTime
-          ? ` - Exact: ${this.formatTimestamp(
-              t.exactTime,
-              this.resolveReportingTimezone(undefined, timezone)
-            )}`
-          : '';
-        const applyStr = t.isApplying ? '(applying)' : '(separating)';
-        return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: ${t.orb.toFixed(2)}° orb ${applyStr}${exactStr}`;
-      })
-      .join('\n');
-
-    const rangeStr = daysAhead > 0 ? ` (next ${daysAhead + 1} days)` : '';
-    const transitHeader =
-      filteredTransits.length > 0
-        ? `Transits${rangeStr}:\n\n${humanLines}`
-        : 'No transits found matching the specified criteria.';
+    const formatHumanTransit = (t: Transit) => {
+      const exactStr = t.exactTime
+        ? ` - Exact: ${this.formatTimestamp(
+            t.exactTime,
+            this.resolveReportingTimezone(undefined, timezone)
+          )}`
+        : '';
+      const applyStr = t.isApplying ? '(applying)' : '(separating)';
+      return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: ${t.orb.toFixed(2)}° orb ${applyStr}${exactStr}`;
+    };
+    const rangeStr = effectiveDaysAhead > 0 ? ` (next ${effectiveDaysAhead + 1} days)` : '';
+    let transitHeader: string;
+    if (mode === 'forecast') {
+      const forecastLines = Array.from(transitsByDay.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([dayDate, dayTransits]) => {
+          const dedupedDay = filterTransits(deduplicateTransits(dayTransits));
+          const lines =
+            dedupedDay.length === 0
+              ? 'No transits found matching the specified criteria.'
+              : dedupedDay.map(formatHumanTransit).join('\n');
+          return `${dayDate}:\n${lines}`;
+        })
+        .join('\n\n');
+      transitHeader = `Forecast transits${rangeStr}:\n\n${forecastLines}`;
+    } else {
+      const humanLines = filteredTransits.map(formatHumanTransit).join('\n');
+      const modeLabel = mode === 'snapshot' ? 'Transit snapshot' : 'Best-hit transits';
+      transitHeader =
+        filteredTransits.length > 0
+          ? `${modeLabel}${rangeStr}:\n\n${humanLines}`
+          : 'No transits found matching the specified criteria.';
+    }
 
     return {
       data: responseData,

@@ -287,7 +287,13 @@ Ask your AI agent:
 - `set_natal_chart` - Store birth chart data
 
 ### Transits
-- `get_transits` - Category-filtered transits with optional exact-time data
+- `get_transits` - Category-filtered transits with optional exact-time data and explicit mode semantics:
+  - `snapshot`: single-day view for the selected date
+  - `best_hit`: compressed multi-day preview across the selected date window
+  - `forecast`: day-grouped transit output across the selected date window
+  - if `mode` is omitted, legacy behavior is preserved: `days_ahead=0` resolves to `snapshot`, and `days_ahead>0` resolves to `best_hit`
+
+In this release, `include_mundane` remains anchored to the forecast start date even when `mode=forecast`. Range-aware mundane output is tracked separately.
 
 ### Advanced Tools
 - `get_houses` - House cusps, Ascendant, Midheaven (Placidus, Koch, Whole Sign, Equal)
