@@ -42,6 +42,12 @@ Then restart your MCP client and call `set_natal_chart`.
 Run the CLI directly with `npx`:
 
 ```bash
+npx --yes ether-to-astro --help
+```
+
+Or:
+
+```bash
 npx --yes --package=ether-to-astro e2a --help
 ```
 
@@ -158,7 +164,7 @@ npm install
 ## Package Names
 
 - Package: `ether-to-astro`
-- CLI command: `e2a`
+- CLI command aliases: `ether-to-astro`, `e2a`
 - Canonical MCP command: `e2a --mcp`
 - Compatibility MCP alias: `e2a-mcp`
 
@@ -194,8 +200,10 @@ This design is **MCP-compliant** for stdio transport and ensures complete isolat
 
 `e2a` is JSON-first for agent usage and supports `--pretty` for human-readable output.
 
-`npx` usage note: this package is named `ether-to-astro`, so invoke bins with `--package`.
-`npx e2a` will not work by itself because npm resolves package names first.
+`npx` usage note:
+- `npx ether-to-astro ...` works directly (package-name bin alias).
+- `npx e2a ...` does **not** work by itself because npm resolves package names first.
+- `npx --package=ether-to-astro e2a ...` remains supported.
 
 Examples:
 

@@ -1,6 +1,6 @@
 {
   "name": "ether-to-astro",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Local-first astrology toolkit with a unified e2a binary for CLI and MCP workflows, plus an e2a-mcp compatibility alias.",
   "type": "module",
   "main": "dist/index.js",
@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "bin": {
+    "ether-to-astro": "dist/loader.js",
     "e2a": "dist/loader.js",
     "e2a-mcp": "dist/mcp-alias.js"
   },
