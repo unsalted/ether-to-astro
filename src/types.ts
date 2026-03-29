@@ -250,6 +250,8 @@ export interface PlanetPositionResponse {
   positions: PlanetPosition[];
 }
 
+export type ElectionalHouseSystem = Extract<HouseSystem, 'P' | 'K' | 'W' | 'R'>;
+
 /**
  * Types of astrological aspects
  *
@@ -258,6 +260,72 @@ export interface PlanetPositionResponse {
  * specific types of interactions and energies.
  */
 export type AspectType = 'conjunction' | 'opposition' | 'square' | 'trine' | 'sextile';
+
+export type ElectionalPhaseName =
+  | 'new'
+  | 'crescent'
+  | 'first_quarter'
+  | 'gibbous'
+  | 'full'
+  | 'disseminating'
+  | 'last_quarter'
+  | 'balsamic';
+
+export interface ElectionalAspect {
+  from_body: PlanetName;
+  to_body: PlanetName;
+  aspect: AspectType;
+  orb: number;
+  applying: boolean;
+  exact_at_utc?: string;
+}
+
+export interface ElectionalContextResponse {
+  input: {
+    date: string;
+    time: string;
+    timezone: string;
+    latitude: number;
+    longitude: number;
+    house_system: ElectionalHouseSystem;
+    instant_utc: string;
+    jd_ut: number;
+  };
+  ascendant: {
+    longitude: number;
+    sign: string;
+    degree_in_sign: number;
+  };
+  sect: {
+    is_day_chart: boolean;
+    sun_altitude_degrees: number;
+    classification: 'day' | 'night';
+  };
+  moon: {
+    longitude: number;
+    sign: string;
+    phase_angle: number;
+    phase_name: ElectionalPhaseName;
+    is_void_of_course: boolean | null;
+    applying_aspects?: ElectionalAspect[];
+  };
+  applying_aspects?: ElectionalAspect[];
+  ruler_basics?: {
+    asc_sign_ruler: {
+      body: PlanetName;
+      longitude: number;
+      sign: string;
+      speed: number;
+      is_retrograde: boolean;
+    };
+  };
+  meta: {
+    deterministic: true;
+    requires_natal: false;
+    warnings: string[];
+    deferred_features: string[];
+  };
+}
 
 /**
  * Aspect definitions with angles and default orbs

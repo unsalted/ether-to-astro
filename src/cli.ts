@@ -62,6 +62,19 @@ interface TransitOptions extends SharedOptions {
   applyingOnly?: boolean;
 }
 
+interface ElectionalContextOptions {
+  date?: string;
+  time?: string;
+  timezone?: string;
+  latitude?: string;
+  longitude?: string;
+  houseSystem?: 'P' | 'K' | 'W' | 'R';
+  includeRulerBasics?: boolean;
+  planetaryApplications?: boolean;
+  orbDegrees?: string;
+  pretty?: boolean;
+}
+
 interface HousesOptions extends SharedOptions {
   system?: string;
 }
@@ -439,6 +452,69 @@ export async function runCli(
       const spec = mustTool('get_next_eclipses');
       const timezone = await resolveCommandTimezone(options);
       const result = await spec.execute({ service, natalChart: null }, { timezone });
+      emitExecution(io, result, options.pretty ?? false);
+    });
+
+  program
+    .command('get-electional-context')
+    .description(mustTool('get_electional_context').description)
+    .requiredOption(
+      '--date <yyyy-mm-dd>',
+      toolSchemaProperty('get_electional_context', 'date').description ?? 'Target local date'
+    )
+    .requiredOption(
+      '--time <hh:mm[:ss]>',
+      toolSchemaProperty('get_electional_context', 'time').description ?? 'Target local time'
+    )
+    .requiredOption(
+      '--timezone <tz>',
+      toolSchemaProperty('get_electional_context', 'timezone').description ?? 'Timezone'
+    )
+    .requiredOption(
+      '--latitude <number>',
+      toolSchemaProperty('get_electional_context', 'latitude').description ?? 'Latitude'
+    )
+    .requiredOption(
+      '--longitude <number>',
+      toolSchemaProperty('get_electional_context', 'longitude').description ?? 'Longitude'
+    )
+    .addOption(
+      new Option(
+        '--house-system <system>',
+        toolSchemaProperty('get_electional_context', 'house_system').description ?? 'House system'
+      ).choices(['P', 'K', 'W', 'R'])
+    )
+    .option(
+      '--include-ruler-basics',
+      toolSchemaProperty('get_electional_context', 'include_ruler_basics').description ??
+        'Include ascendant-ruler basics'
+    )
+    .option(
+      '--no-planetary-applications',
+      'Exclude applying major aspects from the electional context response'
+    )
+    .option(
+      '--orb-degrees <number>',
+      toolSchemaProperty('get_electional_context', 'orb_degrees').description ?? 'Aspect orb'
+    )
+    .option('--pretty', 'Human-readable output instead of JSON')
+    .action(async (options: ElectionalContextOptions) => {
+      const spec = mustTool('get_electional_context');
+      const result = await spec.execute(
+        { service, natalChart: null },
+        {
+          date: options.date,
+          time: options.time,
+          timezone: options.timezone,
+          latitude: toNumber(options.latitude, 'latitude'),
+          longitude: toNumber(options.longitude, 'longitude'),
+          house_system: options.houseSystem,
+          include_ruler_basics: options.includeRulerBasics,
+          include_planetary_applications: options.planetaryApplications,
+          orb_degrees:
+            options.orbDegrees == null ? undefined : toNumber(options.orbDegrees, 'orb-degrees'),
+        }
+      );
       emitExecution(io, result, options.pretty ?? false);
     });
 

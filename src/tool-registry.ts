@@ -1,6 +1,6 @@
 import type { AstroService } from './astro-service.js';
 import type { Disambiguation } from './time-utils.js';
-import type { HouseSystem, NatalChart } from './types.js';
+import type { ElectionalHouseSystem, HouseSystem, NatalChart } from './types.js';
 
 type ToolContent =
   | { type: 'text'; text: string }
@@ -129,6 +129,71 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
         longitude: args.longitude as number,
         timezone: args.timezone as string,
         mode: args.mode as 'approximate' | 'exact' | undefined,
+      });
+      return { kind: 'state', data: result.data, text: result.text };
+    },
+  },
+  {
+    name: 'get_electional_context',
+    description:
+      'Get stateless electional context for a specific local date, time, and location. Returns deterministic timing facts such as ascendant, sect/day-night classification, Moon phase, applying aspects, and optional ascendant-ruler basics. This tool does not require a natal chart and is separate from get_transits.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        date: {
+          type: 'string',
+          description: 'Target local date (YYYY-MM-DD)',
+        },
+        time: {
+          type: 'string',
+          description:
+            'Target local time (HH:mm or HH:mm:ss). DST-ambiguous or nonexistent local times are rejected.',
+        },
+        timezone: {
+          type: 'string',
+          description: 'IANA timezone (e.g., America/New_York)',
+        },
+        latitude: { type: 'number', description: 'Latitude in decimal degrees (-90 to 90)' },
+        longitude: {
+          type: 'number',
+          description: 'Longitude in decimal degrees (-180 to 180)',
+        },
+        house_system: {
+          type: 'string',
+          enum: ['P', 'K', 'W', 'R'],
+          description:
+            'House system used for ascendant extraction: P=Placidus (default), K=Koch, W=Whole Sign, R=Regiomontanus.',
+        },
+        include_ruler_basics: {
+          type: 'boolean',
+          description:
+            'Include ascendant-ruler position, speed, and retrograde flag. Defaults to false.',
+        },
+        include_planetary_applications: {
+          type: 'boolean',
+          description: 'Include applying major aspects between current planets. Defaults to true.',
+        },
+        orb_degrees: {
+          type: 'number',
+          description:
+            'Orb for electional aspect detection in degrees. Defaults to 3 and must be between 0.1 and 10.',
+          default: 3,
+        },
+      },
+      required: ['date', 'time', 'timezone', 'latitude', 'longitude'],
+    },
+    requiresNatalChart: false,
+    execute: (ctx, args) => {
+      const result = ctx.service.getElectionalContext({
+        date: args.date as string,
+        time: args.time as string,
+        timezone: args.timezone as string,
+        latitude: args.latitude as number,
+        longitude: args.longitude as number,
+        house_system: args.house_system as ElectionalHouseSystem | undefined,
+        include_ruler_basics: args.include_ruler_basics as boolean | undefined,
+        include_planetary_applications: args.include_planetary_applications as boolean | undefined,
+        orb_degrees: args.orb_degrees as number | undefined,
       });
       return { kind: 'state', data: result.data, text: result.text };
     },

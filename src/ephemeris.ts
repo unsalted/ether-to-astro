@@ -201,6 +201,50 @@ export class EphemerisCalculator {
   }
 
   /**
+   * Convert ecliptic coordinates to local horizontal coordinates
+   *
+   * @param jd - Julian Day in UT
+   * @param position - Planetary ecliptic coordinates
+   * @param longitude - Observer longitude in degrees
+   * @param latitude - Observer latitude in degrees
+   * @param altitude - Observer altitude in meters (default: 0)
+   * @returns Horizontal coordinates including true and apparent altitude
+   */
+  getHorizontalCoordinates(
+    jd: number,
+    position: Pick<PlanetPosition, 'longitude' | 'latitude' | 'distance'>,
+    longitude: number,
+    latitude: number,
+    altitude: number = 0
+  ): { azimuth: number; trueAltitude: number; apparentAltitude: number } {
+    if (!this.eph) throw new Error('Ephemeris not initialized');
+    if (!Number.isFinite(jd)) {
+      throw new Error(`Invalid Julian Day: ${jd} (must be finite)`);
+    }
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || !Number.isFinite(altitude)) {
+      throw new Error(
+        'Invalid geographic coordinates: longitude, latitude, and altitude must be finite'
+      );
+    }
+
+    const result = this.eph.azalt(jd, Constants.SE_ECL2HOR, [longitude, latitude, altitude], 0, 0, [
+      position.longitude,
+      position.latitude,
+      position.distance,
+    ]);
+
+    if (!Array.isArray(result) || result.length < 3) {
+      throw new Error('Failed to calculate horizontal coordinates');
+    }
+
+    return {
+      azimuth: result[0],
+      trueAltitude: result[1],
+      apparentAltitude: result[2],
+    };
+  }
+
+  /**
    * Find all exact times when planet reaches a specific longitude
    *
    * @param planetId - Swiss Ephemeris planet ID
