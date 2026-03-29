@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
-import { Temporal } from '@js-temporal/polyfill';
 import { parseDateOnlyInput } from './astro-service/date-input.js';
+import { ElectionalService } from './astro-service/electional-service.js';
+import { RisingSignService } from './astro-service/rising-sign-service.js';
 import { resolveHouseSystem, resolveReportingTimezone } from './astro-service/shared.js';
 import { TransitService } from './astro-service/transit-service.js';
 import { ChartRenderer } from './charts.js';
@@ -11,27 +12,15 @@ import { EphemerisCalculator } from './ephemeris.js';
 import { formatDateOnly, formatInTimezone } from './formatter.js';
 import { HouseCalculator } from './houses.js';
 import { RiseSetCalculator } from './riseset.js';
-import {
-  addLocalDays,
-  type Disambiguation,
-  formatLocalTimestampWithOffset,
-  localToUTC,
-  utcToLocal,
-} from './time-utils.js';
+import { type Disambiguation, localToUTC, utcToLocal } from './time-utils.js';
 import { TransitCalculator } from './transits.js';
 import {
-  ASPECTS,
   ASTEROIDS,
-  type ElectionalAspect,
-  type ElectionalContextResponse,
   type ElectionalHouseSystem,
-  type ElectionalPhaseName,
   type HouseSystem,
   type NatalChart,
   NODES,
   PLANETS,
-  type PlanetName,
-  type PlanetPosition,
   ZODIAC_SIGNS,
 } from './types.js';
 
@@ -124,44 +113,6 @@ interface ChartServiceResult {
 
 export { parseDateOnlyInput } from './astro-service/date-input.js';
 
-function parseTimeOnlyInput(timeStr: string): { hour: number; minute: number; second: number } {
-  const match = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(timeStr);
-  if (!match) {
-    throw new Error(`Invalid time format: expected HH:mm[:ss], got "${timeStr}"`);
-  }
-
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  const second = match[3] === undefined ? 0 : Number(match[3]);
-
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
-    throw new Error(`Invalid clock time: ${timeStr}`);
-  }
-
-  try {
-    Temporal.PlainTime.from({ hour, minute, second });
-  } catch {
-    throw new Error(`Invalid clock time: ${timeStr}`);
-  }
-
-  return { hour, minute, second };
-}
-
-const ELECTIONAL_CONTEXT_PLANET_IDS = [
-  PLANETS.SUN,
-  PLANETS.MOON,
-  PLANETS.MERCURY,
-  PLANETS.VENUS,
-  PLANETS.MARS,
-  PLANETS.JUPITER,
-  PLANETS.SATURN,
-  PLANETS.URANUS,
-  PLANETS.NEPTUNE,
-  PLANETS.PLUTO,
-];
-
-const ELECTIONAL_CONTEXT_HOUSE_SYSTEMS: ElectionalHouseSystem[] = ['P', 'K', 'W', 'R'];
-
 /**
  * Shared service facade used by both the MCP server and the CLI.
  *
@@ -178,6 +129,8 @@ export class AstroService {
   readonly chartRenderer: ChartRenderer;
   readonly mcpStartupDefaults: Readonly<McpStartupDefaults>;
   private readonly transitService: TransitService;
+  private readonly electionalService: ElectionalService;
+  private readonly risingSignService: RisingSignService;
   private readonly now: () => Date;
   private readonly writeFileFn: (
     path: string,
@@ -202,6 +155,14 @@ export class AstroService {
       mcpStartupDefaults: this.mcpStartupDefaults,
       now: this.now,
       formatTimestamp: this.formatTimestamp.bind(this),
+    });
+    this.electionalService = new ElectionalService({
+      ephem: this.ephem,
+      houseCalc: this.houseCalc,
+    });
+    this.risingSignService = new RisingSignService({
+      ephem: this.ephem,
+      houseCalc: this.houseCalc,
     });
   }
 
@@ -386,199 +347,7 @@ export class AstroService {
    * Produce deterministic electional context for a single local instant.
    */
   getElectionalContext(input: GetElectionalContextInput): ServiceResult<Record<string, unknown>> {
-    if (input.latitude < -90 || input.latitude > 90) {
-      throw new Error(`Invalid latitude: ${input.latitude} (must be between -90 and 90)`);
-    }
-    if (input.longitude < -180 || input.longitude > 180) {
-      throw new Error(`Invalid longitude: ${input.longitude} (must be between -180 and 180)`);
-    }
-
-    const houseSystem = input.house_system ?? 'P';
-    if (!ELECTIONAL_CONTEXT_HOUSE_SYSTEMS.includes(houseSystem)) {
-      throw new Error(
-        `Invalid house_system: ${houseSystem} (must be one of ${ELECTIONAL_CONTEXT_HOUSE_SYSTEMS.join(', ')})`
-      );
-    }
-
-    const includeRulerBasics = input.include_ruler_basics ?? false;
-    const includePlanetaryApplications = input.include_planetary_applications ?? true;
-    const orbDegrees = input.orb_degrees ?? 3;
-    if (!Number.isFinite(orbDegrees) || orbDegrees < 0.1 || orbDegrees > 10) {
-      throw new Error(`Invalid orb_degrees: ${orbDegrees} (must be between 0.1 and 10)`);
-    }
-
-    const parsedDate = parseDateOnlyInput(input.date);
-    const parsedTime = parseTimeOnlyInput(input.time);
-    let instantUtc: Date;
-    try {
-      instantUtc = localToUTC(
-        {
-          year: parsedDate.year,
-          month: parsedDate.month,
-          day: parsedDate.day,
-          hour: parsedTime.hour,
-          minute: parsedTime.minute,
-          second: parsedTime.second,
-        },
-        input.timezone,
-        'reject'
-      );
-    } catch (error) {
-      if (error instanceof RangeError) {
-        throw new Error(
-          `Invalid local electional time: ${input.date} ${input.time} in ${input.timezone} is ambiguous or nonexistent due to a DST transition.`
-        );
-      }
-      throw error;
-    }
-    const jdUt = this.ephem.dateToJulianDay(instantUtc);
-    const houses = this.houseCalc.calculateHouses(
-      jdUt,
-      input.latitude,
-      input.longitude,
-      houseSystem
-    );
-    const positions = this.ephem.getAllPlanets(jdUt, ELECTIONAL_CONTEXT_PLANET_IDS);
-
-    const sun = positions.find((position) => position.planet === 'Sun');
-    const moon = positions.find((position) => position.planet === 'Moon');
-    if (!sun || !moon) {
-      throw new Error('Ephemeris failed to compute Sun/Moon positions for electional context.');
-    }
-
-    const sunHorizontal = this.ephem.getHorizontalCoordinates(
-      jdUt,
-      sun,
-      input.longitude,
-      input.latitude
-    );
-    const sunAltitudeDegrees = Number.parseFloat(sunHorizontal.trueAltitude.toFixed(2));
-    const isDayChart = sunAltitudeDegrees >= 0;
-
-    const applyingAspects = includePlanetaryApplications
-      ? this.getElectionalApplyingAspects(positions, orbDegrees)
-      : undefined;
-    const moonApplyingAspects = applyingAspects?.filter(
-      (aspect) => aspect.from_body === 'Moon' || aspect.to_body === 'Moon'
-    );
-
-    const phaseAngle = Number.parseFloat(
-      ((((moon.longitude - sun.longitude) % 360) + 360) % 360).toFixed(2)
-    );
-    const warnings: string[] = [];
-    if (Math.abs(sunAltitudeDegrees) < 0.5) {
-      warnings.push('Sun is near the horizon; day/night classification is close to the boundary.');
-    }
-    warnings.push('Moon void-of-course is deferred in this slice and returns null.');
-    if (houses.system !== houseSystem) {
-      warnings.push(
-        `House calculation fell back from ${houseSystem} to ${houses.system} for this location.`
-      );
-    }
-
-    const ascLongitude = ((houses.ascendant % 360) + 360) % 360;
-    const ascSign = ZODIAC_SIGNS[Math.floor(ascLongitude / 30)];
-    const response: ElectionalContextResponse = {
-      input: {
-        date: input.date,
-        time: input.time,
-        timezone: input.timezone,
-        latitude: input.latitude,
-        longitude: input.longitude,
-        house_system: houses.system as ElectionalHouseSystem,
-        instant_utc: instantUtc.toISOString(),
-        jd_ut: Number.parseFloat(jdUt.toFixed(8)),
-      },
-      ascendant: {
-        longitude: Number.parseFloat(ascLongitude.toFixed(4)),
-        sign: ascSign,
-        degree_in_sign: Number.parseFloat((ascLongitude % 30).toFixed(4)),
-      },
-      sect: {
-        is_day_chart: isDayChart,
-        sun_altitude_degrees: sunAltitudeDegrees,
-        classification: isDayChart ? 'day' : 'night',
-      },
-      moon: {
-        longitude: Number.parseFloat(moon.longitude.toFixed(4)),
-        sign: moon.sign,
-        phase_angle: phaseAngle,
-        phase_name: this.getElectionalPhaseName(phaseAngle),
-        is_void_of_course: null,
-        ...(moonApplyingAspects !== undefined ? { applying_aspects: moonApplyingAspects } : {}),
-      },
-      meta: {
-        deterministic: true,
-        requires_natal: false,
-        warnings,
-        deferred_features: [
-          'robust_void_of_course',
-          'detailed_ruler_condition',
-          'house_context',
-          'natal_overlays',
-        ],
-      },
-    };
-
-    if (applyingAspects) {
-      response.applying_aspects = applyingAspects;
-    }
-
-    if (includeRulerBasics) {
-      const rulerBody = this.getTraditionalSignRuler(ascSign);
-      const rulerPosition = positions.find((position) => position.planet === rulerBody);
-      if (!rulerPosition) {
-        throw new Error(`Ephemeris failed to compute ASC ruler position for ${rulerBody}.`);
-      }
-      response.ruler_basics = {
-        asc_sign_ruler: {
-          body: rulerBody,
-          longitude: Number.parseFloat(rulerPosition.longitude.toFixed(4)),
-          sign: rulerPosition.sign,
-          speed: Number.parseFloat(rulerPosition.speed.toFixed(6)),
-          is_retrograde: rulerPosition.isRetrograde,
-        },
-      };
-    }
-
-    const humanText = [
-      `Electional context for ${input.date} ${input.time} (${input.timezone})`,
-      '',
-      `Ascendant: ${response.ascendant.degree_in_sign.toFixed(2)}° ${response.ascendant.sign}`,
-      `Sect: ${response.sect.classification} (${response.sect.sun_altitude_degrees.toFixed(2)}° Sun altitude)`,
-      `Moon: ${response.moon.phase_name} in ${response.moon.sign} (${response.moon.phase_angle.toFixed(2)}° phase angle)`,
-    ];
-
-    if (includePlanetaryApplications) {
-      const topLevelAspectText =
-        applyingAspects && applyingAspects.length > 0
-          ? applyingAspects
-              .slice(0, 5)
-              .map(
-                (aspect) =>
-                  `${aspect.from_body} ${aspect.aspect} ${aspect.to_body} (${aspect.orb.toFixed(2)}°)`
-              )
-              .join('\n')
-          : 'No applying aspects found within the configured orb.';
-
-      humanText.push('', 'Applying Aspects:', topLevelAspectText);
-    }
-
-    if (response.ruler_basics) {
-      humanText.push(
-        '',
-        `ASC Ruler: ${response.ruler_basics.asc_sign_ruler.body} in ${response.ruler_basics.asc_sign_ruler.sign} (${response.ruler_basics.asc_sign_ruler.longitude.toFixed(2)}°)`
-      );
-    }
-
-    if (warnings.length > 0) {
-      humanText.push('', `Warnings: ${warnings.join(' ')}`);
-    }
-
-    return {
-      data: response as unknown as Record<string, unknown>,
-      text: humanText.join('\n'),
-    };
+    return this.electionalService.getElectionalContext(input);
   }
 
   /**
@@ -619,218 +388,7 @@ export class AstroService {
    * Find rising-sign windows across a calendar day at a specific location.
    */
   getRisingSignWindows(input: GetRisingSignWindowsInput): ServiceResult<Record<string, unknown>> {
-    const mode = input.mode ?? 'approximate';
-    if (mode !== 'approximate' && mode !== 'exact') {
-      throw new Error(`Invalid mode: ${mode} (must be approximate or exact)`);
-    }
-    if (input.latitude < -90 || input.latitude > 90) {
-      throw new Error(`Invalid latitude: ${input.latitude} (must be between -90 and 90)`);
-    }
-    if (input.longitude < -180 || input.longitude > 180) {
-      throw new Error(`Invalid longitude: ${input.longitude} (must be between -180 and 180)`);
-    }
-
-    const parsed = parseDateOnlyInput(input.date);
-    try {
-      utcToLocal(new Date(), input.timezone);
-    } catch {
-      throw new Error(`Invalid timezone: ${input.timezone}`);
-    }
-
-    const dayStartLocal = {
-      year: parsed.year,
-      month: parsed.month,
-      day: parsed.day,
-      hour: 0,
-      minute: 0,
-      second: 0,
-    };
-    const dayStartUtc = localToUTC(dayStartLocal, input.timezone);
-    const dayEndUtc = addLocalDays(dayStartLocal, input.timezone, 1);
-
-    const getAscSign = (date: Date): { sign: string; longitude: number } => {
-      const jd = this.ephem.dateToJulianDay(date);
-      const houses = this.houseCalc.calculateHouses(jd, input.latitude, input.longitude, 'P');
-      const normalized = ((houses.ascendant % 360) + 360) % 360;
-      return { sign: ZODIAC_SIGNS[Math.floor(normalized / 30)], longitude: normalized };
-    };
-
-    const refineBoundary = (left: Date, right: Date): Date => {
-      const leftSign = getAscSign(left).sign;
-      let lo = left;
-      let hi = right;
-      for (let i = 0; i < 25; i++) {
-        const mid = new Date((lo.getTime() + hi.getTime()) / 2);
-        const midSign = getAscSign(mid).sign;
-        if (midSign === leftSign) {
-          lo = mid;
-        } else {
-          hi = mid;
-        }
-      }
-      return hi;
-    };
-
-    const findSignTransitionsInBucket = (start: Date, end: Date, probeStepMs: number): Date[] => {
-      const boundaries: Date[] = [];
-      let probeCursor = start;
-      let currentSign = getAscSign(probeCursor).sign;
-
-      while (probeCursor < end) {
-        const probeNext = new Date(Math.min(probeCursor.getTime() + probeStepMs, end.getTime()));
-        const nextSign = getAscSign(probeNext).sign;
-        if (nextSign !== currentSign) {
-          boundaries.push(mode === 'exact' ? refineBoundary(probeCursor, probeNext) : probeNext);
-        }
-        probeCursor = probeNext;
-        currentSign = nextSign;
-      }
-
-      return boundaries;
-    };
-
-    const stepMs = mode === 'exact' ? 60 * 60 * 1000 : 2 * 60 * 60 * 1000;
-    const probeStepMs = mode === 'exact' ? 5 * 60 * 1000 : 30 * 60 * 1000;
-    const boundaries: Date[] = [dayStartUtc];
-    let cursor = dayStartUtc;
-    while (cursor < dayEndUtc) {
-      const next = new Date(Math.min(cursor.getTime() + stepMs, dayEndUtc.getTime()));
-      boundaries.push(...findSignTransitionsInBucket(cursor, next, probeStepMs));
-      cursor = next;
-    }
-    boundaries.push(dayEndUtc);
-
-    const windows = boundaries.slice(0, -1).map((start, i) => {
-      const end = boundaries[i + 1];
-      const sample = new Date((start.getTime() + end.getTime()) / 2);
-      const sign = getAscSign(sample).sign;
-      return {
-        sign,
-        start: formatLocalTimestampWithOffset(start, input.timezone),
-        end: formatLocalTimestampWithOffset(end, input.timezone),
-        durationMinutes: Math.round((end.getTime() - start.getTime()) / 60000),
-      };
-    });
-
-    const structuredData = {
-      date: input.date,
-      timezone: input.timezone,
-      location: {
-        latitude: input.latitude,
-        longitude: input.longitude,
-      },
-      mode,
-      windows,
-    };
-
-    const humanText = `Rising Sign Windows (${input.date}, ${input.timezone}, ${mode}):\n\n${windows
-      .map(
-        (window) =>
-          `${window.sign}: ${formatInTimezone(new Date(window.start), input.timezone)} → ${formatInTimezone(new Date(window.end), input.timezone)}`
-      )
-      .join('\n')}`;
-
-    return {
-      data: structuredData,
-      text: humanText,
-    };
-  }
-
-  private getElectionalApplyingAspects(
-    positions: PlanetPosition[],
-    orbDegrees: number
-  ): ElectionalAspect[] {
-    const aspects: ElectionalAspect[] = [];
-
-    for (let i = 0; i < positions.length; i++) {
-      for (let j = i + 1; j < positions.length; j++) {
-        const from = positions[i];
-        const to = positions[j];
-        const currentAngle = this.ephem.calculateAspectAngle(from.longitude, to.longitude);
-
-        for (const aspect of ASPECTS) {
-          const orb = Math.abs(currentAngle - aspect.angle);
-          if (orb > aspect.orb || orb > orbDegrees) {
-            continue;
-          }
-
-          const applying = this.isElectionalAspectApplying(from, to, aspect.angle);
-          if (!applying) {
-            continue;
-          }
-
-          aspects.push({
-            from_body: from.planet,
-            to_body: to.planet,
-            aspect: aspect.name,
-            orb: Number.parseFloat(orb.toFixed(4)),
-            applying: true,
-          });
-        }
-      }
-    }
-
-    return aspects.sort(
-      (a, b) =>
-        a.orb - b.orb ||
-        a.from_body.localeCompare(b.from_body) ||
-        a.to_body.localeCompare(b.to_body) ||
-        a.aspect.localeCompare(b.aspect)
-    );
-  }
-
-  private isElectionalAspectApplying(
-    from: Pick<PlanetPosition, 'longitude' | 'speed'>,
-    to: Pick<PlanetPosition, 'longitude' | 'speed'>,
-    aspectAngle: number
-  ): boolean {
-    const signedSeparation = this.getSignedAngularDifference(from.longitude, to.longitude);
-    const currentSeparation = Math.abs(signedSeparation);
-    if (currentSeparation === aspectAngle) {
-      return false;
-    }
-
-    const separationRate = Math.sign(signedSeparation || 1) * (to.speed - from.speed);
-    if (separationRate === 0) {
-      return false;
-    }
-
-    return currentSeparation < aspectAngle ? separationRate > 0 : separationRate < 0;
-  }
-
-  private getSignedAngularDifference(fromLongitude: number, toLongitude: number): number {
-    const normalized = ((toLongitude - fromLongitude + 540) % 360) - 180;
-    return normalized === -180 ? 180 : normalized;
-  }
-
-  private getElectionalPhaseName(phaseAngle: number): ElectionalPhaseName {
-    if (phaseAngle < 45) return 'new';
-    if (phaseAngle < 90) return 'crescent';
-    if (phaseAngle < 135) return 'first_quarter';
-    if (phaseAngle < 180) return 'gibbous';
-    if (phaseAngle < 225) return 'full';
-    if (phaseAngle < 270) return 'disseminating';
-    if (phaseAngle < 315) return 'last_quarter';
-    return 'balsamic';
-  }
-
-  private getTraditionalSignRuler(sign: string): PlanetName {
-    const signRulers: Record<string, PlanetName> = {
-      Aries: 'Mars',
-      Taurus: 'Venus',
-      Gemini: 'Mercury',
-      Cancer: 'Moon',
-      Leo: 'Sun',
-      Virgo: 'Mercury',
-      Libra: 'Venus',
-      Scorpio: 'Mars',
-      Sagittarius: 'Jupiter',
-      Capricorn: 'Saturn',
-      Aquarius: 'Saturn',
-      Pisces: 'Jupiter',
-    };
-
-    return signRulers[sign] ?? 'Mars';
+    return this.risingSignService.getRisingSignWindows(input);
   }
 
   /**
