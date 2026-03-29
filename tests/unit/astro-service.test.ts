@@ -44,6 +44,7 @@ function makeService(mcpStartupDefaults: McpStartupDefaults = {}) {
       apparentAltitude: 25,
     })),
     getAllPlanets: vi.fn(() => [makePlanet('Sun', 204), makePlanet('Moon', 270)]),
+    getPlanetPosition: vi.fn((planetId: number) => makePlanet(planetId === 1 ? 'Moon' : 'Sun', 100)),
   };
   const houseCalc = {
     calculateHouses: vi.fn(() => ({
@@ -427,6 +428,65 @@ describe('When using AstroService', () => {
     });
   });
 
+  it('Given transit placement metadata, then all transit modes include additive sign, degree, and house fields', () => {
+    const { service } = makeService();
+
+    const snapshot = service.getTransits(makeNatalChart(), { mode: 'snapshot' });
+    const bestHit = service.getTransits(makeNatalChart(), { mode: 'best_hit', days_ahead: 1 });
+    const forecast = service.getTransits(makeNatalChart(), { mode: 'forecast', days_ahead: 1 });
+
+    expect((snapshot.data as any).transits[0]).toMatchObject({
+      transitSign: 'Cancer',
+      transitDegree: 10,
+      transitHouse: 7,
+      natalSign: 'Aries',
+      natalDegree: 10,
+      natalHouse: 4,
+      transitLongitude: 100,
+      natalLongitude: 10,
+    });
+    expect((bestHit.data as any).transits[0]).toMatchObject({
+      transitSign: 'Cancer',
+      transitDegree: 10,
+      transitHouse: 7,
+      natalSign: 'Aries',
+      natalDegree: 10,
+      natalHouse: 4,
+    });
+    expect((forecast.data as any).forecast[0].transits[0]).toMatchObject({
+      transitSign: 'Cancer',
+      transitDegree: 10,
+      transitHouse: 7,
+      natalSign: 'Aries',
+      natalDegree: 10,
+      natalHouse: 4,
+    });
+  });
+
+  it('Given a transit near a sign boundary, then placement degree never rounds up to 30.00 within the same sign', () => {
+    const { service, transitCalc } = makeService();
+    transitCalc.findTransits.mockReturnValue([
+      {
+        transitingPlanet: 'Sun',
+        natalPlanet: 'Sun',
+        aspect: 'conjunction',
+        orb: 0.01,
+        isApplying: true,
+        exactTimeStatus: 'within_preview',
+        transitLongitude: 29.999,
+        natalLongitude: 10,
+        exactTime: undefined,
+      },
+    ]);
+
+    const result = service.getTransits(makeNatalChart(), { mode: 'snapshot' });
+
+    expect((result.data as any).transits[0]).toMatchObject({
+      transitSign: 'Taurus',
+      transitDegree: 0,
+    });
+  });
+
   it('Given forecast mode across multiple days, then response preserves day-grouped transits with per-day dedupe', () => {
     const { service, transitCalc } = makeService();
     transitCalc.findTransits
@@ -505,6 +565,41 @@ describe('When using AstroService', () => {
     ).toThrow(/max_orb must be a finite number >= 0/);
   });
 
+  it('Given a resolved whole-sign natal house system, then transit placement uses that same system for natal and transit houses', () => {
+    const { service, houseCalc } = makeService();
+    const polarNatal = {
+      ...makeNatalChart(),
+      location: { latitude: 78, longitude: 15, timezone: 'UTC' },
+      houseSystem: 'W' as const,
+      julianDay: 2451545,
+    };
+    houseCalc.calculateHouses.mockReturnValue({
+      ascendant: 120,
+      mc: 210,
+      cusps: [0, 120, 150, 180, 210, 240, 270, 300, 330, 0, 30, 60, 90],
+      system: 'W' as const,
+    });
+
+    const result = service.getTransits(polarNatal, { mode: 'snapshot' });
+
+    expect(houseCalc.calculateHouses).toHaveBeenCalledWith(
+      polarNatal.julianDay,
+      polarNatal.location.latitude,
+      polarNatal.location.longitude,
+      'W'
+    );
+    expect(houseCalc.calculateHouses).toHaveBeenCalledWith(
+      expect.any(Number),
+      polarNatal.location.latitude,
+      polarNatal.location.longitude,
+      'W'
+    );
+    expect((result.data as any).transits[0]).toMatchObject({
+      transitHouse: 12,
+      natalHouse: 9,
+    });
+  });
+
   it('Given exact-time lookup metadata, then getTransits serializes exactTimeStatus', () => {
     const { service, transitCalc } = makeService();
     transitCalc.findTransits.mockReturnValue([
@@ -560,7 +655,7 @@ describe('When using AstroService', () => {
     });
   });
 
-  it('Given preferred house style and weekday labels, then deterministic defaults do not override chart house system', () => {
+  it('Given preferred house style and weekday labels, then deterministic defaults apply when the chart did not explicitly request a system', () => {
     const { service, houseCalc } = makeService({
       preferredTimezone: 'America/New_York',
       preferredHouseStyle: 'W',
@@ -574,7 +669,7 @@ describe('When using AstroService', () => {
       makeNatalChart().julianDay,
       makeNatalChart().location.latitude,
       makeNatalChart().location.longitude,
-      'P'
+      'W'
     );
     expect((houses.data as any).system).toBe('W');
     expect((eclipses.data as any).timezone).toBe('America/New_York');
@@ -594,6 +689,46 @@ describe('When using AstroService', () => {
       natalChart.location.latitude,
       natalChart.location.longitude,
       'W'
+    );
+  });
+
+  it('Given no explicit chart house system, then preferred house style overrides the stored default', () => {
+    const { service, houseCalc } = makeService({
+      preferredHouseStyle: 'W',
+    });
+    const natalChart = {
+      ...makeNatalChart(),
+      houseSystem: 'P' as const,
+      requestedHouseSystem: undefined,
+    };
+
+    service.getHouses(natalChart);
+
+    expect(houseCalc.calculateHouses).toHaveBeenLastCalledWith(
+      natalChart.julianDay,
+      natalChart.location.latitude,
+      natalChart.location.longitude,
+      'W'
+    );
+  });
+
+  it('Given an explicit chart house system, then preferred house style does not override it', () => {
+    const { service, houseCalc } = makeService({
+      preferredHouseStyle: 'W',
+    });
+    const natalChart = {
+      ...makeNatalChart(),
+      houseSystem: 'P' as const,
+      requestedHouseSystem: 'P' as const,
+    };
+
+    service.getHouses(natalChart);
+
+    expect(houseCalc.calculateHouses).toHaveBeenLastCalledWith(
+      natalChart.julianDay,
+      natalChart.location.latitude,
+      natalChart.location.longitude,
+      'P'
     );
   });
 
@@ -618,6 +753,83 @@ describe('When using AstroService', () => {
     const result = service.getTransits(makeNatalChart());
 
     expect(result.text).toContain('EDT');
+  });
+
+  it('Given a preferred reporting timezone that crosses midnight, then transit labels use reporting time while payload keeps both zones', () => {
+    const { service } = makeService({
+      preferredTimezone: 'Asia/Tokyo',
+    });
+
+    const result = service.getTransits(makeNatalChart(), {
+      date: '2024-03-26',
+      mode: 'forecast',
+    });
+
+    expect(result.data).toMatchObject({
+      timezone: 'Asia/Tokyo',
+      calculation_timezone: 'America/Los_Angeles',
+      reporting_timezone: 'Asia/Tokyo',
+      window_start: '2024-03-27',
+      window_end: '2024-03-27',
+      forecast: [{ date: '2024-03-27' }],
+    });
+  });
+
+  it('Given an exact transit time, then transit house placement is calculated from that event time', () => {
+    const { service, ephem, houseCalc } = makeService();
+    ephem.dateToJulianDay.mockImplementation((date: Date) => {
+      if (date.toISOString() === '2024-03-27T12:00:00.000Z') {
+        return 9999;
+      }
+      return date.getTime() / 86400000 + 2440587.5;
+    });
+
+    service.getTransits(makeNatalChart(), { mode: 'snapshot' });
+
+    expect(houseCalc.calculateHouses).toHaveBeenCalledWith(
+      9999,
+      makeNatalChart().location.latitude,
+      makeNatalChart().location.longitude,
+      'P'
+    );
+  });
+
+  it('Given an exact transit time, then house assignment uses exact-time longitude instead of sampled longitude', () => {
+    const { service, ephem, transitCalc, houseCalc } = makeService();
+    transitCalc.findTransits.mockReturnValue([
+      {
+        transitingPlanet: 'Moon',
+        natalPlanet: 'Sun',
+        aspect: 'square',
+        orb: 0.1,
+        isApplying: true,
+        exactTimeStatus: 'within_preview',
+        transitLongitude: 99.5,
+        natalLongitude: 10,
+        exactTime: new Date('2024-03-27T12:00:00Z'),
+      },
+    ]);
+    ephem.dateToJulianDay.mockImplementation((date: Date) => {
+      if (date.toISOString() === '2024-03-27T12:00:00.000Z') {
+        return 9999;
+      }
+      return date.getTime() / 86400000 + 2440587.5;
+    });
+    ephem.getPlanetPosition.mockReturnValue(makePlanet('Moon', 100.5));
+    houseCalc.calculateHouses.mockReturnValue({
+      ascendant: 0,
+      mc: 90,
+      cusps: [0, 0, 30, 60, 90, 100, 150, 180, 210, 240, 270, 300, 330],
+      system: 'P' as const,
+    });
+
+    const result = service.getTransits(makeNatalChart(), { mode: 'snapshot' });
+
+    expect((result.data as any).transits[0]).toMatchObject({
+      transitHouse: 5,
+      transitLongitude: 99.5,
+    });
+    expect(ephem.getPlanetPosition).toHaveBeenCalledWith(1, 9999);
   });
 
   it('Given eclipse availability, then getNextEclipses returns summary or empty-state text', () => {
@@ -677,6 +889,9 @@ describe('When using AstroService', () => {
     expect(() => service.getTransits(makeNatalChart(), { days_ahead: -1 })).toThrow(/days_ahead/);
     expect(() => service.getTransits(makeNatalChart(), { max_orb: -1 })).toThrow(/max_orb/);
     expect(() => service.getTransits(makeNatalChart(), { mode: 'weekly' as any })).toThrow(/mode/);
+    expect(() =>
+      service.getTransits({ ...makeNatalChart(), julianDay: undefined })
+    ).toThrow(/missing julianDay/i);
     expect(() => service.getHouses({ ...makeNatalChart(), julianDay: undefined })).toThrow(/missing julianDay/i);
   });
 

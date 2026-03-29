@@ -24,11 +24,13 @@ import {
   type ElectionalContextResponse,
   type ElectionalHouseSystem,
   type ElectionalPhaseName,
+  type HouseData,
   type HouseSystem,
   type NatalChart,
   NODES,
   OUTER_PLANETS,
   PERSONAL_PLANETS,
+  PLANET_NAMES,
   PLANETS,
   type PlanetName,
   type PlanetPosition,
@@ -250,6 +252,57 @@ export class AstroService {
     });
   }
 
+  private normalizeLongitude(longitude: number): number {
+    return ((longitude % 360) + 360) % 360;
+  }
+
+  private getSignAndDegree(longitude: number): { sign: string; degree: number } {
+    const normalized = this.normalizeLongitude(longitude);
+    const baseSignIndex = Math.floor(normalized / 30);
+    const roundedDegree = Number.parseFloat((normalized % 30).toFixed(2));
+    const shouldCarryToNextSign = roundedDegree >= 30;
+    const signIndex = shouldCarryToNextSign
+      ? (baseSignIndex + 1) % ZODIAC_SIGNS.length
+      : baseSignIndex;
+    return {
+      sign: ZODIAC_SIGNS[signIndex],
+      degree: shouldCarryToNextSign ? 0 : roundedDegree,
+    };
+  }
+
+  private getHouseNumber(longitude: number, houses: HouseData): number {
+    const normalized = this.normalizeLongitude(longitude);
+
+    for (let house = 1; house <= 12; house++) {
+      const start = this.normalizeLongitude(houses.cusps[house]);
+      const nextHouse = house === 12 ? 1 : house + 1;
+      const end = this.normalizeLongitude(houses.cusps[nextHouse]);
+      const span = (end - start + 360) % 360;
+      const offset = (normalized - start + 360) % 360;
+
+      if (span === 0 || offset === 0 || offset < span) {
+        return house;
+      }
+    }
+
+    return 12;
+  }
+
+  private resolveHouseSystem(natalChart: NatalChart, explicitSystem?: string): HouseSystem {
+    return (explicitSystem ||
+      natalChart.requestedHouseSystem ||
+      this.mcpStartupDefaults.preferredHouseStyle ||
+      natalChart.houseSystem ||
+      'P') as HouseSystem;
+  }
+
+  private resolveTimezones(explicitReportingTimezone?: string, natalTimezone?: string) {
+    return {
+      calculationTimezone: natalTimezone ?? 'UTC',
+      reportingTimezone: this.resolveReportingTimezone(explicitReportingTimezone, natalTimezone),
+    };
+  }
+
   resolveReportingTimezone(explicitTimezone?: string, natalTimezone?: string): string {
     return explicitTimezone ?? this.mcpStartupDefaults.preferredTimezone ?? natalTimezone ?? 'UTC';
   }
@@ -309,6 +362,7 @@ export class AstroService {
       planets: positions,
       julianDay: jd,
       houseSystem: houses.system,
+      requestedHouseSystem: requestedHouseSystem ?? undefined,
       utcDateTime: utcComponents,
     };
 
@@ -425,6 +479,9 @@ export class AstroService {
     ) {
       throw new Error('mode must be one of: snapshot, best_hit, forecast');
     }
+    if (!natalChart.julianDay) {
+      throw new Error('Natal chart is missing julianDay. Re-run set_natal_chart to fix.');
+    }
 
     const mode = requestedMode ?? (daysAhead === 0 ? 'snapshot' : 'best_hit');
     const modeSource = requestedMode === undefined ? 'legacy_default' : 'explicit';
@@ -444,25 +501,29 @@ export class AstroService {
       }
     }
 
-    const timezone = natalChart.location.timezone;
+    const { calculationTimezone, reportingTimezone } = this.resolveTimezones(
+      undefined,
+      natalChart.location.timezone
+    );
 
     let targetDate: Date;
     if (dateStr) {
       const parsed = parseDateOnlyInput(dateStr);
-      targetDate = localToUTC(parsed, timezone);
+      targetDate = localToUTC(parsed, calculationTimezone);
     } else {
       const now = this.now();
-      const localNow = utcToLocal(now, timezone);
+      const localNow = utcToLocal(now, calculationTimezone);
       const localNoon = { ...localNow, hour: 12, minute: 0, second: 0 };
-      targetDate = localToUTC(localNoon, timezone);
+      targetDate = localToUTC(localNoon, calculationTimezone);
     }
 
     const allTransits: Transit[] = [];
     const transitsByDay = new Map<string, Transit[]>();
-    const startLocal = utcToLocal(targetDate, timezone);
+    const transitContext = new WeakMap<Transit, { julianDay: number }>();
+    const startLocal = utcToLocal(targetDate, calculationTimezone);
     const effectiveDaysAhead = mode === 'snapshot' ? 0 : daysAhead;
     for (let day = 0; day <= effectiveDaysAhead; day++) {
-      const dayUTC = addLocalDays(startLocal, timezone, day);
+      const dayUTC = addLocalDays(startLocal, calculationTimezone, day);
       const jd = this.ephem.dateToJulianDay(dayUTC);
       const transitingPlanets = this.ephem.getAllPlanets(jd, transitingPlanetIds);
       const transits = this.transitCalc.findTransits(
@@ -470,8 +531,11 @@ export class AstroService {
         natalChart.planets || [],
         jd
       );
+      for (const transit of transits) {
+        transitContext.set(transit, { julianDay: jd });
+      }
       allTransits.push(...transits);
-      const dayLocal = utcToLocal(dayUTC, timezone);
+      const dayLocal = utcToLocal(dayUTC, reportingTimezone);
       const dayLabel = `${dayLocal.year}-${String(dayLocal.month).padStart(2, '0')}-${String(dayLocal.day).padStart(2, '0')}`;
       transitsByDay.set(dayLabel, transits);
     }
@@ -483,31 +547,85 @@ export class AstroService {
       filtered.sort((a, b) => a.orb - b.orb);
       return filtered;
     };
-    const serializeTransit = (t: Transit) => ({
-      transitingPlanet: t.transitingPlanet,
-      aspect: t.aspect,
-      natalPlanet: t.natalPlanet,
-      orb: Number.parseFloat(t.orb.toFixed(2)),
-      isApplying: t.isApplying,
-      exactTimeStatus: t.exactTimeStatus,
-      exactTime: t.exactTime?.toISOString(),
-      transitLongitude: t.transitLongitude,
-      natalLongitude: t.natalLongitude,
-    });
+    const chartHouseSystem = this.resolveHouseSystem(natalChart);
+    const natalHouses = this.houseCalc.calculateHouses(
+      natalChart.julianDay,
+      natalChart.location.latitude,
+      natalChart.location.longitude,
+      chartHouseSystem
+    );
+    const transitHouseCache = new Map<number, HouseData>();
+    const planetIdsByName = new Map(
+      Object.entries(PLANET_NAMES).map(([id, name]) => [name, Number(id)])
+    );
+    const getTransitHouses = (julianDay: number): HouseData => {
+      const cached = transitHouseCache.get(julianDay);
+      if (cached) {
+        return cached;
+      }
+
+      const houses = this.houseCalc.calculateHouses(
+        julianDay,
+        natalChart.location.latitude,
+        natalChart.location.longitude,
+        chartHouseSystem
+      );
+      transitHouseCache.set(julianDay, houses);
+      return houses;
+    };
+    const serializeTransit = (t: Transit) => {
+      const transitPlacement = this.getSignAndDegree(t.transitLongitude);
+      const natalPlacement = this.getSignAndDegree(t.natalLongitude);
+      const context = transitContext.get(t);
+      const transitHouseJulianDay = t.exactTime
+        ? this.ephem.dateToJulianDay(t.exactTime)
+        : (context?.julianDay ?? this.ephem.dateToJulianDay(targetDate));
+      const transitHouses = getTransitHouses(transitHouseJulianDay);
+      const exactTransitLongitude =
+        t.exactTime && planetIdsByName.has(t.transitingPlanet)
+          ? this.ephem.getPlanetPosition(
+              planetIdsByName.get(t.transitingPlanet) as number,
+              transitHouseJulianDay
+            ).longitude
+          : t.transitLongitude;
+
+      return {
+        transitingPlanet: t.transitingPlanet,
+        aspect: t.aspect,
+        natalPlanet: t.natalPlanet,
+        orb: Number.parseFloat(t.orb.toFixed(2)),
+        isApplying: t.isApplying,
+        exactTimeStatus: t.exactTimeStatus,
+        exactTime: t.exactTime?.toISOString(),
+        transitLongitude: t.transitLongitude,
+        natalLongitude: t.natalLongitude,
+        transitSign: transitPlacement.sign,
+        transitDegree: transitPlacement.degree,
+        transitHouse: this.getHouseNumber(exactTransitLongitude, transitHouses),
+        natalSign: natalPlacement.sign,
+        natalDegree: natalPlacement.degree,
+        natalHouse: this.getHouseNumber(t.natalLongitude, natalHouses),
+      };
+    };
 
     const filteredTransits =
       mode === 'forecast'
         ? filterTransits(deduplicateTransits(allTransits))
         : filterTransits(deduplicateTransits(allTransits));
 
-    const localDate = utcToLocal(targetDate, timezone);
+    const localDate = utcToLocal(targetDate, reportingTimezone);
     const dateLabel = `${localDate.year}-${String(localDate.month).padStart(2, '0')}-${String(localDate.day).padStart(2, '0')}`;
-    const endLocal = utcToLocal(addLocalDays(startLocal, timezone, effectiveDaysAhead), timezone);
+    const endLocal = utcToLocal(
+      addLocalDays(startLocal, calculationTimezone, effectiveDaysAhead),
+      reportingTimezone
+    );
     const windowEndLabel = `${endLocal.year}-${String(endLocal.month).padStart(2, '0')}-${String(endLocal.day).padStart(2, '0')}`;
 
     const structuredData: TransitResponse = {
       date: dateLabel,
-      timezone,
+      timezone: reportingTimezone,
+      calculation_timezone: calculationTimezone,
+      reporting_timezone: reportingTimezone,
       transits: filteredTransits.map(serializeTransit),
     };
 
@@ -534,7 +652,9 @@ export class AstroService {
         }));
       responseData = {
         ...metadata,
-        timezone,
+        timezone: reportingTimezone,
+        calculation_timezone: calculationTimezone,
+        reporting_timezone: reportingTimezone,
         forecast: forecastDays,
       };
     } else {
@@ -547,8 +667,8 @@ export class AstroService {
     if (includeMundane) {
       const mundaneDays: MundaneDay[] = [];
       for (let day = 0; day <= daysAhead; day++) {
-        const dayUTC = addLocalDays(startLocal, timezone, day);
-        mundaneDays.push(this.getMundaneDay(dayUTC, timezone, transitingPlanetIds));
+        const dayUTC = addLocalDays(startLocal, calculationTimezone, day);
+        mundaneDays.push(this.getMundaneDay(dayUTC, reportingTimezone, transitingPlanetIds));
       }
 
       const [anchorMundane] = mundaneDays;
@@ -574,10 +694,7 @@ export class AstroService {
 
     const formatHumanTransit = (t: Transit) => {
       const exactStr = t.exactTime
-        ? ` - Exact: ${this.formatTimestamp(
-            t.exactTime,
-            this.resolveReportingTimezone(undefined, timezone)
-          )}`
+        ? ` - Exact: ${this.formatTimestamp(t.exactTime, reportingTimezone)}`
         : '';
       const applyStr = t.isApplying ? '(applying)' : '(separating)';
       return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: ${t.orb.toFixed(2)}° orb ${applyStr}${exactStr}`;
@@ -882,8 +999,7 @@ export class AstroService {
     natalChart: NatalChart,
     input: GetHousesInput = {}
   ): ServiceResult<Record<string, unknown>> {
-    const system =
-      input.system || natalChart.houseSystem || this.mcpStartupDefaults.preferredHouseStyle || 'P';
+    const system = this.resolveHouseSystem(natalChart, input.system);
     if (!natalChart.julianDay) {
       throw new Error('Natal chart is missing julianDay. Re-run set_natal_chart to fix.');
     }

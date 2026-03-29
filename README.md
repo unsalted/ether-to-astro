@@ -293,6 +293,7 @@ Ask your AI agent:
   - `best_hit`: compressed multi-day preview across the selected date window
   - `forecast`: day-grouped transit output across the selected date window
   - if `mode` is omitted, legacy behavior is preserved: `days_ahead=0` resolves to `snapshot`, and `days_ahead>0` resolves to `best_hit`
+  - each transit now includes additive placement metadata for both sides: sign, degree, and house
 
 In this release, `include_mundane` remains anchored to the forecast start date even when `mode=forecast`. Range-aware mundane output is tracked separately.
 
