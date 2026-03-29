@@ -104,6 +104,20 @@ export function compareRisingSignWindows(
     offsets.add(getOffsetSuffix(window.start));
     offsets.add(getOffsetSuffix(window.end));
 
+    if (!Number.isFinite(window.durationMs)) {
+      report.addHard({
+        fixture: fixture.name,
+        subsystem: 'rising-sign-windows',
+        expected: 'finite number',
+        actual: window.durationMs,
+        delta: null,
+        tolerance: 'exact',
+        message: `Window ${index + 1} is missing a valid durationMs`,
+        details: window,
+      });
+      continue;
+    }
+
     if (window.durationMs <= 0) {
       report.addHard({
         fixture: fixture.name,
