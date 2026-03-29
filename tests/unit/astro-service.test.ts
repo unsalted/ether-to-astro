@@ -384,6 +384,32 @@ describe('When using AstroService', () => {
     ).toThrow(/ambiguous or nonexistent due to a DST transition/);
   });
 
+  it('Given a slightly negative Sun altitude that rounds to zero, then getElectionalContext still classifies the chart as night', () => {
+    const { service, ephem } = makeService();
+    ephem.getHorizontalCoordinates.mockReturnValue({
+      azimuth: 180,
+      trueAltitude: -0.004,
+      apparentAltitude: -0.004,
+    });
+
+    const result = service.getElectionalContext({
+      date: '2026-03-28',
+      time: '06:59',
+      timezone: 'America/Los_Angeles',
+      latitude: 37.7749,
+      longitude: -122.4194,
+    });
+
+    expect((result.data as any).sect).toMatchObject({
+      is_day_chart: false,
+      classification: 'night',
+    });
+    expect((result.data as any).meta.warnings).toContain(
+      'Sun is near the horizon; day/night classification is close to the boundary.'
+    );
+    expect(result.text).toContain('Sect: night');
+  });
+
   it('Given omitted mode and days_ahead 0, then getTransits resolves to snapshot semantics', () => {
     const { service, transitCalc } = makeService();
     const result = service.getTransits(makeNatalChart(), {});
