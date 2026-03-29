@@ -30,6 +30,7 @@ import {
   NODES,
   OUTER_PLANETS,
   PERSONAL_PLANETS,
+  PLANET_NAMES,
   PLANETS,
   type PlanetName,
   type PlanetPosition,
@@ -257,9 +258,15 @@ export class AstroService {
 
   private getSignAndDegree(longitude: number): { sign: string; degree: number } {
     const normalized = this.normalizeLongitude(longitude);
+    const baseSignIndex = Math.floor(normalized / 30);
+    const roundedDegree = Number.parseFloat((normalized % 30).toFixed(2));
+    const shouldCarryToNextSign = roundedDegree >= 30;
+    const signIndex = shouldCarryToNextSign
+      ? (baseSignIndex + 1) % ZODIAC_SIGNS.length
+      : baseSignIndex;
     return {
-      sign: ZODIAC_SIGNS[Math.floor(normalized / 30)],
-      degree: Number.parseFloat((normalized % 30).toFixed(2)),
+      sign: ZODIAC_SIGNS[signIndex],
+      degree: shouldCarryToNextSign ? 0 : roundedDegree,
     };
   }
 
@@ -548,6 +555,9 @@ export class AstroService {
       chartHouseSystem
     );
     const transitHouseCache = new Map<number, HouseData>();
+    const planetIdsByName = new Map(
+      Object.entries(PLANET_NAMES).map(([id, name]) => [name, Number(id)])
+    );
     const getTransitHouses = (julianDay: number): HouseData => {
       const cached = transitHouseCache.get(julianDay);
       if (cached) {
@@ -571,6 +581,13 @@ export class AstroService {
         ? this.ephem.dateToJulianDay(t.exactTime)
         : (context?.julianDay ?? this.ephem.dateToJulianDay(targetDate));
       const transitHouses = getTransitHouses(transitHouseJulianDay);
+      const exactTransitLongitude =
+        t.exactTime && planetIdsByName.has(t.transitingPlanet)
+          ? this.ephem.getPlanetPosition(
+              planetIdsByName.get(t.transitingPlanet) as number,
+              transitHouseJulianDay
+            ).longitude
+          : t.transitLongitude;
 
       return {
         transitingPlanet: t.transitingPlanet,
@@ -584,7 +601,7 @@ export class AstroService {
         natalLongitude: t.natalLongitude,
         transitSign: transitPlacement.sign,
         transitDegree: transitPlacement.degree,
-        transitHouse: this.getHouseNumber(t.transitLongitude, transitHouses),
+        transitHouse: this.getHouseNumber(exactTransitLongitude, transitHouses),
         natalSign: natalPlacement.sign,
         natalDegree: natalPlacement.degree,
         natalHouse: this.getHouseNumber(t.natalLongitude, natalHouses),

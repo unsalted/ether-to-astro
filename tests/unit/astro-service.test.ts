@@ -44,6 +44,7 @@ function makeService(mcpStartupDefaults: McpStartupDefaults = {}) {
       apparentAltitude: 25,
     })),
     getAllPlanets: vi.fn(() => [makePlanet('Sun', 204), makePlanet('Moon', 270)]),
+    getPlanetPosition: vi.fn((planetId: number) => makePlanet(planetId === 1 ? 'Moon' : 'Sun', 100)),
   };
   const houseCalc = {
     calculateHouses: vi.fn(() => ({
@@ -462,6 +463,30 @@ describe('When using AstroService', () => {
     });
   });
 
+  it('Given a transit near a sign boundary, then placement degree never rounds up to 30.00 within the same sign', () => {
+    const { service, transitCalc } = makeService();
+    transitCalc.findTransits.mockReturnValue([
+      {
+        transitingPlanet: 'Sun',
+        natalPlanet: 'Sun',
+        aspect: 'conjunction',
+        orb: 0.01,
+        isApplying: true,
+        exactTimeStatus: 'within_preview',
+        transitLongitude: 29.999,
+        natalLongitude: 10,
+        exactTime: undefined,
+      },
+    ]);
+
+    const result = service.getTransits(makeNatalChart(), { mode: 'snapshot' });
+
+    expect((result.data as any).transits[0]).toMatchObject({
+      transitSign: 'Taurus',
+      transitDegree: 0,
+    });
+  });
+
   it('Given forecast mode across multiple days, then response preserves day-grouped transits with per-day dedupe', () => {
     const { service, transitCalc } = makeService();
     transitCalc.findTransits
@@ -767,6 +792,44 @@ describe('When using AstroService', () => {
       makeNatalChart().location.longitude,
       'P'
     );
+  });
+
+  it('Given an exact transit time, then house assignment uses exact-time longitude instead of sampled longitude', () => {
+    const { service, ephem, transitCalc, houseCalc } = makeService();
+    transitCalc.findTransits.mockReturnValue([
+      {
+        transitingPlanet: 'Moon',
+        natalPlanet: 'Sun',
+        aspect: 'square',
+        orb: 0.1,
+        isApplying: true,
+        exactTimeStatus: 'within_preview',
+        transitLongitude: 99.5,
+        natalLongitude: 10,
+        exactTime: new Date('2024-03-27T12:00:00Z'),
+      },
+    ]);
+    ephem.dateToJulianDay.mockImplementation((date: Date) => {
+      if (date.toISOString() === '2024-03-27T12:00:00.000Z') {
+        return 9999;
+      }
+      return date.getTime() / 86400000 + 2440587.5;
+    });
+    ephem.getPlanetPosition.mockReturnValue(makePlanet('Moon', 100.5));
+    houseCalc.calculateHouses.mockReturnValue({
+      ascendant: 0,
+      mc: 90,
+      cusps: [0, 0, 30, 60, 90, 100, 150, 180, 210, 240, 270, 300, 330],
+      system: 'P' as const,
+    });
+
+    const result = service.getTransits(makeNatalChart(), { mode: 'snapshot' });
+
+    expect((result.data as any).transits[0]).toMatchObject({
+      transitHouse: 5,
+      transitLongitude: 99.5,
+    });
+    expect(ephem.getPlanetPosition).toHaveBeenCalledWith(1, 9999);
   });
 
   it('Given eclipse availability, then getNextEclipses returns summary or empty-state text', () => {
