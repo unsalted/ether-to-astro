@@ -1,5 +1,8 @@
 import { writeFile } from 'node:fs/promises';
 import { Temporal } from '@js-temporal/polyfill';
+import { parseDateOnlyInput } from './astro-service/date-input.js';
+import { resolveHouseSystem, resolveReportingTimezone } from './astro-service/shared.js';
+import { TransitService } from './astro-service/transit-service.js';
 import { ChartRenderer } from './charts.js';
 import { getDefaultTheme } from './constants.js';
 import { EclipseCalculator } from './eclipses.js';
@@ -15,27 +18,20 @@ import {
   localToUTC,
   utcToLocal,
 } from './time-utils.js';
-import { deduplicateTransits, TransitCalculator } from './transits.js';
+import { TransitCalculator } from './transits.js';
 import {
   ASPECTS,
   ASTEROIDS,
-  type AspectType,
   type ElectionalAspect,
   type ElectionalContextResponse,
   type ElectionalHouseSystem,
   type ElectionalPhaseName,
-  type HouseData,
   type HouseSystem,
   type NatalChart,
   NODES,
-  OUTER_PLANETS,
-  PERSONAL_PLANETS,
-  PLANET_NAMES,
   PLANETS,
   type PlanetName,
   type PlanetPosition,
-  type Transit,
-  type TransitResponse,
   ZODIAC_SIGNS,
 } from './types.js';
 
@@ -115,29 +111,6 @@ export interface ServiceResult<T> {
   text: string;
 }
 
-export interface MundaneAspect {
-  id: string;
-  planetA: PlanetPosition['planet'];
-  planetB: PlanetPosition['planet'];
-  aspect: AspectType;
-  orb: number;
-  isApplying: boolean;
-  longitudeA: number;
-  longitudeB: number;
-}
-
-interface MundaneWeather {
-  supportive: string[];
-  challenging: string[];
-}
-
-interface MundaneDay {
-  date: string;
-  timezone: string;
-  positions: PlanetPosition[];
-  aspects: MundaneAspect[];
-  weather: MundaneWeather;
-}
 interface ChartServiceResult {
   format: 'svg' | 'png' | 'webp';
   outputPath?: string;
@@ -149,37 +122,7 @@ interface ChartServiceResult {
   };
 }
 
-export function parseDateOnlyInput(dateStr: string): {
-  year: number;
-  month: number;
-  day: number;
-  hour: number;
-  minute: number;
-} {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
-  if (!match) {
-    throw new Error(`Invalid date format: expected YYYY-MM-DD, got "${dateStr}"`);
-  }
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-
-  if (month < 1 || month > 12) {
-    throw new Error(`Invalid month: ${month} (must be 1-12)`);
-  }
-  if (day < 1 || day > 31) {
-    throw new Error(`Invalid day: ${day} (must be 1-31)`);
-  }
-
-  try {
-    Temporal.PlainDate.from({ year, month, day });
-  } catch {
-    throw new Error(`Invalid calendar date: ${dateStr}`);
-  }
-
-  return { year, month, day, hour: 12, minute: 0 };
-}
+export { parseDateOnlyInput } from './astro-service/date-input.js';
 
 function parseTimeOnlyInput(timeStr: string): { hour: number; minute: number; second: number } {
   const match = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(timeStr);
@@ -219,6 +162,13 @@ const ELECTIONAL_CONTEXT_PLANET_IDS = [
 
 const ELECTIONAL_CONTEXT_HOUSE_SYSTEMS: ElectionalHouseSystem[] = ['P', 'K', 'W', 'R'];
 
+/**
+ * Shared service facade used by both the MCP server and the CLI.
+ *
+ * @remarks
+ * Public methods remain the stable orchestration boundary while domain-specific
+ * internals can be extracted behind the class without changing callers.
+ */
 export class AstroService {
   readonly ephem: EphemerisCalculator;
   readonly transitCalc: TransitCalculator;
@@ -227,6 +177,7 @@ export class AstroService {
   readonly eclipseCalc: EclipseCalculator;
   readonly chartRenderer: ChartRenderer;
   readonly mcpStartupDefaults: Readonly<McpStartupDefaults>;
+  private readonly transitService: TransitService;
   private readonly now: () => Date;
   private readonly writeFileFn: (
     path: string,
@@ -244,6 +195,14 @@ export class AstroService {
     this.mcpStartupDefaults = Object.freeze({ ...(deps.mcpStartupDefaults ?? {}) });
     this.now = deps.now ?? (() => new Date());
     this.writeFileFn = deps.writeFile ?? writeFile;
+    this.transitService = new TransitService({
+      ephem: this.ephem,
+      transitCalc: this.transitCalc,
+      houseCalc: this.houseCalc,
+      mcpStartupDefaults: this.mcpStartupDefaults,
+      now: this.now,
+      formatTimestamp: this.formatTimestamp.bind(this),
+    });
   }
 
   private formatTimestamp(date: Date, timezone: string): string {
@@ -252,69 +211,30 @@ export class AstroService {
     });
   }
 
-  private normalizeLongitude(longitude: number): number {
-    return ((longitude % 360) + 360) % 360;
-  }
-
-  private getSignAndDegree(longitude: number): { sign: string; degree: number } {
-    const normalized = this.normalizeLongitude(longitude);
-    const baseSignIndex = Math.floor(normalized / 30);
-    const roundedDegree = Number.parseFloat((normalized % 30).toFixed(2));
-    const shouldCarryToNextSign = roundedDegree >= 30;
-    const signIndex = shouldCarryToNextSign
-      ? (baseSignIndex + 1) % ZODIAC_SIGNS.length
-      : baseSignIndex;
-    return {
-      sign: ZODIAC_SIGNS[signIndex],
-      degree: shouldCarryToNextSign ? 0 : roundedDegree,
-    };
-  }
-
-  private getHouseNumber(longitude: number, houses: HouseData): number {
-    const normalized = this.normalizeLongitude(longitude);
-
-    for (let house = 1; house <= 12; house++) {
-      const start = this.normalizeLongitude(houses.cusps[house]);
-      const nextHouse = house === 12 ? 1 : house + 1;
-      const end = this.normalizeLongitude(houses.cusps[nextHouse]);
-      const span = (end - start + 360) % 360;
-      const offset = (normalized - start + 360) % 360;
-
-      if (span === 0 || offset === 0 || offset < span) {
-        return house;
-      }
-    }
-
-    return 12;
-  }
-
-  private resolveHouseSystem(natalChart: NatalChart, explicitSystem?: string): HouseSystem {
-    return (explicitSystem ||
-      natalChart.requestedHouseSystem ||
-      this.mcpStartupDefaults.preferredHouseStyle ||
-      natalChart.houseSystem ||
-      'P') as HouseSystem;
-  }
-
-  private resolveTimezones(explicitReportingTimezone?: string, natalTimezone?: string) {
-    return {
-      calculationTimezone: natalTimezone ?? 'UTC',
-      reportingTimezone: this.resolveReportingTimezone(explicitReportingTimezone, natalTimezone),
-    };
-  }
-
+  /**
+   * Resolve the timezone used for user-facing timestamps and labels.
+   */
   resolveReportingTimezone(explicitTimezone?: string, natalTimezone?: string): string {
-    return explicitTimezone ?? this.mcpStartupDefaults.preferredTimezone ?? natalTimezone ?? 'UTC';
+    return resolveReportingTimezone(this.mcpStartupDefaults, explicitTimezone, natalTimezone);
   }
 
+  /**
+   * Initialize the underlying ephemeris engine.
+   */
   async init(): Promise<void> {
     await this.ephem.init();
   }
 
+  /**
+   * Report whether the ephemeris engine has been initialized.
+   */
   isInitialized(): boolean {
     return !!this.ephem.eph;
   }
 
+  /**
+   * Build and cache the shared natal chart payload used by later workflows.
+   */
   setNatalChart(
     input: SetNatalChartInput
   ): ServiceResult<Record<string, unknown>> & { chart: NatalChart } {
@@ -452,353 +372,19 @@ export class AstroService {
     };
   }
 
+  /**
+   * Calculate natal transits while preserving the public service contract.
+   */
   getTransits(
     natalChart: NatalChart,
     input: GetTransitsInput = {}
   ): ServiceResult<Record<string, unknown>> {
-    const dateStr = input.date;
-    const categories = input.categories ?? ['all'];
-    const includeMundane = input.include_mundane ?? false;
-    const daysAhead = input.days_ahead ?? 0;
-    const requestedMode = input.mode;
-    const maxOrb = input.max_orb ?? 8;
-    const exactOnly = input.exact_only ?? false;
-    const applyingOnly = input.applying_only ?? false;
-
-    if (!Number.isFinite(daysAhead) || daysAhead < 0) {
-      throw new Error('days_ahead must be a finite number >= 0');
-    }
-    if (!Number.isFinite(maxOrb) || maxOrb < 0) {
-      throw new Error('max_orb must be a finite number >= 0');
-    }
-    if (
-      requestedMode !== undefined &&
-      requestedMode !== 'snapshot' &&
-      requestedMode !== 'best_hit' &&
-      requestedMode !== 'forecast'
-    ) {
-      throw new Error('mode must be one of: snapshot, best_hit, forecast');
-    }
-    if (!natalChart.julianDay) {
-      throw new Error('Natal chart is missing julianDay. Re-run set_natal_chart to fix.');
-    }
-
-    const mode = requestedMode ?? (daysAhead === 0 ? 'snapshot' : 'best_hit');
-    const modeSource = requestedMode === undefined ? 'legacy_default' : 'explicit';
-
-    let transitingPlanetIds: number[] = [];
-    if (categories.includes('all')) {
-      transitingPlanetIds = Object.values(PLANETS);
-    } else {
-      if (categories.includes('moon')) transitingPlanetIds.push(PLANETS.MOON);
-      if (categories.includes('personal')) {
-        transitingPlanetIds.push(
-          ...PERSONAL_PLANETS.filter((p) => !transitingPlanetIds.includes(p))
-        );
-      }
-      if (categories.includes('outer')) {
-        transitingPlanetIds.push(...OUTER_PLANETS.filter((p) => !transitingPlanetIds.includes(p)));
-      }
-    }
-
-    const { calculationTimezone, reportingTimezone } = this.resolveTimezones(
-      undefined,
-      natalChart.location.timezone
-    );
-
-    let targetDate: Date;
-    if (dateStr) {
-      const parsed = parseDateOnlyInput(dateStr);
-      targetDate = localToUTC(parsed, calculationTimezone);
-    } else {
-      const now = this.now();
-      const localNow = utcToLocal(now, calculationTimezone);
-      const localNoon = { ...localNow, hour: 12, minute: 0, second: 0 };
-      targetDate = localToUTC(localNoon, calculationTimezone);
-    }
-
-    const allTransits: Transit[] = [];
-    const transitsByDay = new Map<string, Transit[]>();
-    const transitContext = new WeakMap<Transit, { julianDay: number }>();
-    const startLocal = utcToLocal(targetDate, calculationTimezone);
-    const effectiveDaysAhead = mode === 'snapshot' ? 0 : daysAhead;
-    for (let day = 0; day <= effectiveDaysAhead; day++) {
-      const dayUTC = addLocalDays(startLocal, calculationTimezone, day);
-      const jd = this.ephem.dateToJulianDay(dayUTC);
-      const transitingPlanets = this.ephem.getAllPlanets(jd, transitingPlanetIds);
-      const transits = this.transitCalc.findTransits(
-        transitingPlanets,
-        natalChart.planets || [],
-        jd
-      );
-      for (const transit of transits) {
-        transitContext.set(transit, { julianDay: jd });
-      }
-      allTransits.push(...transits);
-      const dayLocal = utcToLocal(dayUTC, reportingTimezone);
-      const dayLabel = `${dayLocal.year}-${String(dayLocal.month).padStart(2, '0')}-${String(dayLocal.day).padStart(2, '0')}`;
-      transitsByDay.set(dayLabel, transits);
-    }
-
-    const filterTransits = (transits: Transit[]): Transit[] => {
-      let filtered = transits.filter((t) => t.orb <= maxOrb);
-      if (exactOnly) filtered = filtered.filter((t) => t.exactTime !== undefined);
-      if (applyingOnly) filtered = filtered.filter((t) => t.isApplying);
-      filtered.sort((a, b) => a.orb - b.orb);
-      return filtered;
-    };
-    const chartHouseSystem = this.resolveHouseSystem(natalChart);
-    const natalHouses = this.houseCalc.calculateHouses(
-      natalChart.julianDay,
-      natalChart.location.latitude,
-      natalChart.location.longitude,
-      chartHouseSystem
-    );
-    const transitHouseCache = new Map<number, HouseData>();
-    const planetIdsByName = new Map(
-      Object.entries(PLANET_NAMES).map(([id, name]) => [name, Number(id)])
-    );
-    const getTransitHouses = (julianDay: number): HouseData => {
-      const cached = transitHouseCache.get(julianDay);
-      if (cached) {
-        return cached;
-      }
-
-      const houses = this.houseCalc.calculateHouses(
-        julianDay,
-        natalChart.location.latitude,
-        natalChart.location.longitude,
-        chartHouseSystem
-      );
-      transitHouseCache.set(julianDay, houses);
-      return houses;
-    };
-    const serializeTransit = (t: Transit) => {
-      const transitPlacement = this.getSignAndDegree(t.transitLongitude);
-      const natalPlacement = this.getSignAndDegree(t.natalLongitude);
-      const context = transitContext.get(t);
-      const transitHouseJulianDay = t.exactTime
-        ? this.ephem.dateToJulianDay(t.exactTime)
-        : (context?.julianDay ?? this.ephem.dateToJulianDay(targetDate));
-      const transitHouses = getTransitHouses(transitHouseJulianDay);
-      const exactTransitLongitude =
-        t.exactTime && planetIdsByName.has(t.transitingPlanet)
-          ? this.ephem.getPlanetPosition(
-              planetIdsByName.get(t.transitingPlanet) as number,
-              transitHouseJulianDay
-            ).longitude
-          : t.transitLongitude;
-
-      return {
-        transitingPlanet: t.transitingPlanet,
-        aspect: t.aspect,
-        natalPlanet: t.natalPlanet,
-        orb: Number.parseFloat(t.orb.toFixed(2)),
-        isApplying: t.isApplying,
-        exactTimeStatus: t.exactTimeStatus,
-        exactTime: t.exactTime?.toISOString(),
-        transitLongitude: t.transitLongitude,
-        natalLongitude: t.natalLongitude,
-        transitSign: transitPlacement.sign,
-        transitDegree: transitPlacement.degree,
-        transitHouse: this.getHouseNumber(exactTransitLongitude, transitHouses),
-        natalSign: natalPlacement.sign,
-        natalDegree: natalPlacement.degree,
-        natalHouse: this.getHouseNumber(t.natalLongitude, natalHouses),
-      };
-    };
-
-    const filteredTransits =
-      mode === 'forecast'
-        ? filterTransits(deduplicateTransits(allTransits))
-        : filterTransits(deduplicateTransits(allTransits));
-
-    const localDate = utcToLocal(targetDate, reportingTimezone);
-    const dateLabel = `${localDate.year}-${String(localDate.month).padStart(2, '0')}-${String(localDate.day).padStart(2, '0')}`;
-    const endLocal = utcToLocal(
-      addLocalDays(startLocal, calculationTimezone, effectiveDaysAhead),
-      reportingTimezone
-    );
-    const windowEndLabel = `${endLocal.year}-${String(endLocal.month).padStart(2, '0')}-${String(endLocal.day).padStart(2, '0')}`;
-
-    const structuredData: TransitResponse = {
-      date: dateLabel,
-      timezone: reportingTimezone,
-      calculation_timezone: calculationTimezone,
-      reporting_timezone: reportingTimezone,
-      transits: filteredTransits.map(serializeTransit),
-    };
-
-    const metadata = {
-      mode,
-      mode_source: modeSource,
-      days_ahead: effectiveDaysAhead,
-      window_start: dateLabel,
-      window_end: windowEndLabel,
-    };
-
-    let responseData: Record<string, unknown> = structuredData as unknown as Record<
-      string,
-      unknown
-    >;
-    let mundaneText = '';
-
-    if (mode === 'forecast') {
-      const forecastDays = Array.from(transitsByDay.entries())
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([dayDate, dayTransits]) => ({
-          date: dayDate,
-          transits: filterTransits(deduplicateTransits(dayTransits)).map(serializeTransit),
-        }));
-      responseData = {
-        ...metadata,
-        timezone: reportingTimezone,
-        calculation_timezone: calculationTimezone,
-        reporting_timezone: reportingTimezone,
-        forecast: forecastDays,
-      };
-    } else {
-      responseData = {
-        ...structuredData,
-        ...metadata,
-      };
-    }
-
-    if (includeMundane) {
-      const mundaneDays: MundaneDay[] = [];
-      for (let day = 0; day <= daysAhead; day++) {
-        const dayUTC = addLocalDays(startLocal, calculationTimezone, day);
-        mundaneDays.push(this.getMundaneDay(dayUTC, reportingTimezone, transitingPlanetIds));
-      }
-
-      const [anchorMundane] = mundaneDays;
-      const mundaneData = {
-        date: anchorMundane.date,
-        timezone: anchorMundane.timezone,
-        positions: anchorMundane.positions,
-        aspects: anchorMundane.aspects,
-        days: mundaneDays,
-      };
-      responseData = { transits: responseData, mundane: mundaneData };
-      mundaneText = `\n\nCurrent Planetary Positions:\n\n${anchorMundane.positions
-        .map(
-          (p) =>
-            `${p.planet}: ${p.degree.toFixed(1)}° ${p.sign} (${p.isRetrograde ? 'Rx' : 'Direct'})`
-        )
-        .join('\n')}`;
-      if (mode === 'forecast') {
-        mundaneText +=
-          '\n\nNote: mundane positions remain anchored to the forecast start date in this mode.';
-      }
-    }
-
-    const formatHumanTransit = (t: Transit) => {
-      const exactStr = t.exactTime
-        ? ` - Exact: ${this.formatTimestamp(t.exactTime, reportingTimezone)}`
-        : '';
-      const applyStr = t.isApplying ? '(applying)' : '(separating)';
-      return `${t.transitingPlanet} ${t.aspect} ${t.natalPlanet}: ${t.orb.toFixed(2)}° orb ${applyStr}${exactStr}`;
-    };
-    const rangeStr = effectiveDaysAhead > 0 ? ` (next ${effectiveDaysAhead + 1} days)` : '';
-    let transitHeader: string;
-    if (mode === 'forecast') {
-      const forecastLines = Array.from(transitsByDay.entries())
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([dayDate, dayTransits]) => {
-          const dedupedDay = filterTransits(deduplicateTransits(dayTransits));
-          const lines =
-            dedupedDay.length === 0
-              ? 'No transits found matching the specified criteria.'
-              : dedupedDay.map(formatHumanTransit).join('\n');
-          return `${dayDate}:\n${lines}`;
-        })
-        .join('\n\n');
-      transitHeader = `Forecast transits${rangeStr}:\n\n${forecastLines}`;
-    } else {
-      const humanLines = filteredTransits.map(formatHumanTransit).join('\n');
-      const modeLabel = mode === 'snapshot' ? 'Transit snapshot' : 'Best-hit transits';
-      transitHeader =
-        filteredTransits.length > 0
-          ? `${modeLabel}${rangeStr}:\n\n${humanLines}`
-          : 'No transits found matching the specified criteria.';
-    }
-
-    return {
-      data: responseData,
-      text: transitHeader + mundaneText,
-    };
+    return this.transitService.getTransits(natalChart, input);
   }
 
-  private getMundaneWeather(aspects: MundaneAspect[]): MundaneWeather {
-    const supportiveAspects = new Set<AspectType>(['conjunction', 'trine', 'sextile']);
-    const challengingAspects = new Set<AspectType>(['square', 'opposition']);
-
-    return {
-      supportive: aspects.filter((a) => supportiveAspects.has(a.aspect)).map((a) => a.id),
-      challenging: aspects.filter((a) => challengingAspects.has(a.aspect)).map((a) => a.id),
-    };
-  }
-
-  private getMundaneAspects(date: string, positions: PlanetPosition[]): MundaneAspect[] {
-    const aspects: MundaneAspect[] = [];
-
-    for (let i = 0; i < positions.length; i++) {
-      for (let j = i + 1; j < positions.length; j++) {
-        const planetA = positions[i];
-        const planetB = positions[j];
-
-        const angle = this.ephem.calculateAspectAngle(planetA.longitude, planetB.longitude);
-
-        for (const aspect of ASPECTS) {
-          const orb = Math.abs(angle - aspect.angle);
-          if (orb > aspect.orb) {
-            continue;
-          }
-
-          const futureLongitudeA = (planetA.longitude + planetA.speed * 0.1 + 360) % 360;
-          const futureLongitudeB = (planetB.longitude + planetB.speed * 0.1 + 360) % 360;
-          const futureAngle = this.ephem.calculateAspectAngle(futureLongitudeA, futureLongitudeB);
-          const futureOrb = Math.abs(futureAngle - aspect.angle);
-
-          aspects.push({
-            id: `${date}:${planetA.planet}-${aspect.name}-${planetB.planet}`,
-            planetA: planetA.planet,
-            planetB: planetB.planet,
-            aspect: aspect.name,
-            orb: Number.parseFloat(orb.toFixed(2)),
-            isApplying: futureOrb < orb,
-            longitudeA: planetA.longitude,
-            longitudeB: planetB.longitude,
-          });
-        }
-      }
-    }
-
-    return aspects.sort(
-      (a, b) =>
-        a.orb - b.orb ||
-        a.planetA.localeCompare(b.planetA) ||
-        a.planetB.localeCompare(b.planetB) ||
-        a.aspect.localeCompare(b.aspect)
-    );
-  }
-
-  private getMundaneDay(dayUTC: Date, timezone: string, transitingPlanetIds: number[]): MundaneDay {
-    const localDay = utcToLocal(dayUTC, timezone);
-    const dateLabel = `${localDay.year}-${String(localDay.month).padStart(2, '0')}-${String(localDay.day).padStart(2, '0')}`;
-    const currentJD = this.ephem.dateToJulianDay(dayUTC);
-    const positions = this.ephem.getAllPlanets(currentJD, transitingPlanetIds);
-    const aspects = this.getMundaneAspects(dateLabel, positions);
-
-    return {
-      date: dateLabel,
-      timezone,
-      positions,
-      aspects,
-      weather: this.getMundaneWeather(aspects),
-    };
-  }
-
+  /**
+   * Produce deterministic electional context for a single local instant.
+   */
   getElectionalContext(input: GetElectionalContextInput): ServiceResult<Record<string, unknown>> {
     if (input.latitude < -90 || input.latitude > 90) {
       throw new Error(`Invalid latitude: ${input.latitude} (must be between -90 and 90)`);
@@ -995,11 +581,14 @@ export class AstroService {
     };
   }
 
+  /**
+   * Calculate house cusps and angles for a natal chart.
+   */
   getHouses(
     natalChart: NatalChart,
     input: GetHousesInput = {}
   ): ServiceResult<Record<string, unknown>> {
-    const system = this.resolveHouseSystem(natalChart, input.system);
+    const system = resolveHouseSystem(natalChart, this.mcpStartupDefaults, input.system);
     if (!natalChart.julianDay) {
       throw new Error('Natal chart is missing julianDay. Re-run set_natal_chart to fix.');
     }
@@ -1026,6 +615,9 @@ export class AstroService {
     };
   }
 
+  /**
+   * Find rising-sign windows across a calendar day at a specific location.
+   */
   getRisingSignWindows(input: GetRisingSignWindowsInput): ServiceResult<Record<string, unknown>> {
     const mode = input.mode ?? 'approximate';
     if (mode !== 'approximate' && mode !== 'exact') {
@@ -1241,6 +833,9 @@ export class AstroService {
     return signRulers[sign] ?? 'Mars';
   }
 
+  /**
+   * Return the currently retrograde planets for the requested reporting timezone.
+   */
   getRetrogradePlanets(timezone?: string): ServiceResult<Record<string, unknown>> {
     const resolvedTimezone = this.resolveReportingTimezone(timezone);
     const now = this.now();
@@ -1266,6 +861,9 @@ export class AstroService {
     return { data: structuredData, text: humanText };
   }
 
+  /**
+   * Return the next rise and set events after the local day anchor for the chart location.
+   */
   async getRiseSetTimes(natalChart: NatalChart): Promise<ServiceResult<Record<string, unknown>>> {
     const timezone = natalChart.location.timezone;
     const reportingTimezone = this.mcpStartupDefaults.preferredTimezone || timezone;
@@ -1313,6 +911,9 @@ export class AstroService {
     };
   }
 
+  /**
+   * Return current asteroid and node positions for the requested reporting timezone.
+   */
   getAsteroidPositions(timezone?: string): ServiceResult<Record<string, unknown>> {
     const resolvedTimezone = this.resolveReportingTimezone(timezone);
     const now = this.now();
@@ -1342,6 +943,9 @@ export class AstroService {
     };
   }
 
+  /**
+   * Look up the next solar and lunar eclipses after the current instant.
+   */
   getNextEclipses(timezone?: string): ServiceResult<Record<string, unknown>> {
     const resolvedTimezone = this.resolveReportingTimezone(timezone);
     const now = this.now();
@@ -1384,6 +988,9 @@ export class AstroService {
     return { data: structuredData, text: humanText };
   }
 
+  /**
+   * Summarize process-local server state and configured startup defaults.
+   */
   getServerStatus(natalChart: NatalChart | null): ServiceResult<Record<string, unknown>> {
     const statusData = {
       serverVersion: '1.0.0',
@@ -1406,6 +1013,9 @@ export class AstroService {
     return { data: statusData, text: humanText };
   }
 
+  /**
+   * Generate a natal chart image or SVG for the current chart.
+   */
   async generateNatalChart(
     natalChart: NatalChart,
     input: GenerateChartInput = {}
@@ -1448,6 +1058,9 @@ export class AstroService {
     };
   }
 
+  /**
+   * Generate a transit chart image or SVG for a target date.
+   */
   async generateTransitChart(
     natalChart: NatalChart,
     input: GenerateTransitChartInput = {}
