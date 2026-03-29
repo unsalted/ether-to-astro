@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AstroService, parseDateOnlyInput } from '../../src/astro-service.js';
 import type { McpStartupDefaults } from '../../src/entrypoint.js';
+import { PLANETS } from '../../src/types.js';
 import type { NatalChart, PlanetPosition, RiseSetTime } from '../../src/types.js';
 
 function makePlanet(planet: PlanetPosition['planet'], longitude: number): PlanetPosition {
@@ -172,7 +173,7 @@ describe('When using AstroService', () => {
     ).toThrow(/Sun\/Moon/);
   });
 
-  it('Given transit filters, then getTransits returns filtered data plus mundane aspects and weather for date ranges', () => {
+  it('Given transit filters, then getTransits returns filtered data plus mundane aspects for date ranges', () => {
     const { service, ephem } = makeService();
     const natal = makeNatalChart();
     ephem.getAllPlanets.mockReturnValue([
@@ -214,17 +215,43 @@ describe('When using AstroService', () => {
         }),
       ])
     );
-    expect(mundane.weather).toMatchObject({
-      supportive: ['2024-03-26:Sun-trine-Mars'],
-      challenging: ['2024-03-26:Sun-square-Moon'],
-    });
     expect(mundane.days).toHaveLength(2);
     expect(mundane.days[1]).toMatchObject({
       date: '2024-03-27',
       timezone: 'America/Los_Angeles',
     });
-    expect(mundane.days[1].weather.challenging).toEqual(['2024-03-27:Sun-square-Moon']);
-    expect(result.text).toContain('Mundane Weather');
+    expect(mundane.days[1].aspects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          planetA: 'Sun',
+          planetB: 'Moon',
+          aspect: 'square',
+        }),
+      ])
+    );
+    expect(result.text).toContain('Current Planetary Positions');
+  });
+
+  it('Given snapshot mode with include_mundane, then mundane days stay aligned to the snapshot window', () => {
+    const { service, ephem, transitCalc } = makeService();
+    ephem.getAllPlanets.mockReturnValue([
+      { ...makePlanet('Sun', 0), speed: 1 },
+      { ...makePlanet('Moon', 90), speed: 1 },
+    ]);
+
+    const result = service.getTransits(makeNatalChart(), {
+      mode: 'snapshot',
+      include_mundane: true,
+      days_ahead: 5,
+    });
+
+    expect(transitCalc.findTransits).toHaveBeenCalledTimes(1);
+    const mundane = (result.data as any).mundane;
+    expect(mundane.days).toHaveLength(1);
+    expect(mundane.days[0]).toMatchObject({
+      date: '2024-03-26',
+      timezone: 'America/Los_Angeles',
+    });
   });
 
   it('Given omitted mode and days_ahead 0, then getTransits resolves to snapshot semantics', () => {
@@ -329,6 +356,42 @@ describe('When using AstroService', () => {
     expect(result.text).toContain('Forecast transits');
     expect(result.text).toContain('2024-03-26');
     expect(result.text).toContain('2024-03-27');
+  });
+
+  it('Given transit categories are narrowed, then mundane baseline still uses the full transit planet set', () => {
+    const { service, ephem } = makeService();
+    const natal = makeNatalChart();
+    ephem.getAllPlanets.mockImplementation((_jd: number, planetIds: number[]) => {
+      if (planetIds.length === Object.values(PLANETS).length) {
+        return [
+          { ...makePlanet('Sun', 0), speed: 1 },
+          { ...makePlanet('Moon', 90), speed: 1 },
+          { ...makePlanet('Mars', 120), speed: 1 },
+        ];
+      }
+      return [{ ...makePlanet('Jupiter', 15), speed: 0.1 }];
+    });
+
+    const result = service.getTransits(natal, {
+      include_mundane: true,
+      categories: ['outer'],
+    });
+
+    const mundane = (result.data as any).mundane;
+    expect(mundane.aspects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          planetA: 'Sun',
+          planetB: 'Moon',
+          aspect: 'square',
+        }),
+        expect.objectContaining({
+          planetA: 'Sun',
+          planetB: 'Mars',
+          aspect: 'trine',
+        }),
+      ])
+    );
   });
 
   it('Given non-finite transit numeric filters, then getTransits throws validation errors before mundane expansion', () => {

@@ -1,6 +1,6 @@
 ---
 name: daily-brief
-description: Produce a concise daily astrology brief from ether-to-astro MCP primitives. Use when a user wants today's personal transits and collective weather summarized without turning interpretation into MCP logic.
+description: Produce a concise daily astrology brief from ether-to-astro MCP primitives. Use when a user wants today's personal transits and collective weather summarized from structured astro facts.
 metadata:
   repo: ether-to-astro
 ---
@@ -10,7 +10,7 @@ metadata:
 ## Purpose
 Use this skill when a user wants a same-day astrology brief grounded in `ether-to-astro` MCP data.
 
-This skill owns synthesis, ordering, and narrative framing. It does not invent astro facts or encode its own computational logic.
+Write a short same-day brief that starts with the collective tone of the day and then explains how the user's natal transits modify it.
 
 ## Inputs
 - A loaded natal chart on the MCP side, or enough birth data to load one first.
@@ -41,7 +41,8 @@ This skill owns synthesis, ordering, and narrative framing. It does not invent a
 3. Separate the output into:
    - mundane baseline
    - personal transit modifiers
-4. Rank or group the results for readability, but keep all rankings clearly skill-side.
+4. Derive any "collective weather" framing from the returned mundane positions and `mundane.aspects`.
+5. If you use labels such as `supportive`, `challenging`, or `mixed`, cite the underlying aspects that support that wording.
 5. Produce a concise brief with explicit references back to the underlying astro facts.
 
 ## Output Contract
@@ -60,13 +61,14 @@ This skill owns synthesis, ordering, and narrative framing. It does not invent a
 - If the available MCP data is incomplete, say so plainly instead of implying precision that is not present.
 
 ## Boundaries
-- Do not turn the brief into a new MCP contract.
 - Do not describe ranking labels such as `clean`, `mixed`, or `caution` as deterministic truth.
+- Do not expect `mundane.weather` or similar interpretive labels from MCP.
 - Do not invent house activations, electional windows, or mundane-aspect data when the MCP response does not provide them.
 - Do not use multi-day `get_transits` output as if it were a true day-by-day forecast unless the explicit forecast contract exists.
 
 ## Good Patterns
-- Summarize mundane weather first, then describe how natal transits personalize it.
+- Summarize collective weather first by referencing mundane positions and aspects, then describe how natal transits personalize it.
+- If you use summary language such as `supportive` or `challenging`, attach it to named aspects instead of presenting it as a detached verdict.
 - Use exact-time notes only when the tool returned them.
 - Prefer a compact brief over exhaustive prose.
 

@@ -107,17 +107,11 @@ export interface MundaneAspect {
   longitudeB: number;
 }
 
-interface MundaneWeather {
-  supportive: string[];
-  challenging: string[];
-}
-
 interface MundaneDay {
   date: string;
   timezone: string;
   positions: PlanetPosition[];
   aspects: MundaneAspect[];
-  weather: MundaneWeather;
 }
 
 interface ChartServiceResult {
@@ -391,6 +385,7 @@ export class AstroService {
     }
 
     const timezone = natalChart.location.timezone;
+    const mundanePlanetIds = Object.values(PLANETS);
 
     let targetDate: Date;
     if (dateStr) {
@@ -492,9 +487,9 @@ export class AstroService {
 
     if (includeMundane) {
       const mundaneDays: MundaneDay[] = [];
-      for (let day = 0; day <= daysAhead; day++) {
+      for (let day = 0; day <= effectiveDaysAhead; day++) {
         const dayUTC = addLocalDays(startLocal, timezone, day);
-        mundaneDays.push(this.getMundaneDay(dayUTC, timezone, transitingPlanetIds));
+        mundaneDays.push(this.getMundaneDay(dayUTC, timezone, mundanePlanetIds));
       }
 
       const [anchorMundane] = mundaneDays;
@@ -503,11 +498,15 @@ export class AstroService {
         timezone: anchorMundane.timezone,
         positions: anchorMundane.positions,
         aspects: anchorMundane.aspects,
-        weather: anchorMundane.weather,
         days: mundaneDays,
       };
       responseData = { transits: responseData, mundane: mundaneData };
-      mundaneText = `\n\nMundane Weather:\n- Supportive signals: ${anchorMundane.weather.supportive.length}\n- Challenging signals: ${anchorMundane.weather.challenging.length}`;
+      mundaneText = `\n\nCurrent Planetary Positions:\n\n${anchorMundane.positions
+        .map(
+          (p) =>
+            `${p.planet}: ${p.degree.toFixed(1)}° ${p.sign} (${p.isRetrograde ? 'Rx' : 'Direct'})`
+        )
+        .join('\n')}`;
       if (mode === 'forecast') {
         mundaneText +=
           '\n\nNote: mundane positions remain anchored to the forecast start date in this mode.';
@@ -551,16 +550,6 @@ export class AstroService {
     return {
       data: responseData,
       text: transitHeader + mundaneText,
-    };
-  }
-
-  private getMundaneWeather(aspects: MundaneAspect[]): MundaneWeather {
-    const supportiveAspects = new Set<AspectType>(['conjunction', 'trine', 'sextile']);
-    const challengingAspects = new Set<AspectType>(['square', 'opposition']);
-
-    return {
-      supportive: aspects.filter((a) => supportiveAspects.has(a.aspect)).map((a) => a.id),
-      challenging: aspects.filter((a) => challengingAspects.has(a.aspect)).map((a) => a.id),
     };
   }
 
@@ -620,7 +609,6 @@ export class AstroService {
       timezone,
       positions,
       aspects,
-      weather: this.getMundaneWeather(aspects),
     };
   }
 

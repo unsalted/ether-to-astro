@@ -86,7 +86,7 @@ npx skills add unsalted/ether-to-astro --agent codex --skill write-skill
 You can ask your AI agent about:
 
 ### Transits
-- **Daily mundane positions** - Current planetary positions
+- **Daily mundane baseline** - Planetary positions, transit-to-transit aspects, and per-day date-range data
 - **Moon transits** - Fast-moving Moon aspects to natal planets
 - **Personal planet transits** - Sun, Mercury, Venus, Mars aspects to natal chart
 - **Outer planet transits** - Jupiter, Saturn, Uranus, Neptune, Pluto aspects

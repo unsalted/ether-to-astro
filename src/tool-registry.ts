@@ -153,7 +153,7 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
         include_mundane: {
           type: 'boolean',
           description:
-            'Include current planetary positions (not transits to natal chart). Defaults to false.',
+            'Include a deterministic mundane baseline alongside natal transits: anchor-day positions, transit-to-transit aspects, and per-day `days[]` data for date ranges. Defaults to false.',
         },
         days_ahead: {
           type: 'number',

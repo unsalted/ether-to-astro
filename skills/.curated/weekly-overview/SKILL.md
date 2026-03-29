@@ -10,7 +10,7 @@ metadata:
 ## Purpose
 Use this skill when a user wants a seven-day overview, not just a same-day brief.
 
-This skill is only as strong as the underlying forecast primitives. It must not fake a day-by-day weekly report from lossy MCP data.
+Write a real seven-day overview only when the MCP surface provides day-aware forecast data. If the available data is lossy, say so plainly and limit the report accordingly.
 
 ## Inputs
 - A loaded natal chart on the MCP side, or enough birth data to load one first.
@@ -34,10 +34,11 @@ This skill is only as strong as the underlying forecast primitives. It must not 
 1. Resolve the weekly window and reporting timezone.
 2. Retrieve week-level transit data using a forecast-capable MCP surface.
 3. Build the overview in this order:
-   - collective weather across the week
+   - collective weather across the week, derived from per-day mundane positions and aspects
    - notable personal modifiers by day or cluster
    - optional secondary timing suggestions
-4. Keep recommendations clearly secondary to the overview.
+4. If you use labels such as `supportive`, `challenging`, or `mixed`, cite the underlying aspects or day clusters that justify them.
+5. Keep recommendations clearly secondary to the overview.
 
 ## Elicitation
 - If the user does not provide a start date, default to today in the reporting timezone.
@@ -50,7 +51,7 @@ This skill is only as strong as the underlying forecast primitives. It must not 
   2. `Daily Highlights`
   3. `Interpretive Lens`
   4. `Optional Timing Suggestions`
-- `Week Overview` should summarize the overall weather first.
+- `Week Overview` should summarize the overall weather first using referenced mundane positions and aspects rather than invented verdict fields.
 - `Daily Highlights` should preserve actual day boundaries when the MCP data supports them.
 - `Interpretive Lens` should explain why certain days stand out using referenced astro facts.
 - `Optional Timing Suggestions` should remain clearly secondary and should only appear when supported by MCP primitives.
@@ -60,12 +61,13 @@ This skill is only as strong as the underlying forecast primitives. It must not 
 - If the forecast-capable MCP primitive is missing, say so explicitly and do one of the following:
   - provide a limited best-hit preview, clearly labeled as such, or
   - stop and explain that a true weekly overview is not yet supported by the current MCP surface.
-- Do not hardcode personal scoring policy into the contract.
-- Do not move prose generation into MCP.
+- Do not hardcode personal scoring policy into the output as if it were deterministic fact.
+- Do not expect MCP to return interpretive weather labels.
 
 ## Good Patterns
 - Overview first, suggestions second.
 - Mundane baseline first, natal modifiers second.
+- If you use summary language such as `supportive` or `challenging`, tie it to named aspects or repeated patterns across the week.
 - Keep optional electional guidance visibly separate from the main weekly read.
 
 ## Failure Handling
