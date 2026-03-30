@@ -75,6 +75,12 @@ interface ElectionalContextOptions {
   pretty?: boolean;
 }
 
+interface SignBoundaryEventsOptions extends NonNatalTimezoneOptions {
+  date?: string;
+  daysAhead?: string;
+  bodies?: string;
+}
+
 interface HousesOptions extends SharedOptions {
   system?: string;
 }
@@ -452,6 +458,46 @@ export async function runCli(
       const spec = mustTool('get_next_eclipses');
       const timezone = await resolveCommandTimezone(options);
       const result = await spec.execute({ service, natalChart: null }, { timezone });
+      emitExecution(io, result, options.pretty ?? false);
+    });
+
+  program
+    .command('get-sign-boundary-events')
+    .description(mustTool('get_sign_boundary_events').description)
+    .option(
+      '--date <yyyy-mm-dd>',
+      toolSchemaProperty('get_sign_boundary_events', 'date').description ?? 'Start local date'
+    )
+    .option(
+      '--days-ahead <number>',
+      toolSchemaProperty('get_sign_boundary_events', 'days_ahead').description ?? 'Days ahead'
+    )
+    .option(
+      '--timezone <tz>',
+      toolSchemaProperty('get_sign_boundary_events', 'timezone').description ?? 'Timezone'
+    )
+    .option(
+      '--bodies <list>',
+      'Comma-separated list of bodies to scan (Sun,Moon,Mercury,Venus,Mars,Jupiter,Saturn,Uranus,Neptune,Pluto)'
+    )
+    .option('--pretty', 'Human-readable output instead of JSON')
+    .action(async (options: SignBoundaryEventsOptions) => {
+      const spec = mustTool('get_sign_boundary_events');
+      const timezone = await resolveCommandTimezone(options);
+      const bodies = options.bodies
+        ?.split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+      const result = await spec.execute(
+        { service, natalChart: null },
+        {
+          date: options.date,
+          timezone,
+          days_ahead:
+            options.daysAhead == null ? undefined : toNumber(options.daysAhead, 'days-ahead'),
+          bodies,
+        }
+      );
       emitExecution(io, result, options.pretty ?? false);
     });
 

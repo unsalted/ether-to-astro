@@ -12,6 +12,13 @@ describe('mapToolErrorMessageToCode', () => {
     ).toBe('INVALID_INPUT');
   });
 
+
+  it('maps preferred house style validation failures to INVALID_INPUT', () => {
+    expect(
+      mapToolErrorMessageToCode('Invalid preferred house style: X (must be one of P, W, K, E)')
+    ).toBe('INVALID_INPUT');
+  });
+
   it('preserves existing timezone classification', () => {
     expect(mapToolErrorMessageToCode('Invalid timezone: Nope/Not-A-Timezone')).toBe(
       'INVALID_TIMEZONE'

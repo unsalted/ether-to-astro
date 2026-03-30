@@ -1,29 +1,19 @@
 import fc from 'fast-check';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { deduplicateTransits } from '../../src/transits.js';
-import { ASPECTS, PLANETS } from '../../src/types.js';
+import { ASPECTS, CLASSICAL_PLANET_NAMES, PLANETS } from '../../src/types.js';
 import type { Transit } from '../../src/types.js';
 import type { InternalValidationAdapter } from '../validation/adapters/internal.js';
 import { dateOnlyArb, utcDateArb } from './helpers/arbitraries.js';
 import { propertyConfig } from './helpers/config.js';
 import { getInternalValidationAdapter } from './helpers/runtime.js';
 
-const PLANET_NAMES = [
-  'Sun',
-  'Moon',
-  'Mercury',
-  'Venus',
-  'Mars',
-  'Jupiter',
-  'Saturn',
-] as const;
-
 const ASPECT_ORB_BY_NAME = new Map(ASPECTS.map((aspect) => [aspect.name, aspect.orb]));
 const PLANET_IDS = [PLANETS.SUN, PLANETS.MOON, PLANETS.MERCURY, PLANETS.VENUS, PLANETS.MARS] as const;
 
 const transitArb: fc.Arbitrary<Transit> = fc.record({
-  transitingPlanet: fc.constantFrom(...PLANET_NAMES),
-  natalPlanet: fc.constantFrom(...PLANET_NAMES),
+  transitingPlanet: fc.constantFrom(...CLASSICAL_PLANET_NAMES),
+  natalPlanet: fc.constantFrom(...CLASSICAL_PLANET_NAMES),
   aspect: fc.constantFrom(...ASPECTS.map((aspect) => aspect.name)),
   orb: fc.double({ min: 0, max: 8, noNaN: true, noDefaultInfinity: true }),
   exactTime: fc.option(utcDateArb, { nil: undefined }),

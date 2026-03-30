@@ -25,6 +25,7 @@ describe.sequential('When exercising CLI command handlers end-to-end', () => {
       ['get-retrograde-planets'],
       ['get-asteroid-positions'],
       ['get-next-eclipses'],
+      ['get-sign-boundary-events', '--date', '2026-03-28', '--days-ahead', '1'],
       [
         'get-electional-context',
         '--date',

@@ -15,24 +15,40 @@ export type HouseSystem =
   | 'B';
 export type SolarEclipseType = 'partial' | 'annular' | 'total' | 'annular-total';
 export type LunarEclipseType = 'penumbral' | 'partial' | 'total';
-export type PlanetName =
-  | 'Sun'
-  | 'Moon'
-  | 'Mercury'
-  | 'Venus'
-  | 'Mars'
-  | 'Jupiter'
-  | 'Saturn'
-  | 'Uranus'
-  | 'Neptune'
-  | 'Pluto'
-  | 'Chiron'
-  | 'North Node (Mean)'
-  | 'North Node (True)'
-  | 'Ceres'
-  | 'Pallas'
-  | 'Juno'
-  | 'Vesta';
+export const CLASSICAL_PLANET_NAMES = [
+  'Sun',
+  'Moon',
+  'Mercury',
+  'Venus',
+  'Mars',
+  'Jupiter',
+  'Saturn',
+] as const;
+
+export const MAJOR_PLANET_NAMES = [
+  ...CLASSICAL_PLANET_NAMES,
+  'Uranus',
+  'Neptune',
+  'Pluto',
+] as const;
+
+export const SUPPLEMENTAL_PLANET_NAMES = [
+  'Chiron',
+  'North Node (Mean)',
+  'North Node (True)',
+  'Ceres',
+  'Pallas',
+  'Juno',
+  'Vesta',
+] as const;
+
+export const ALL_PLANET_NAMES = [...MAJOR_PLANET_NAMES, ...SUPPLEMENTAL_PLANET_NAMES] as const;
+
+export type PlanetName = (typeof ALL_PLANET_NAMES)[number];
+
+export const SIGN_BOUNDARY_BODIES = MAJOR_PLANET_NAMES;
+
+export type SignBoundaryBody = (typeof SIGN_BOUNDARY_BODIES)[number];
 
 /**
  * Represents a complete natal birth chart with all necessary data for calculations
@@ -156,6 +172,24 @@ export interface PlanetPosition {
    * Retrograde means the planet appears to move backward from Earth's perspective
    */
   isRetrograde: boolean;
+}
+
+export interface SignBoundaryEvent {
+  body: SignBoundaryBody;
+  from_sign: string;
+  to_sign: string;
+  exact_time: string;
+  longitude: number;
+  direction: 'direct' | 'retrograde';
+}
+
+export interface SignBoundaryEventResponse {
+  date: string;
+  timezone: string;
+  calculation_timezone: string;
+  reporting_timezone: string;
+  days_ahead: number;
+  events: SignBoundaryEvent[];
 }
 
 /**
@@ -442,6 +476,26 @@ export const PLANET_NAMES: { [key: number]: PlanetName } = {
   18: 'Pallas',
   19: 'Juno',
   20: 'Vesta',
+};
+
+export const PLANET_IDS_BY_NAME: Record<PlanetName, PlanetId> = {
+  Sun: PLANETS.SUN,
+  Moon: PLANETS.MOON,
+  Mercury: PLANETS.MERCURY,
+  Venus: PLANETS.VENUS,
+  Mars: PLANETS.MARS,
+  Jupiter: PLANETS.JUPITER,
+  Saturn: PLANETS.SATURN,
+  Uranus: PLANETS.URANUS,
+  Neptune: PLANETS.NEPTUNE,
+  Pluto: PLANETS.PLUTO,
+  Chiron: PLANETS.CHIRON,
+  'North Node (Mean)': PLANETS.MEAN_NODE,
+  'North Node (True)': PLANETS.TRUE_NODE,
+  Ceres: PLANETS.CERES,
+  Pallas: PLANETS.PALLAS,
+  Juno: PLANETS.JUNO,
+  Vesta: PLANETS.VESTA,
 };
 
 /**

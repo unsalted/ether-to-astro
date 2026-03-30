@@ -6,6 +6,7 @@ function makeService() {
     setPreferences: vi.fn(() => ({ data: { runtimePreferences: {} }, text: 'prefs' })),
     setNatalChart: vi.fn(() => ({ data: { ok: true }, text: 'set', chart: { name: 'x' } })),
     getRisingSignWindows: vi.fn(() => ({ data: { windows: [] }, text: 'rising windows' })),
+    getSignBoundaryEvents: vi.fn(() => ({ data: { events: [] }, text: 'sign boundaries' })),
     getElectionalContext: vi.fn(() => ({ data: { ascendant: {} }, text: 'electional' })),
     getTransits: vi.fn(() => ({ data: { transits: [] }, text: 'transits' })),
     getHouses: vi.fn(() => ({ data: { system: 'P' }, text: 'houses' })),
@@ -142,6 +143,27 @@ describe('When resolving tool specs from the registry', () => {
       longitude: -74.006,
       timezone: 'America/New_York',
       mode: 'exact',
+    });
+  });
+
+  it('Given sign-boundary event arguments, then the stateless tool forwards them without natal state', async () => {
+    const service = makeService();
+    const result = await getToolSpec('get_sign_boundary_events')!.execute(
+      { service: service as any, natalChart: null },
+      {
+        date: '2026-03-28',
+        timezone: 'Europe/Amsterdam',
+        days_ahead: 2,
+        bodies: ['Venus', 'Mars'],
+      }
+    );
+
+    expect(result.kind).toBe('state');
+    expect(service.getSignBoundaryEvents).toHaveBeenCalledWith({
+      date: '2026-03-28',
+      timezone: 'Europe/Amsterdam',
+      days_ahead: 2,
+      bodies: ['Venus', 'Mars'],
     });
   });
 

@@ -311,6 +311,7 @@ Ask your AI agent:
 
 ### Electional
 - `get_electional_context` - Stateless electional context for a local date, time, and location. Returns deterministic ascendant, sect/day-night classification, Moon phase, applying aspects, and optional ASC-ruler basics without requiring a natal chart.
+- `get_sign_boundary_events` - Stateless exact sign-boundary crossings for supported planets across a local date window, with both `from_sign` and `to_sign` so ingress and egress are represented as one event.
 
 ### Advanced Tools
 - `get_houses` - House cusps, Ascendant, Midheaven (Placidus, Koch, Whole Sign, Equal)
@@ -326,6 +327,7 @@ Ask your AI agent:
 ## CLI Commands Available
 
 - `set-natal-chart`
+- `get-sign-boundary-events`
 - `get-transits`
 - `get-houses`
 - `get-retrograde-planets`
