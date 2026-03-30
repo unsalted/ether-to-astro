@@ -214,6 +214,36 @@ describe('When using AstroService as a facade', () => {
     expect(result.text).toContain('Transit snapshot');
   });
 
+  it('Given a runtime timezone preference, then getTransits uses it as the reporting timezone', () => {
+    const { service } = makeService();
+    service.setPreferences({ preferred_timezone: 'Asia/Kolkata' });
+
+    const result = service.getTransits(makeNatalChart(), {});
+
+    expect(result.data).toMatchObject({
+      timezone: 'Asia/Kolkata',
+      reporting_timezone: 'Asia/Kolkata',
+      calculation_timezone: 'America/Los_Angeles',
+    });
+  });
+
+  it('Given a runtime house-style preference, then getHouses and getTransits use it as the effective house style', () => {
+    const { service, houseCalc } = makeService({ preferredHouseStyle: 'P' });
+    service.setPreferences({ preferred_house_style: 'W' });
+
+    const houses = service.getHouses(makeNatalChart());
+    const transits = service.getTransits(makeNatalChart(), {});
+
+    expect((houses.data as any).system).toBe('W');
+    expect(houseCalc.calculateHouses).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(Number),
+      'W'
+    );
+    expect((transits.data as any).transits).toBeDefined();
+  });
+
   it('Given invalid transit filters or missing Julian day, then facade validation errors remain stable', () => {
     const { service } = makeService();
 
@@ -371,24 +401,29 @@ describe('When using AstroService as a facade', () => {
   it('Given a natal chart location, then getRiseSetTimes preserves the public rise/set payload shape', async () => {
     const { service, riseSetCalc } = makeService();
 
-    const result = await service.getRiseSetTimes(makeNatalChart());
+    const result = await service.getRiseSetTimes(makeNatalChart(), 'America/New_York');
 
     expect(riseSetCalc.getAllRiseSet).toHaveBeenCalledTimes(1);
-    expect(result.data).toMatchObject({ timezone: 'America/Los_Angeles' });
+    expect(result.data).toMatchObject({
+      timezone: 'America/Los_Angeles',
+      calculation_timezone: 'America/Los_Angeles',
+      reporting_timezone: 'America/New_York',
+    });
     expect(result.text).toContain('Rise/Set Times');
   });
 
-  it('Given startup defaults, then resolveReportingTimezone and getServerStatus preserve deterministic config reporting', () => {
+  it('Given startup defaults and runtime preferences, then resolveReportingTimezone and getServerStatus preserve deterministic config reporting', () => {
     const { service } = makeService({
       preferredTimezone: 'America/New_York',
       preferredHouseStyle: 'W',
       weekdayLabels: true,
     });
 
-    expect(service.resolveReportingTimezone(undefined, undefined)).toBe('America/New_York');
-    expect(service.resolveReportingTimezone(undefined, 'America/Los_Angeles')).toBe(
-      'America/New_York'
-    );
+    service.setPreferences({ preferred_timezone: 'Asia/Kolkata' });
+
+    expect(service.resolveReportingTimezone(undefined, undefined)).toBe('Asia/Kolkata');
+    expect(service.resolveReportingTimezone(undefined, 'America/Los_Angeles')).toBe('Asia/Kolkata');
+    expect(service.resolveReportingTimezone('UTC', 'America/Los_Angeles')).toBe('UTC');
 
     const empty = service.getServerStatus(null);
     const loaded = service.getServerStatus(makeNatalChart());
@@ -399,8 +434,63 @@ describe('When using AstroService as a facade', () => {
         preferredHouseStyle: 'W',
         weekdayLabels: true,
       },
+      runtimePreferences: {
+        preferredTimezone: 'Asia/Kolkata',
+        preferredHouseStyle: null,
+      },
+      effectiveSettings: {
+        reportingTimezone: 'Asia/Kolkata',
+        reportingTimezoneSource: 'runtime',
+        preferredHouseStyle: 'W',
+        preferredHouseStyleSource: 'startup',
+      },
     });
-    expect(loaded.data).toMatchObject({ hasNatalChart: true });
+    expect(loaded.data).toMatchObject({
+      hasNatalChart: true,
+      effectiveSettings: {
+        preferredHouseStyle: 'W',
+        preferredHouseStyleSource: 'startup',
+      },
+    });
+  });
+
+  it('Given a runtime house-style preference, then getServerStatus reports runtime as the effective source', () => {
+    const { service } = makeService({ preferredHouseStyle: 'P' });
+    service.setPreferences({ preferred_house_style: 'W' });
+
+    const status = service.getServerStatus(makeNatalChart());
+
+    expect(status.data).toMatchObject({
+      runtimePreferences: {
+        preferredHouseStyle: 'W',
+      },
+      effectiveSettings: {
+        preferredHouseStyle: 'W',
+        preferredHouseStyleSource: 'runtime',
+      },
+    });
+  });
+
+  it('Given a cleared runtime preference, then setPreferences falls back to startup/default resolution', () => {
+    const { service } = makeService({ preferredTimezone: 'America/New_York', preferredHouseStyle: 'P' });
+
+    service.setPreferences({ preferred_timezone: 'Asia/Kolkata', preferred_house_style: 'W' });
+    const cleared = service.setPreferences({
+      preferred_timezone: null,
+      preferred_house_style: null,
+    });
+
+    expect(cleared.data).toMatchObject({
+      runtimePreferences: {
+        preferredTimezone: null,
+        preferredHouseStyle: null,
+      },
+    });
+    expect(service.resolveReportingTimezone(undefined, undefined)).toBe('America/New_York');
+    expect((service.getServerStatus(makeNatalChart()).data as any).effectiveSettings).toMatchObject({
+      preferredHouseStyle: 'P',
+      preferredHouseStyleSource: 'startup',
+    });
   });
 
   it('Given chart generation requests, then the facade preserves file-output and inline-image branches', async () => {

@@ -1,17 +1,14 @@
 import type { EclipseCalculator } from '../eclipses.js';
-import type { McpStartupDefaults } from '../entrypoint.js';
 import type { EphemerisCalculator } from '../ephemeris.js';
 import type { RiseSetCalculator } from '../riseset.js';
 import { localToUTC, utcToLocal } from '../time-utils.js';
 import { ASTEROIDS, type NatalChart, NODES, PLANETS } from '../types.js';
 import type { ServiceResult } from './service-types.js';
-import { resolveReportingTimezone } from './shared.js';
 
 interface SkyServiceDependencies {
   ephem: EphemerisCalculator;
   riseSetCalc: RiseSetCalculator;
   eclipseCalc: EclipseCalculator;
-  mcpStartupDefaults: Readonly<McpStartupDefaults>;
   now: () => Date;
   formatTimestamp: (date: Date, timezone: string) => string;
 }
@@ -27,7 +24,6 @@ export class SkyService {
   private readonly ephem: EphemerisCalculator;
   private readonly riseSetCalc: RiseSetCalculator;
   private readonly eclipseCalc: EclipseCalculator;
-  private readonly mcpStartupDefaults: Readonly<McpStartupDefaults>;
   private readonly now: () => Date;
   private readonly formatTimestamp: (date: Date, timezone: string) => string;
 
@@ -35,7 +31,6 @@ export class SkyService {
     this.ephem = deps.ephem;
     this.riseSetCalc = deps.riseSetCalc;
     this.eclipseCalc = deps.eclipseCalc;
-    this.mcpStartupDefaults = deps.mcpStartupDefaults;
     this.now = deps.now;
     this.formatTimestamp = deps.formatTimestamp;
   }
@@ -44,7 +39,7 @@ export class SkyService {
    * Return the currently retrograde planets for the requested reporting timezone.
    */
   getRetrogradePlanets(timezone?: string): ServiceResult<Record<string, unknown>> {
-    const resolvedTimezone = resolveReportingTimezone(this.mcpStartupDefaults, timezone);
+    const resolvedTimezone = timezone ?? 'UTC';
     const now = this.now();
     const jd = this.ephem.dateToJulianDay(now);
     const positions = this.ephem.getAllPlanets(jd, Object.values(PLANETS));
@@ -53,6 +48,7 @@ export class SkyService {
     const structuredData = {
       date: this.getDateLabel(now, resolvedTimezone),
       timezone: resolvedTimezone,
+      reporting_timezone: resolvedTimezone,
       planets: retrograde,
     };
 
@@ -67,11 +63,13 @@ export class SkyService {
   /**
    * Return the next rise and set events after the local day anchor for the chart location.
    */
-  async getRiseSetTimes(natalChart: NatalChart): Promise<ServiceResult<Record<string, unknown>>> {
-    const timezone = natalChart.location.timezone;
-    const reportingTimezone = this.mcpStartupDefaults.preferredTimezone || timezone;
+  async getRiseSetTimes(
+    natalChart: NatalChart,
+    reportingTimezone: string
+  ): Promise<ServiceResult<Record<string, unknown>>> {
+    const calculationTimezone = natalChart.location.timezone;
     const now = this.now();
-    const localNow = utcToLocal(now, timezone);
+    const localNow = utcToLocal(now, calculationTimezone);
     const localMidnight = {
       year: localNow.year,
       month: localNow.month,
@@ -80,7 +78,7 @@ export class SkyService {
       minute: 0,
       second: 0,
     };
-    const midnightUTC = localToUTC(localMidnight, timezone);
+    const midnightUTC = localToUTC(localMidnight, calculationTimezone);
 
     const results = await this.riseSetCalc.getAllRiseSet(
       midnightUTC,
@@ -89,8 +87,10 @@ export class SkyService {
     );
 
     const structuredData = {
-      date: this.getDateLabel(now, timezone),
-      timezone,
+      date: this.getDateLabel(now, calculationTimezone),
+      timezone: calculationTimezone,
+      calculation_timezone: calculationTimezone,
+      reporting_timezone: reportingTimezone,
       times: results.map((result) => ({
         planet: result.planet,
         rise: result.rise?.toISOString() ?? null,
@@ -116,7 +116,7 @@ export class SkyService {
    * Return current asteroid and node positions for the requested reporting timezone.
    */
   getAsteroidPositions(timezone?: string): ServiceResult<Record<string, unknown>> {
-    const resolvedTimezone = resolveReportingTimezone(this.mcpStartupDefaults, timezone);
+    const resolvedTimezone = timezone ?? 'UTC';
     const now = this.now();
     const jd = this.ephem.dateToJulianDay(now);
     const positions = this.ephem.getAllPlanets(jd, [...ASTEROIDS, ...NODES]);
@@ -124,6 +124,7 @@ export class SkyService {
     const structuredData = {
       date: this.getDateLabel(now, resolvedTimezone),
       timezone: resolvedTimezone,
+      reporting_timezone: resolvedTimezone,
       positions,
     };
 
@@ -144,7 +145,7 @@ export class SkyService {
    * Look up the next solar and lunar eclipses after the current instant.
    */
   getNextEclipses(timezone?: string): ServiceResult<Record<string, unknown>> {
-    const resolvedTimezone = resolveReportingTimezone(this.mcpStartupDefaults, timezone);
+    const resolvedTimezone = timezone ?? 'UTC';
     const jd = this.ephem.dateToJulianDay(this.now());
 
     const solarEclipse = this.eclipseCalc.findNextSolarEclipse(jd);
@@ -175,7 +176,11 @@ export class SkyService {
       );
     }
 
-    const structuredData = { timezone: resolvedTimezone, eclipses };
+    const structuredData = {
+      timezone: resolvedTimezone,
+      reporting_timezone: resolvedTimezone,
+      eclipses,
+    };
     const humanText =
       eclipses.length === 0
         ? 'No eclipses found in the near future.'

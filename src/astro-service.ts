@@ -12,6 +12,7 @@ import type {
   GetTransitsInput,
   ServiceResult,
   SetNatalChartInput,
+  SetPreferencesInput,
 } from './astro-service/service-types.js';
 import { resolveReportingTimezone } from './astro-service/shared.js';
 import { SkyService } from './astro-service/sky-service.js';
@@ -23,8 +24,9 @@ import { EphemerisCalculator } from './ephemeris.js';
 import { formatInTimezone } from './formatter.js';
 import { HouseCalculator } from './houses.js';
 import { RiseSetCalculator } from './riseset.js';
+import { isValidTimezone } from './time-utils.js';
 import { TransitCalculator } from './transits.js';
-import type { NatalChart } from './types.js';
+import type { HouseSystem, NatalChart } from './types.js';
 
 interface AstroServiceDependencies {
   ephem?: EphemerisCalculator;
@@ -49,6 +51,13 @@ interface ChartServiceResult {
   };
 }
 
+interface RuntimePreferences {
+  preferredTimezone?: string;
+  preferredHouseStyle?: HouseSystem;
+}
+
+const VALID_RUNTIME_HOUSE_STYLES = new Set<HouseSystem>(['P', 'W', 'K', 'E']);
+
 export { parseDateOnlyInput } from './astro-service/date-input.js';
 export type {
   GenerateChartInput,
@@ -59,6 +68,7 @@ export type {
   GetTransitsInput,
   ServiceResult,
   SetNatalChartInput,
+  SetPreferencesInput,
 } from './astro-service/service-types.js';
 
 /**
@@ -76,6 +86,7 @@ export class AstroService {
   readonly eclipseCalc: EclipseCalculator;
   readonly chartRenderer: ChartRenderer;
   readonly mcpStartupDefaults: Readonly<McpStartupDefaults>;
+  private readonly runtimePreferences: RuntimePreferences = {};
   private readonly transitService: TransitService;
   private readonly electionalService: ElectionalService;
   private readonly risingSignService: RisingSignService;
@@ -125,7 +136,6 @@ export class AstroService {
       ephem: this.ephem,
       riseSetCalc: this.riseSetCalc,
       eclipseCalc: this.eclipseCalc,
-      mcpStartupDefaults: this.mcpStartupDefaults,
       now: this.now,
       formatTimestamp: this.formatTimestamp.bind(this),
     });
@@ -153,7 +163,22 @@ export class AstroService {
    * timezone, and finally UTC.
    */
   resolveReportingTimezone(explicitTimezone?: string, natalTimezone?: string): string {
-    return resolveReportingTimezone(this.mcpStartupDefaults, explicitTimezone, natalTimezone);
+    return (
+      explicitTimezone ??
+      this.runtimePreferences.preferredTimezone ??
+      resolveReportingTimezone(this.mcpStartupDefaults, undefined, natalTimezone)
+    );
+  }
+
+  private applyRuntimeHouseStyle(natalChart: NatalChart): NatalChart {
+    if (this.runtimePreferences.preferredHouseStyle === undefined) {
+      return natalChart;
+    }
+
+    return {
+      ...natalChart,
+      requestedHouseSystem: this.runtimePreferences.preferredHouseStyle,
+    };
   }
 
   /**
@@ -194,7 +219,11 @@ export class AstroService {
     natalChart: NatalChart,
     input: GetTransitsInput = {}
   ): ServiceResult<Record<string, unknown>> {
-    return this.transitService.getTransits(natalChart, input);
+    const effectiveInput =
+      input.timezone === undefined && this.runtimePreferences.preferredTimezone !== undefined
+        ? { ...input, timezone: this.runtimePreferences.preferredTimezone }
+        : input;
+    return this.transitService.getTransits(this.applyRuntimeHouseStyle(natalChart), effectiveInput);
   }
 
   /**
@@ -219,7 +248,7 @@ export class AstroService {
     natalChart: NatalChart,
     input: GetHousesInput = {}
   ): ServiceResult<Record<string, unknown>> {
-    return this.natalService.getHouses(natalChart, input);
+    return this.natalService.getHouses(this.applyRuntimeHouseStyle(natalChart), input);
   }
 
   /**
@@ -237,7 +266,7 @@ export class AstroService {
    * Return the currently retrograde planets for the requested reporting timezone.
    */
   getRetrogradePlanets(timezone?: string): ServiceResult<Record<string, unknown>> {
-    return this.skyService.getRetrogradePlanets(timezone);
+    return this.skyService.getRetrogradePlanets(this.resolveReportingTimezone(timezone));
   }
 
   /**
@@ -247,29 +276,76 @@ export class AstroService {
    * The lookup anchor remains local midnight in the natal chart timezone even
    * when reporting text uses a preferred reporting timezone.
    */
-  async getRiseSetTimes(natalChart: NatalChart): Promise<ServiceResult<Record<string, unknown>>> {
-    return this.skyService.getRiseSetTimes(natalChart);
+  async getRiseSetTimes(
+    natalChart: NatalChart,
+    timezone?: string
+  ): Promise<ServiceResult<Record<string, unknown>>> {
+    return this.skyService.getRiseSetTimes(
+      natalChart,
+      this.resolveReportingTimezone(timezone, natalChart.location.timezone)
+    );
   }
 
   /**
    * Return current asteroid and node positions for the requested reporting timezone.
    */
   getAsteroidPositions(timezone?: string): ServiceResult<Record<string, unknown>> {
-    return this.skyService.getAsteroidPositions(timezone);
+    return this.skyService.getAsteroidPositions(this.resolveReportingTimezone(timezone));
   }
 
   /**
    * Look up the next solar and lunar eclipses after the current instant.
    */
   getNextEclipses(timezone?: string): ServiceResult<Record<string, unknown>> {
-    return this.skyService.getNextEclipses(timezone);
+    return this.skyService.getNextEclipses(this.resolveReportingTimezone(timezone));
   }
 
   /**
    * Summarize process-local server state and configured startup defaults.
    */
   getServerStatus(natalChart: NatalChart | null): ServiceResult<Record<string, unknown>> {
-    return this.natalService.getServerStatus(natalChart);
+    return this.natalService.getServerStatus(natalChart, this.runtimePreferences);
+  }
+
+  /**
+   * Update process-local MCP runtime preferences.
+   */
+  setPreferences(input: SetPreferencesInput): ServiceResult<Record<string, unknown>> {
+    if (input.preferred_timezone !== undefined) {
+      if (input.preferred_timezone === null) {
+        delete this.runtimePreferences.preferredTimezone;
+      } else {
+        if (!isValidTimezone(input.preferred_timezone)) {
+          throw new Error(`Invalid timezone: ${input.preferred_timezone}`);
+        }
+        this.runtimePreferences.preferredTimezone = input.preferred_timezone;
+      }
+    }
+
+    if (input.preferred_house_style !== undefined) {
+      if (input.preferred_house_style === null) {
+        delete this.runtimePreferences.preferredHouseStyle;
+      } else {
+        if (!VALID_RUNTIME_HOUSE_STYLES.has(input.preferred_house_style)) {
+          throw new Error(
+            `Invalid preferred house style: ${input.preferred_house_style} (must be one of P, W, K, E)`
+          );
+        }
+        this.runtimePreferences.preferredHouseStyle = input.preferred_house_style;
+      }
+    }
+
+    const preferredTimezone = this.runtimePreferences.preferredTimezone ?? null;
+    const preferredHouseStyle = this.runtimePreferences.preferredHouseStyle ?? null;
+    return {
+      data: {
+        runtimePreferences: {
+          preferredTimezone,
+          preferredHouseStyle,
+        },
+      },
+      text: `Runtime preferences updated. Reporting timezone: ${preferredTimezone ?? 'default'}. House style: ${preferredHouseStyle ?? 'default'}.`,
+    };
   }
 
   /**

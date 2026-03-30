@@ -80,14 +80,17 @@ describe('When using the extracted NatalService', () => {
     });
   });
 
-  it('Given state and defaults, then it preserves server status and house validation behavior', () => {
+  it('Given state, defaults, and runtime preferences, then it preserves server status and house validation behavior', () => {
     const { natalService, isInitialized } = makeNatalService({
       preferredTimezone: 'UTC',
       preferredHouseStyle: 'W',
       weekdayLabels: true,
     });
 
-    const status = natalService.getServerStatus(makeNatalChart());
+    const status = natalService.getServerStatus(makeNatalChart(), {
+      preferredTimezone: 'Asia/Kolkata',
+      preferredHouseStyle: 'P',
+    });
     expect(isInitialized).toHaveBeenCalled();
     expect(status.data).toMatchObject({
       hasNatalChart: true,
@@ -97,8 +100,19 @@ describe('When using the extracted NatalService', () => {
         preferredHouseStyle: 'W',
         weekdayLabels: true,
       },
+      runtimePreferences: {
+        preferredTimezone: 'Asia/Kolkata',
+        preferredHouseStyle: 'P',
+      },
+      effectiveSettings: {
+        reportingTimezone: 'Asia/Kolkata',
+        reportingTimezoneSource: 'runtime',
+        preferredHouseStyle: 'P',
+        preferredHouseStyleSource: 'runtime',
+      },
       ephemerisInitialized: true,
     });
+    expect(status.text).toContain('Reporting timezone: Asia/Kolkata (runtime)');
 
     expect(() => natalService.getHouses({ ...makeNatalChart(), julianDay: undefined })).toThrow(
       /missing julianDay/i

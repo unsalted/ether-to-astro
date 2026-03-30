@@ -25,24 +25,28 @@ This skill owns synthesis, ordering, and narrative framing. It does not invent a
 2. If no natal chart is loaded, either:
    - call `set_natal_chart` when the user has supplied birth data, or
    - stop and ask for natal-chart setup.
-3. Call `get_transits` for the target date.
+3. If the desired reporting timezone or preferred house style differs from the current MCP session setting, call `set_preferences` before retrieving transits.
+   Use this when the user is temporarily working in a different location or wants the brief reported with a different session-level house-style preference.
+4. Call `get_transits` for the target date.
    Recommended arguments:
    - `date`
    - `include_mundane: true`
    - `categories: ["all"]`
-4. Use additional MCP primitives only when they already exist and materially improve the brief:
+5. Use additional MCP primitives only when they already exist and materially improve the brief:
    - house-aware transit metadata
    - electional context
    - rising-sign windows
 
 ## Workflow
-1. Resolve the target date and reporting timezone.
-2. Retrieve same-day transit data.
+1. Inspect current MCP session state with `get_server_status`.
+2. Resolve the target date and reporting timezone.
+3. If needed, update the session reporting timezone with `set_preferences`.
+4. Retrieve same-day transit data.
 3. Separate the output into:
    - mundane baseline
    - personal transit modifiers
-4. Rank or group the results for readability, but keep all rankings clearly skill-side.
-5. Produce a concise brief with explicit references back to the underlying astro facts.
+5. Rank or group the results for readability, but keep all rankings clearly skill-side.
+6. Produce a concise brief with explicit references back to the underlying astro facts.
 
 ## Output Contract
 - Keep the brief short and practical.
