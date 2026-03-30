@@ -213,11 +213,6 @@ describe('Property: rising-sign service', () => {
 
         for (let index = 0; index < collapsedApproximate.length - 1; index += 1) {
           const exactFromIndex = matchingIndices![index];
-          const exactToIndex = matchingIndices![index + 1];
-          if (exactToIndex !== exactFromIndex + 1) {
-            continue;
-          }
-
           const fromSign = collapsedApproximate[index].sign;
           const toSign = collapsedApproximate[index + 1].sign;
           const exactBoundary = new Date(collapsedExact[exactFromIndex].end);
