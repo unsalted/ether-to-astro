@@ -16,6 +16,7 @@ Notes:
 
 - Core validation requires only Node + this repo.
 - Astrolog checks are optional and auto-skipped unless enabled and available.
+- Astrolog parity is the repo's optional curated external-oracle lane.
 - Astrolog parity covers a curated 25-fixture corpus (positions, houses, transit snapshots, and edge UTC normalization cases).
 - Dense-scan root oracle is independent from production `findExactTransitTimes()`.
 - The harness now validates both engine-level math and deterministic `AstroService` behavior.
@@ -30,6 +31,12 @@ Service-layer coverage now includes:
 - Electional context invariants: sect classification, near-horizon warnings, house fallback warnings, and optional-field toggles.
 - Rising-sign window invariants: full local-day coverage, DST-transition serialization, deterministic repeats, and exact-vs-approximate boundary precision.
 - Service-level transit serialization: enriched placement fields, explicit calculation/reporting timezones, forecast grouping, and sign-boundary carry behavior.
+
+Property testing is intentionally separate from this harness:
+
+- `npm run test:property` runs generated `fast-check` invariants.
+- Property tests do not use Astrolog parity.
+- Astrolog remains a named, curated, opt-in oracle lane for credibility and explainable golden-case comparisons.
 
 Tolerance summary:
 
