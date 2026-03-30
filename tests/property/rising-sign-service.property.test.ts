@@ -256,7 +256,7 @@ describe('Property: rising-sign service', () => {
         const offsets = new Set(
           result.windows.flatMap((window) => [window.start.slice(-6), window.end.slice(-6)])
         );
-        expect(offsets.size).toBeGreaterThanOrEqual(1);
+        expect(offsets.size).toBeGreaterThanOrEqual(2);
       }),
       propertyConfig({ heavy: true })
     );

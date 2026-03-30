@@ -32,7 +32,10 @@ function collapseConsecutiveWindows(result: NormalizedRisingSignWindowResult) {
   return collapsed;
 }
 
-function findSubsequenceIndices(sequence: string[], candidateSubsequence: string[]): number[] | null {
+function findSubsequenceIndices(
+  sequence: string[],
+  candidateSubsequence: string[]
+): number[] | null {
   const indices: number[] = [];
   let cursor = 0;
 
@@ -262,6 +265,24 @@ export function compareRisingSignModePrecision(
     const exactFromIndex = matchingIndices[index];
     const exactToIndex = matchingIndices[index + 1];
     if (exactToIndex !== exactFromIndex + 1) {
+      report.addHard({
+        fixture: fixture.name,
+        subsystem: 'rising-sign-windows',
+        expected: 'adjacent exact transition for coarse approximate boundary',
+        actual: collapsedExact.slice(exactFromIndex, exactToIndex + 1).map((window) => window.sign),
+        delta: exactToIndex - exactFromIndex - 1,
+        tolerance: '0 inserted intermediate signs',
+        message:
+          'Exact mode inserted intermediate sign windows where approximate mode reported a single boundary',
+        details: {
+          approximateBoundary: {
+            leftSign: collapsedApproximate[index].sign,
+            rightSign: collapsedApproximate[index + 1].sign,
+            end: collapsedApproximate[index].end,
+          },
+          exactSegment: collapsedExact.slice(exactFromIndex, exactToIndex + 1),
+        },
+      });
       continue;
     }
 
