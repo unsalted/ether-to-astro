@@ -149,13 +149,13 @@ describe('When resolving unified binary entrypoint mode', () => {
       symlinkSync(loaderPath, e2aBinPath);
       symlinkSync(mcpAliasPath, e2aMcpBinPath);
 
-      const e2aOutput = runCommand(e2aBinPath, ['--help'], {
+      const e2aOutput = runCommand('node', [e2aBinPath, '--help'], {
         cwd: repoRoot,
         env,
       });
       expect(e2aOutput).toContain('Usage: e2a [options] [command]');
 
-      const e2aMcpOutput = runCommand(e2aMcpBinPath, ['--help'], {
+      const e2aMcpOutput = runCommand('node', [e2aMcpBinPath, '--help'], {
         cwd: repoRoot,
         env,
       });
