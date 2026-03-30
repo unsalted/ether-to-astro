@@ -1,4 +1,6 @@
+import { realpathSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { isValidTimezone } from './time-utils.js';
 import type { HouseSystem } from './types.js';
 
@@ -115,4 +117,19 @@ export function resolveEntrypoint(
     mcpHelpRequested,
     mcpStartupDefaults: Object.freeze({ ...defaults }),
   };
+}
+
+export function isDirectExecution(
+  importMetaUrl: string,
+  invokedPath = process.argv[1] ?? ''
+): boolean {
+  if (!invokedPath) {
+    return false;
+  }
+
+  try {
+    return realpathSync(fileURLToPath(importMetaUrl)) === realpathSync(invokedPath);
+  } catch {
+    return false;
+  }
 }
