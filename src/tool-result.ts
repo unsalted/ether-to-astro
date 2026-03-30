@@ -207,7 +207,8 @@ export function mapToolErrorMessageToCode(errorMessage: string): ToolIssueCode {
     errorMessage.includes('missing julianDay') ||
     errorMessage.includes('Invalid mode') ||
     errorMessage.includes('Invalid latitude') ||
-    errorMessage.includes('Invalid longitude')
+    errorMessage.includes('Invalid longitude') ||
+    errorMessage.includes('Invalid preferred house style')
   ) {
     return 'INVALID_INPUT';
   }
