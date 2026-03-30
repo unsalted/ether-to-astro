@@ -14,5 +14,5 @@ Current draft:
 
 Released notes:
 
-- [v1.4.0 notes](/Users/salted/Code/astro-mcp/docs/releases/1.4.0.md)
-- [v1.3.0 notes](/Users/salted/Code/astro-mcp/docs/releases/1.3.0.md)
+- [v1.4.0 notes](./1.4.0.md)
+- [v1.3.0 notes](./1.3.0.md)
