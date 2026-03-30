@@ -264,6 +264,7 @@ export function compareRisingSignModePrecision(
   for (let index = 0; index < collapsedApproximate.length - 1; index++) {
     const exactFromIndex = matchingIndices[index];
     const exactToIndex = matchingIndices[index + 1];
+    const exactBoundary = collapsedExact[exactFromIndex];
     if (exactToIndex !== exactFromIndex + 1) {
       report.addHard({
         fixture: fixture.name,
@@ -283,11 +284,10 @@ export function compareRisingSignModePrecision(
           exactSegment: collapsedExact.slice(exactFromIndex, exactToIndex + 1),
         },
       });
-      continue;
     }
 
     const approximateBoundaryMs = new Date(collapsedApproximate[index].end).getTime();
-    const exactBoundaryMs = new Date(collapsedExact[exactFromIndex].end).getTime();
+    const exactBoundaryMs = new Date(exactBoundary.end).getTime();
     const leftSign = collapsedApproximate[index].sign;
     const rightSign = collapsedApproximate[index + 1].sign;
     const searchStartMs = Math.min(approximateBoundaryMs, exactBoundaryMs) - 60 * 60 * 1000;
@@ -319,7 +319,7 @@ export function compareRisingSignModePrecision(
           leftSign,
           rightSign,
           approximateBoundary: collapsedApproximate[index].end,
-          exactBoundary: collapsedExact[exactFromIndex].end,
+          exactBoundary: exactBoundary.end,
         },
       });
       continue;
@@ -339,7 +339,7 @@ export function compareRisingSignModePrecision(
         details: {
           actualTransitionIsoUtc: new Date(actualTransitionMs).toISOString(),
           approximateBoundary: collapsedApproximate[index].end,
-          exactBoundary: collapsedExact[exactFromIndex].end,
+          exactBoundary: exactBoundary.end,
         },
       });
     }
