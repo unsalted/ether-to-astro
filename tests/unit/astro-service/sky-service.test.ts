@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SkyService } from '../../../src/astro-service/sky-service.js';
-import type { McpStartupDefaults } from '../../../src/entrypoint.js';
 import type { NatalChart, PlanetPosition, RiseSetTime } from '../../../src/types.js';
 
 function makePlanet(planet: PlanetPosition['planet'], longitude: number): PlanetPosition {
@@ -29,7 +28,7 @@ function makeNatalChart(): NatalChart {
   };
 }
 
-function makeSkyService(mcpStartupDefaults: McpStartupDefaults = {}) {
+function makeSkyService() {
   const ephem = {
     dateToJulianDay: vi.fn((date: Date) => date.getTime() / 86400000 + 2440587.5),
     getAllPlanets: vi.fn(() => [makePlanet('Mercury', 42), { ...makePlanet('Saturn', 315), sign: 'Aquarius', isRetrograde: true }]),
@@ -59,7 +58,6 @@ function makeSkyService(mcpStartupDefaults: McpStartupDefaults = {}) {
     ephem: ephem as any,
     riseSetCalc: riseSetCalc as any,
     eclipseCalc: eclipseCalc as any,
-    mcpStartupDefaults,
     now,
     formatTimestamp,
   });
@@ -69,12 +67,13 @@ function makeSkyService(mcpStartupDefaults: McpStartupDefaults = {}) {
 
 describe('When using the extracted SkyService', () => {
   it('Given current planetary motion, then it preserves retrograde and asteroid payloads', () => {
-    const { skyService, ephem } = makeSkyService({ preferredTimezone: 'UTC' });
+    const { skyService, ephem } = makeSkyService();
 
     const retro = skyService.getRetrogradePlanets();
     expect(retro.data).toMatchObject({
       date: '2024-03-26',
       timezone: 'UTC',
+      reporting_timezone: 'UTC',
     });
     expect((retro.data as any).planets).toEqual(
       expect.arrayContaining([expect.objectContaining({ planet: 'Saturn', isRetrograde: true })])
@@ -97,18 +96,21 @@ describe('When using the extracted SkyService', () => {
   });
 
   it('Given runtime rise-set and eclipse lookups, then it preserves readable summaries', async () => {
-    const { skyService } = makeSkyService({ preferredTimezone: 'America/New_York' });
+    const { skyService } = makeSkyService();
 
-    const riseSet = await skyService.getRiseSetTimes(makeNatalChart());
+    const riseSet = await skyService.getRiseSetTimes(makeNatalChart(), 'America/New_York');
     expect(riseSet.data).toMatchObject({
       date: '2024-03-26',
       timezone: 'America/Los_Angeles',
+      calculation_timezone: 'America/Los_Angeles',
+      reporting_timezone: 'America/New_York',
     });
     expect(riseSet.text).toContain('America/New_York');
 
     const eclipses = skyService.getNextEclipses('UTC');
     expect(eclipses.data).toMatchObject({
       timezone: 'UTC',
+      reporting_timezone: 'UTC',
       eclipses: [expect.objectContaining({ type: 'solar', eclipseType: 'Total' })],
     });
     expect(eclipses.text).toContain('Next Solar Eclipse');

@@ -23,6 +23,7 @@ export interface SetNatalChartInput {
  */
 export interface GetTransitsInput {
   date?: string;
+  timezone?: string;
   categories?: string[];
   include_mundane?: boolean;
   days_ahead?: number;
@@ -71,6 +72,14 @@ export interface GetRisingSignWindowsInput {
 export interface ServiceResult<T> {
   data: T;
   text: string;
+}
+
+/**
+ * Public input type for updating process-local MCP runtime preferences.
+ */
+export interface SetPreferencesInput {
+  preferred_timezone?: string | null;
+  preferred_house_style?: HouseSystem | null;
 }
 
 /**

@@ -13,6 +13,11 @@ interface NatalServiceDependencies {
   isInitialized: () => boolean;
 }
 
+interface RuntimePreferenceSnapshot {
+  preferredTimezone?: string;
+  preferredHouseStyle?: HouseSystem;
+}
+
 /**
  * Internal natal/chart-state workflow used by `AstroService`.
  *
@@ -211,24 +216,72 @@ export class NatalService {
   /**
    * Summarize process-local server state and configured startup defaults.
    */
-  getServerStatus(natalChart: NatalChart | null): ServiceResult<Record<string, unknown>> {
+  getServerStatus(
+    natalChart: NatalChart | null,
+    runtimePreferences: RuntimePreferenceSnapshot = {}
+  ): ServiceResult<Record<string, unknown>> {
+    const reportingTimezone =
+      runtimePreferences.preferredTimezone ??
+      this.mcpStartupDefaults.preferredTimezone ??
+      natalChart?.location.timezone ??
+      'UTC';
+    const reportingTimezoneSource =
+      runtimePreferences.preferredTimezone !== undefined
+        ? 'runtime'
+        : this.mcpStartupDefaults.preferredTimezone !== undefined
+          ? 'startup'
+          : natalChart?.location.timezone
+            ? 'natal'
+            : 'fallback';
+    const preferredHouseStyle =
+      runtimePreferences.preferredHouseStyle ??
+      natalChart?.requestedHouseSystem ??
+      this.mcpStartupDefaults.preferredHouseStyle ??
+      natalChart?.houseSystem ??
+      'P';
+    const preferredHouseStyleSource =
+      runtimePreferences.preferredHouseStyle !== undefined
+        ? 'runtime'
+        : natalChart?.requestedHouseSystem !== undefined
+          ? 'chart_requested'
+          : this.mcpStartupDefaults.preferredHouseStyle !== undefined
+            ? 'startup'
+            : natalChart?.houseSystem !== undefined
+              ? 'chart_resolved'
+              : 'fallback';
+
     const statusData = {
       serverVersion: '1.0.0',
       hasNatalChart: natalChart !== null,
       natalChartName: natalChart?.name ?? null,
       natalChartTimezone: natalChart?.location.timezone ?? null,
+      natalChartRequestedHouseSystem: natalChart?.requestedHouseSystem ?? null,
+      natalChartResolvedHouseSystem: natalChart?.houseSystem ?? null,
       startupDefaults: {
         preferredTimezone: this.mcpStartupDefaults.preferredTimezone ?? null,
         preferredHouseStyle: this.mcpStartupDefaults.preferredHouseStyle ?? null,
         weekdayLabels: this.mcpStartupDefaults.weekdayLabels ?? null,
       },
+      runtimePreferences: {
+        preferredTimezone: runtimePreferences.preferredTimezone ?? null,
+        preferredHouseStyle: runtimePreferences.preferredHouseStyle ?? null,
+      },
+      effectiveSettings: {
+        reportingTimezone,
+        reportingTimezoneSource,
+        preferredHouseStyle,
+        preferredHouseStyleSource,
+      },
       ephemerisInitialized: this.isInitialized(),
       stateModel: 'stateful-per-process',
     };
 
-    const humanText = natalChart
-      ? `Server ready. Natal chart loaded: ${natalChart.name} (${natalChart.location.timezone})`
-      : 'Server ready. No natal chart loaded — call set_natal_chart first.';
+    const chartText = natalChart
+      ? `Natal chart loaded: ${natalChart.name} (${natalChart.location.timezone})`
+      : 'No natal chart loaded';
+    const humanText =
+      `Server ready. Reporting timezone: ${reportingTimezone} (${reportingTimezoneSource}). ` +
+      `House style: ${preferredHouseStyle} (${preferredHouseStyleSource}). ${chartText}.`;
 
     return { data: statusData, text: humanText };
   }

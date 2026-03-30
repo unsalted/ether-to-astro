@@ -295,6 +295,8 @@ Ask your AI agent:
 ## MCP Tools Available
 
 ### Setup
+- `get_server_status` - Inspect loaded chart state and effective MCP session settings
+- `set_preferences` - Update process-local MCP runtime preferences such as reporting timezone and preferred house style
 - `set_natal_chart` - Store birth chart data
 
 ### Transits

@@ -23,21 +23,24 @@ This skill is only as strong as the underlying forecast primitives. It must not 
 ## Required MCP Calls
 1. Call `get_server_status`.
 2. Ensure a natal chart is loaded before continuing.
-3. Prefer a true range-aware transit forecast primitive when available.
+3. If the desired reporting timezone or preferred house style differs from the current MCP session setting, call `set_preferences` before retrieving forecast data.
+4. Prefer a true range-aware transit forecast primitive when available.
    Examples:
    - explicit `forecast` mode on `get_transits`
    - date-grouped transit forecast output
    - per-day mundane aspect data
-4. Only use electional primitives as a second pass after the weekly overview exists.
+5. Only use electional primitives as a second pass after the weekly overview exists.
 
 ## Workflow
-1. Resolve the weekly window and reporting timezone.
-2. Retrieve week-level transit data using a forecast-capable MCP surface.
-3. Build the overview in this order:
+1. Inspect current MCP session state with `get_server_status`.
+2. Resolve the weekly window and reporting timezone.
+3. If needed, update the session reporting timezone or preferred house style with `set_preferences`.
+4. Retrieve week-level transit data using a forecast-capable MCP surface.
+5. Build the overview in this order:
    - collective weather across the week
    - notable personal modifiers by day or cluster
    - optional secondary timing suggestions
-4. Keep recommendations clearly secondary to the overview.
+6. Keep recommendations clearly secondary to the overview.
 
 ## Elicitation
 - If the user does not provide a start date, default to today in the reporting timezone.

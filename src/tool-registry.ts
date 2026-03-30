@@ -30,6 +30,34 @@ export interface ToolSpec {
 
 export const MCP_TOOL_SPECS: ToolSpec[] = [
   {
+    name: 'set_preferences',
+    description:
+      'Update process-local MCP runtime preferences. Use this to change session reporting defaults such as timezone and house style without restarting the server.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        preferred_timezone: {
+          anyOf: [{ type: 'string' }, { type: 'null' }],
+          description:
+            'Optional reporting timezone override for this MCP session. Use null to clear the override.',
+        },
+        preferred_house_style: {
+          anyOf: [{ type: 'string', enum: ['P', 'W', 'K', 'E'] }, { type: 'null' }],
+          description:
+            'Optional preferred house style override for this MCP session. Use null to clear the override.',
+        },
+      },
+    },
+    requiresNatalChart: false,
+    execute: (ctx, args) => {
+      const result = ctx.service.setPreferences({
+        preferred_timezone: args.preferred_timezone as string | null | undefined,
+        preferred_house_style: args.preferred_house_style as HouseSystem | null | undefined,
+      });
+      return { kind: 'state', data: result.data, text: result.text };
+    },
+  },
+  {
     name: 'set_natal_chart',
     description:
       'Store natal chart data for transit calculations. Birth time should be LOCAL time at the birth location (not UTC). The server converts to UTC using the timezone parameter. Optional birth_time_disambiguation handles DST overlap/gap edge cases (default: reject).',
@@ -209,6 +237,11 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
           type: 'string',
           description: 'Date for transits (ISO format YYYY-MM-DD). Defaults to today.',
         },
+        timezone: {
+          type: 'string',
+          description:
+            'Optional reporting timezone override. Calculation day interpretation still uses the natal chart timezone.',
+        },
         categories: {
           type: 'array',
           items: { type: 'string', enum: ['moon', 'personal', 'outer', 'all'] },
@@ -252,6 +285,7 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
     execute: (ctx, args) => {
       const result = ctx.service.getTransits(ctx.natalChart as NatalChart, {
         date: args.date as string | undefined,
+        timezone: args.timezone as string | undefined,
         categories: args.categories as string[] | undefined,
         include_mundane: args.include_mundane as boolean | undefined,
         days_ahead: args.days_ahead as number | undefined,
@@ -289,7 +323,15 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
   {
     name: 'get_retrograde_planets',
     description: 'Show which planets are currently retrograde',
-    inputSchema: { type: 'object', properties: {} },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        timezone: {
+          type: 'string',
+          description: 'Optional reporting timezone override',
+        },
+      },
+    },
     requiresNatalChart: false,
     execute: (ctx, args) => {
       const timezone = ctx.service.resolveReportingTimezone(
@@ -303,17 +345,37 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
   {
     name: 'get_rise_set_times',
     description: 'Get sunrise, sunset, moonrise, moonset times for today',
-    inputSchema: { type: 'object', properties: {} },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        timezone: {
+          type: 'string',
+          description:
+            'Optional reporting timezone override. Rise/set anchoring still uses the natal chart timezone.',
+        },
+      },
+    },
     requiresNatalChart: true,
-    execute: async (ctx) => {
-      const result = await ctx.service.getRiseSetTimes(ctx.natalChart as NatalChart);
+    execute: async (ctx, args) => {
+      const result = await ctx.service.getRiseSetTimes(
+        ctx.natalChart as NatalChart,
+        args.timezone as string | undefined
+      );
       return { kind: 'state', data: result.data, text: result.text };
     },
   },
   {
     name: 'get_asteroid_positions',
     description: 'Get positions of major asteroids (Chiron, Ceres, Pallas, Juno, Vesta) and Nodes',
-    inputSchema: { type: 'object', properties: {} },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        timezone: {
+          type: 'string',
+          description: 'Optional reporting timezone override',
+        },
+      },
+    },
     requiresNatalChart: false,
     execute: (ctx, args) => {
       const timezone = ctx.service.resolveReportingTimezone(
@@ -327,7 +389,15 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
   {
     name: 'get_next_eclipses',
     description: 'Find the next solar and lunar eclipses',
-    inputSchema: { type: 'object', properties: {} },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        timezone: {
+          type: 'string',
+          description: 'Optional reporting timezone override',
+        },
+      },
+    },
     requiresNatalChart: false,
     execute: (ctx, args) => {
       const timezone = ctx.service.resolveReportingTimezone(
@@ -341,7 +411,7 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
   {
     name: 'get_server_status',
     description:
-      'Inspect the current server state: whether a natal chart is loaded, its name and timezone, and the server version. Call this before making assumptions about loaded context.',
+      'Inspect the current server state: whether a natal chart is loaded, its name and timezone, the effective reporting timezone and house-style context, and the server version. Call this before making assumptions about loaded context.',
     inputSchema: { type: 'object', properties: {} },
     requiresNatalChart: false,
     execute: (ctx) => {

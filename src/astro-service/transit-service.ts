@@ -134,7 +134,7 @@ export class TransitService {
     const transitingPlanetIds = this.resolveTransitingPlanetIds(categories);
     const { calculationTimezone, reportingTimezone } = resolveTimezones(
       this.mcpStartupDefaults,
-      undefined,
+      input.timezone,
       natalChart.location.timezone
     );
 

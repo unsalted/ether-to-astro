@@ -3,6 +3,7 @@ import { createToolSpecIndex, getToolSpec, MCP_TOOL_SPECS } from '../../src/tool
 
 function makeService() {
   return {
+    setPreferences: vi.fn(() => ({ data: { runtimePreferences: {} }, text: 'prefs' })),
     setNatalChart: vi.fn(() => ({ data: { ok: true }, text: 'set', chart: { name: 'x' } })),
     getRisingSignWindows: vi.fn(() => ({ data: { windows: [] }, text: 'rising windows' })),
     getElectionalContext: vi.fn(() => ({ data: { ascendant: {} }, text: 'electional' })),
@@ -52,6 +53,21 @@ describe('When resolving tool specs from the registry', () => {
     }
   });
 
+  it('Given set_preferences execution, then state result includes the updated runtime preferences', async () => {
+    const spec = getToolSpec('set_preferences');
+    expect(spec).toBeDefined();
+    const service = makeService();
+    const result = await spec!.execute(
+      { service: service as any, natalChart: null },
+      { preferred_timezone: 'Asia/Kolkata', preferred_house_style: 'W' }
+    );
+    expect(result.kind).toBe('state');
+    expect(service.setPreferences).toHaveBeenCalledWith({
+      preferred_timezone: 'Asia/Kolkata',
+      preferred_house_style: 'W',
+    });
+  });
+
 
   it('Given get_transits args, then execute forwards mundane and filter options to service', async () => {
     const service = makeService();
@@ -68,6 +84,7 @@ describe('When resolving tool specs from the registry', () => {
       applying_only: true,
       categories: ['outer'],
       date: '2026-01-02',
+      timezone: 'Asia/Kolkata',
     });
 
     expect(service.getTransits).toHaveBeenCalledWith(ctx.natalChart, {
@@ -78,6 +95,7 @@ describe('When resolving tool specs from the registry', () => {
       applying_only: true,
       categories: ['outer'],
       date: '2026-01-02',
+      timezone: 'Asia/Kolkata',
     });
   });
 
@@ -160,12 +178,13 @@ describe('When resolving tool specs from the registry', () => {
   it('Given async state tool handlers, then they resolve to state payloads', async () => {
     const service = makeService();
     const ctx = { service: service as any, natalChart: { name: 'chart' } as any };
-    const rise = await getToolSpec('get_rise_set_times')!.execute(ctx, {});
+    const rise = await getToolSpec('get_rise_set_times')!.execute(ctx, { timezone: 'UTC' });
     const ast = await getToolSpec('get_asteroid_positions')!.execute(ctx, { timezone: 'UTC' });
     const eclipse = await getToolSpec('get_next_eclipses')!.execute(ctx, { timezone: 'UTC' });
     expect(rise.kind).toBe('state');
     expect(ast.kind).toBe('state');
     expect(eclipse.kind).toBe('state');
+    expect(service.getRiseSetTimes).toHaveBeenCalledWith(ctx.natalChart, 'UTC');
   });
 
   it('Given natal chart SVG output, then content includes text plus SVG', async () => {
