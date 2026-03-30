@@ -99,8 +99,7 @@ function estimateBoundaryErrorMs(
   boundaryUtc: Date,
   latitude: number,
   longitude: number,
-  fromSign: string,
-  toSign: string
+  fromSign: string
 ): number {
   const searchRadiusMs = 2 * 60 * 60 * 1000;
   const stepMs = 60 * 1000;
@@ -115,7 +114,7 @@ function estimateBoundaryErrorMs(
     const currentTime = new Date(currentMs);
     const currentSign = adapter.getAscendantSignAt(currentTime.toISOString(), latitude, longitude);
 
-    if (previousSign === fromSign && currentSign === toSign) {
+    if (previousSign === fromSign && currentSign !== fromSign) {
       return Math.abs(boundaryUtc.getTime() - currentMs);
     }
 
@@ -214,7 +213,6 @@ describe('Property: rising-sign service', () => {
         for (let index = 0; index < collapsedApproximate.length - 1; index += 1) {
           const exactFromIndex = matchingIndices![index];
           const fromSign = collapsedApproximate[index].sign;
-          const toSign = collapsedApproximate[index + 1].sign;
           const exactBoundary = new Date(collapsedExact[exactFromIndex].end);
           const approximateBoundary = new Date(collapsedApproximate[index].end);
 
@@ -223,16 +221,14 @@ describe('Property: rising-sign service', () => {
             exactBoundary,
             baseInput.latitude,
             baseInput.longitude,
-            fromSign,
-            toSign
+            fromSign
           );
           const approximateError = estimateBoundaryErrorMs(
             adapter,
             approximateBoundary,
             baseInput.latitude,
             baseInput.longitude,
-            fromSign,
-            toSign
+            fromSign
           );
 
           expect(exactError).toBeLessThanOrEqual(approximateError + 60_000);

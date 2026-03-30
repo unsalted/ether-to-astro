@@ -64,7 +64,7 @@ describe('When comparing rising-sign window mode precision', () => {
           sign: 'Libra',
           start: '2026-03-28T01:50:00.000Z',
           end: '2026-03-28T06:00:00.000Z',
-          durationMs: 250 * 60 * 60 * 1000 / 60,
+          durationMs: 250 * 60 * 1000,
         },
       ],
     };

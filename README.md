@@ -93,6 +93,8 @@ You can ask your AI agent about:
 
 ### Transits
 - **Daily mundane positions** - Current planetary positions
+- **Mundane transit-to-transit aspects** - Deterministic aspect signals between transiting bodies
+- **Mundane weather metadata** - Deterministic supportive/challenging grouping references (non-narrative)
 - **Moon transits** - Fast-moving Moon aspects to natal planets
 - **Personal planet transits** - Sun, Mercury, Venus, Mars aspects to natal chart
 - **Outer planet transits** - Jupiter, Saturn, Uranus, Neptune, Pluto aspects
@@ -302,8 +304,8 @@ Ask your AI agent:
   - `forecast`: day-grouped transit output across the selected date window
   - if `mode` is omitted, legacy behavior is preserved: `days_ahead=0` resolves to `snapshot`, and `days_ahead>0` resolves to `best_hit`
   - each transit now includes additive placement metadata for both sides: sign, degree, and house
-
-In this release, `include_mundane` remains anchored to the forecast start date even when `mode=forecast`. Range-aware mundane output is tracked separately.
+  - with `include_mundane=true`, output includes deterministic mundane positions plus `mundane.aspects` and non-narrative `mundane.weather` grouping metadata
+  - when `include_mundane=true` and `mode=forecast`, output includes `mundane.days[]` with per-day grouped mundane aspects/weather
 
 ### Electional
 - `get_electional_context` - Stateless electional context for a local date, time, and location. Returns deterministic ascendant, sect/day-night classification, Moon phase, applying aspects, and optional ASC-ruler basics without requiring a natal chart.

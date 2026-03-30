@@ -81,6 +81,17 @@ describe('When resolving tool specs from the registry', () => {
     });
   });
 
+  it('Given get_transits schema, then include_mundane description matches shipped mundane contract', () => {
+    const spec = getToolSpec('get_transits');
+    expect(spec).toBeDefined();
+    const includeMundane = (spec!.inputSchema as any).properties.include_mundane.description as string;
+
+    expect(includeMundane).toContain('planetary positions');
+    expect(includeMundane).toContain('mundane aspects');
+    expect(includeMundane).toContain('weather');
+    expect(includeMundane).toContain('mundane.days');
+  });
+
   it('Given simple state tools, then calls route to matching service methods', async () => {
     const service = makeService();
     const ctx = { service: service as any, natalChart: { name: 'chart' } as any };
