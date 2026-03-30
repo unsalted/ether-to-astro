@@ -32,7 +32,10 @@ function collapseConsecutiveWindows(result: NormalizedRisingSignWindowResult) {
   return collapsed;
 }
 
-function findSubsequenceIndices(sequence: string[], candidateSubsequence: string[]): number[] | null {
+function findSubsequenceIndices(
+  sequence: string[],
+  candidateSubsequence: string[]
+): number[] | null {
   const indices: number[] = [];
   let cursor = 0;
 
