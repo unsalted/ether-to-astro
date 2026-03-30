@@ -195,6 +195,14 @@ Do not add a new MCP primitive when:
 
 Based on the current product direction:
 
+### Shared behavior boundary
+
+- `src/astro-service.ts` remains the shared CLI/MCP behavior boundary.
+- `AstroService` should stay a thin facade and orchestration layer.
+- Shared implementation should usually live in the internal domain modules under `src/astro-service/`.
+- New shared behavior should be added to the appropriate extracted service first, not piled back into the facade file.
+- Public types may be re-exported from `src/astro-service.ts`, but domain logic should stay in the internal service modules unless there is a clear contract reason not to.
+
 ### Strong candidates for MCP
 
 - range-aware transit forecast data
