@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 // Set up browser globals for astrochart library BEFORE any imports
 import { JSDOM } from 'jsdom';
-import { resolveEntrypoint } from './entrypoint.js';
+import { isDirectExecution, resolveEntrypoint } from './entrypoint.js';
 
 function initializeRuntime() {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
@@ -72,7 +72,7 @@ export async function runEntrypoint(argv = process.argv.slice(2), invokedPath = 
   process.exit(code);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isDirectExecution(import.meta.url)) {
   runEntrypoint().catch((error) => {
     console.error('[ERROR] Failed to start program:', error);
     process.exit(1);
