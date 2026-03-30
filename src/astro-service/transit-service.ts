@@ -21,6 +21,7 @@ import type { GetTransitsInput, ServiceResult } from './service-types.js';
 import {
   getHouseNumber,
   getSignAndDegree,
+  normalizePlanetPlacement,
   resolveHouseSystem,
   resolveTimezones,
 } from './shared.js';
@@ -486,7 +487,9 @@ export class TransitService {
     const localDay = utcToLocal(dayUTC, timezone);
     const dateLabel = this.formatDateLabel(localDay);
     const currentJD = this.ephem.dateToJulianDay(dayUTC);
-    const positions = this.ephem.getAllPlanets(currentJD, transitingPlanetIds);
+    const positions = this.ephem
+      .getAllPlanets(currentJD, transitingPlanetIds)
+      .map(normalizePlanetPlacement);
     const aspects = this.getMundaneAspects(dateLabel, positions);
 
     return {

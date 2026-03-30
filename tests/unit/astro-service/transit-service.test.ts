@@ -190,6 +190,47 @@ describe('When using the extracted TransitService', () => {
     });
   });
 
+  it('Given include_mundane at a sign boundary, then mundane positions match the serialized transit placement policy', () => {
+    const { transitService, transitCalc, ephem } = makeTransitService();
+    transitCalc.findTransits.mockReturnValue([
+      {
+        transitingPlanet: 'Venus',
+        natalPlanet: 'Sun',
+        aspect: 'conjunction',
+        orb: 0.01,
+        isApplying: true,
+        exactTimeStatus: 'within_preview',
+        transitLongitude: 29.999,
+        natalLongitude: 10,
+        exactTime: undefined,
+      },
+    ]);
+    ephem.getAllPlanets.mockReturnValue([
+      { ...makePlanet('Venus', 29.999), sign: 'Aries', degree: 29.999, speed: 1 },
+      { ...makePlanet('Moon', 90), speed: 1 },
+    ]);
+
+    const result = transitService.getTransits(makeNatalChart(), {
+      mode: 'snapshot',
+      include_mundane: true,
+      categories: ['personal'],
+    });
+
+    expect((result.data as any).transits.transits[0]).toMatchObject({
+      transitingPlanet: 'Venus',
+      transitSign: 'Taurus',
+      transitDegree: 0,
+    });
+    expect((result.data as any).mundane.positions).toContainEqual(
+      expect.objectContaining({
+        planet: 'Venus',
+        longitude: 29.999,
+        sign: 'Taurus',
+        degree: 0,
+      })
+    );
+  });
+
   it('Given forecast mode across multiple days, then each day is deduped independently', () => {
     const { transitService, transitCalc } = makeTransitService();
     transitCalc.findTransits

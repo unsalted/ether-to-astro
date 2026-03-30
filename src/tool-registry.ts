@@ -251,7 +251,7 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
         include_mundane: {
           type: 'boolean',
           description:
-            'Include deterministic mundane baseline data for the requested window. Output includes planetary positions, transit-to-transit mundane aspects, and non-narrative weather grouping metadata; forecast windows also include per-day mundane.days entries. Defaults to false.',
+            'Include deterministic mundane baseline data for the requested window. Output includes planetary positions using the same sign-boundary normalization as serialized transits, transit-to-transit mundane aspects, and non-narrative weather grouping metadata; forecast windows also include per-day mundane.days entries. Defaults to false.',
         },
         days_ahead: {
           type: 'number',

@@ -105,6 +105,7 @@ describe('When resolving tool specs from the registry', () => {
     const includeMundane = (spec!.inputSchema as any).properties.include_mundane.description as string;
 
     expect(includeMundane).toContain('planetary positions');
+    expect(includeMundane).toContain('same sign-boundary normalization as serialized transits');
     expect(includeMundane).toContain('mundane aspects');
     expect(includeMundane).toContain('weather');
     expect(includeMundane).toContain('mundane.days');
