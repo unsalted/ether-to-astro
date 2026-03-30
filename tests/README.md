@@ -13,6 +13,7 @@ tests/
 │   ├── ephemeris/transits/*   # Core astrology math and solver behavior
 │   ├── riseset/eclipses/*     # Event calculators and edge flags
 │   └── charts/houses/*        # Rendering and house-system behavior
+├── property/                  # `fast-check` invariant coverage and shrinkable counterexamples
 ├── helpers/                   # Reusable test helpers/builders
 ├── fixtures/                  # Test data and fixtures
 │   ├── bowen-yang-chart.ts    # Bowen Yang's birth chart
@@ -31,6 +32,9 @@ npm test
 
 # Run tests with coverage
 npm run test:coverage
+
+# Run property tests
+npm run test:property
 
 # Run tests with UI
 npm run test:ui
@@ -74,12 +78,23 @@ describe('When an AI asks "What transits is Bowen experiencing today?"', () => {
 2. **Orchestration lane:** Fast deterministic tests with injected mocks/fakes
 3. **Filesystem/profile lane:** Temp-fs integration style for precedence and parsing
 4. **Validation lane:** Cross-check production outputs with oracle comparators
+5. **Property lane:** Generated invariant checks with `fast-check`
+
+### Property Lane
+- Property tests live under `tests/property/`.
+- Seeded reruns are supported via:
+  - `ASTRO_PROPERTY_SEED`
+  - `ASTRO_PROPERTY_RUNS`
+  - `ASTRO_PROPERTY_HEAVY_RUNS`
+- This lane is additive and intentionally separate from `quality:gate` for now.
+- Use it for invariants, determinism, and shrinkable counterexamples rather than external parity.
 
 ## Current Status
 
 ✅ **Completed:**
 - Unit suites for service, CLI, registry, domain calculators, and profile store
 - Validation harness with subsystem comparators and dense root oracle
+- Property-test lane for generated invariants across time utils, services, houses, and transits
 - Deterministic time setup and fixture-driven real-world chart checks
 
 ## Known Issues
