@@ -42,10 +42,12 @@ function makeService(mcpStartupDefaults: McpStartupDefaults = {}) {
     eph: {},
     init: vi.fn(async () => {}),
     dateToJulianDay: vi.fn((date: Date) => date.getTime() / 86400000 + 2440587.5),
+    julianDayToDate: vi.fn((jd: number) => new Date((jd - 2440587.5) * 86400000)),
     calculateAspectAngle: vi.fn((a: number, b: number) => {
       const diff = Math.abs(a - b);
       return diff > 180 ? 360 - diff : diff;
     }),
+    findExactTransitTimes: vi.fn(() => [] as number[]),
     getHorizontalCoordinates: vi.fn(() => ({
       azimuth: 180,
       trueAltitude: 25,
@@ -242,6 +244,67 @@ describe('When using AstroService as a facade', () => {
       'W'
     );
     expect((transits.data as any).transits).toBeDefined();
+  });
+
+  it('Given stateless sign-boundary inputs, then getSignBoundaryEvents preserves the public response shape', () => {
+    const { service, ephem } = makeService({ preferredTimezone: 'Asia/Kolkata' });
+    const root = 2460396.25;
+    ephem.findExactTransitTimes = vi.fn((_planetId: number, boundary: number) =>
+      boundary === 30 ? [root] : []
+    );
+    ephem.julianDayToDate = vi.fn((jd: number) => new Date((jd - 2440587.5) * 86400000));
+    ephem.getPlanetPosition = vi.fn((_planetId: number, jd: number) => {
+      if (jd === root - 1 / 24) {
+        return {
+          ...makePlanet('Venus', 29.8),
+          planetId: 3,
+          planet: 'Venus',
+          sign: 'Aries',
+          degree: 29.8,
+          speed: 1,
+        };
+      }
+      if (jd === root + 1 / 24) {
+        return {
+          ...makePlanet('Venus', 30.2),
+          planetId: 3,
+          planet: 'Venus',
+          sign: 'Taurus',
+          degree: 0.2,
+          speed: 1,
+        };
+      }
+      return {
+        ...makePlanet('Venus', 30),
+        planetId: 3,
+        planet: 'Venus',
+        sign: 'Taurus',
+        degree: 0,
+        speed: 1,
+      };
+    });
+
+    const result = service.getSignBoundaryEvents({
+      date: '2024-03-26',
+      bodies: ['Venus'],
+    });
+
+    expect(result.data).toMatchObject({
+      date: '2024-03-26',
+      timezone: 'Asia/Kolkata',
+      reporting_timezone: 'Asia/Kolkata',
+      calculation_timezone: 'Asia/Kolkata',
+      days_ahead: 0,
+      events: [
+        {
+          body: 'Venus',
+          from_sign: 'Aries',
+          to_sign: 'Taurus',
+          direction: 'direct',
+        },
+      ],
+    });
+    expect(result.text).toContain('Venus: Aries -> Taurus');
   });
 
   it('Given invalid transit filters or missing Julian day, then facade validation errors remain stable', () => {

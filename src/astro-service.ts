@@ -9,12 +9,14 @@ import type {
   GetElectionalContextInput,
   GetHousesInput,
   GetRisingSignWindowsInput,
+  GetSignBoundaryEventsInput,
   GetTransitsInput,
   ServiceResult,
   SetNatalChartInput,
   SetPreferencesInput,
 } from './astro-service/service-types.js';
 import { resolveReportingTimezone } from './astro-service/shared.js';
+import { SignBoundaryService } from './astro-service/sign-boundary-service.js';
 import { SkyService } from './astro-service/sky-service.js';
 import { TransitService } from './astro-service/transit-service.js';
 import { ChartRenderer } from './charts.js';
@@ -65,6 +67,7 @@ export type {
   GetElectionalContextInput,
   GetHousesInput,
   GetRisingSignWindowsInput,
+  GetSignBoundaryEventsInput,
   GetTransitsInput,
   ServiceResult,
   SetNatalChartInput,
@@ -90,6 +93,7 @@ export class AstroService {
   private readonly transitService: TransitService;
   private readonly electionalService: ElectionalService;
   private readonly risingSignService: RisingSignService;
+  private readonly signBoundaryService: SignBoundaryService;
   private readonly natalService: NatalService;
   private readonly skyService: SkyService;
   private readonly chartOutputService: ChartOutputService;
@@ -125,6 +129,10 @@ export class AstroService {
     this.risingSignService = new RisingSignService({
       ephem: this.ephem,
       houseCalc: this.houseCalc,
+    });
+    this.signBoundaryService = new SignBoundaryService({
+      ephem: this.ephem,
+      now: this.now,
     });
     this.natalService = new NatalService({
       ephem: this.ephem,
@@ -260,6 +268,19 @@ export class AstroService {
    */
   getRisingSignWindows(input: GetRisingSignWindowsInput): ServiceResult<Record<string, unknown>> {
     return this.risingSignService.getRisingSignWindows(input);
+  }
+
+  /**
+   * Return exact sign-boundary events across a local calendar window.
+   */
+  getSignBoundaryEvents(
+    input: GetSignBoundaryEventsInput = {}
+  ): ServiceResult<Record<string, unknown>> {
+    const timezone = this.resolveReportingTimezone(input.timezone);
+    return this.signBoundaryService.getSignBoundaryEvents({
+      ...input,
+      timezone,
+    });
   }
 
   /**
