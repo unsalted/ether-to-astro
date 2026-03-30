@@ -1,5 +1,11 @@
 import type { McpStartupDefaults } from '../entrypoint.js';
-import { type HouseData, type HouseSystem, type NatalChart, ZODIAC_SIGNS } from '../types.js';
+import {
+  type HouseData,
+  type HouseSystem,
+  type NatalChart,
+  type PlanetPosition,
+  ZODIAC_SIGNS,
+} from '../types.js';
 
 /**
  * Normalize any longitude into the standard 0-360 range.
@@ -33,6 +39,22 @@ export function getSignAndDegree(longitude: number): { sign: string; degree: num
   return {
     sign: ZODIAC_SIGNS[signIndex],
     degree: shouldCarryToNextSign ? 0 : roundedDegree,
+  };
+}
+
+/**
+ * Normalize a serialized planet placement to the shared sign-boundary policy.
+ *
+ * @param position - Planet position to normalize for response output
+ * @returns Copy of the position with sign/degree derived from shared boundary handling
+ */
+export function normalizePlanetPlacement(position: PlanetPosition): PlanetPosition {
+  const placement = getSignAndDegree(position.longitude);
+
+  return {
+    ...position,
+    sign: placement.sign,
+    degree: placement.degree,
   };
 }
 

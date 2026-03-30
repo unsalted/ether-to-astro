@@ -306,7 +306,7 @@ Ask your AI agent:
   - `forecast`: day-grouped transit output across the selected date window
   - if `mode` is omitted, legacy behavior is preserved: `days_ahead=0` resolves to `snapshot`, and `days_ahead>0` resolves to `best_hit`
   - each transit now includes additive placement metadata for both sides: sign, degree, and house
-  - with `include_mundane=true`, output includes deterministic mundane positions plus `mundane.aspects` and non-narrative `mundane.weather` grouping metadata
+  - with `include_mundane=true`, output includes deterministic mundane positions normalized with the same sign-boundary policy as serialized transits, plus `mundane.aspects` and non-narrative `mundane.weather` grouping metadata
   - when `include_mundane=true` and `mode=forecast`, output includes `mundane.days[]` with per-day grouped mundane aspects/weather
 
 ### Electional
