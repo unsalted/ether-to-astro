@@ -10,7 +10,7 @@ Conventions:
 
 Current draft:
 
-- [v1.2.0 draft](/Users/salted/Code/astro-mcp/docs/releases/1.2.0-draft.md)
+- [v1.4.0 draft](/Users/salted/Code/astro-mcp/docs/releases/1.4.0-draft.md)
 
 Released notes:
 
