@@ -10,7 +10,7 @@ import {
   type NatalChart,
   OUTER_PLANETS,
   PERSONAL_PLANETS,
-  PLANET_NAMES,
+  PLANET_IDS_BY_NAME,
   PLANETS,
   type PlanetPosition,
   type Transit,
@@ -185,7 +185,7 @@ export class TransitService {
     );
     const transitHouseCache = new Map<number, HouseData>();
     const planetIdsByName = new Map(
-      Object.entries(PLANET_NAMES).map(([planetId, planetName]) => [planetName, Number(planetId)])
+      Object.entries(PLANET_IDS_BY_NAME).map(([planetName, planetId]) => [planetName, planetId])
     );
     const getTransitHouses = (julianDay: number): HouseData => {
       const cached = transitHouseCache.get(julianDay);

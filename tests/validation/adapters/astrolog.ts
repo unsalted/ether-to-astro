@@ -1,18 +1,6 @@
 import { spawnSync } from 'node:child_process';
+import { MAJOR_PLANET_NAMES } from '../../../src/types.js';
 import type { NormalizedBody, NormalizedHouseResult } from '../utils/fixtureTypes.js';
-
-const BODY_NAMES = [
-  'Sun',
-  'Moon',
-  'Mercury',
-  'Venus',
-  'Mars',
-  'Jupiter',
-  'Saturn',
-  'Uranus',
-  'Neptune',
-  'Pluto',
-];
 
 export interface AstrologProbe {
   enabled: boolean;
@@ -139,7 +127,7 @@ function parsePositionsFromStdout(stdout: string): NormalizedBody[] {
     if (!byBody.has(row.body)) byBody.set(row.body, row);
   }
 
-  return BODY_NAMES.map((body) => byBody.get(body)).filter((row): row is NormalizedBody =>
+  return MAJOR_PLANET_NAMES.map((body) => byBody.get(body)).filter((row): row is NormalizedBody =>
     Boolean(row)
   );
 }

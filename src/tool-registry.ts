@@ -1,6 +1,12 @@
 import type { AstroService } from './astro-service.js';
 import type { Disambiguation } from './time-utils.js';
-import type { ElectionalHouseSystem, HouseSystem, NatalChart } from './types.js';
+import {
+  type ElectionalHouseSystem,
+  type HouseSystem,
+  type NatalChart,
+  SIGN_BOUNDARY_BODIES,
+  type SignBoundaryBody,
+} from './types.js';
 
 type ToolContent =
   | { type: 'text'; text: string }
@@ -157,6 +163,50 @@ export const MCP_TOOL_SPECS: ToolSpec[] = [
         longitude: args.longitude as number,
         timezone: args.timezone as string,
         mode: args.mode as 'approximate' | 'exact' | undefined,
+      });
+      return { kind: 'state', data: result.data, text: result.text };
+    },
+  },
+  {
+    name: 'get_sign_boundary_events',
+    description:
+      'Return exact sign-boundary events for one or more planets across a local date window. Each event includes both from_sign and to_sign so ingress and egress are represented as one crossing.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        date: {
+          type: 'string',
+          description: 'Start local date (YYYY-MM-DD). Defaults to today in the resolved timezone.',
+        },
+        timezone: {
+          type: 'string',
+          description:
+            'Optional timezone used for local-day interpretation and reporting. Falls back to the current MCP session timezone.',
+        },
+        days_ahead: {
+          type: 'number',
+          description:
+            'Number of days to look ahead from the start date. Defaults to 0 for a single-day window.',
+          default: 0,
+        },
+        bodies: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: [...SIGN_BOUNDARY_BODIES],
+          },
+          description:
+            'Optional list of supported bodies to scan. Defaults to all supported sign-boundary bodies.',
+        },
+      },
+    },
+    requiresNatalChart: false,
+    execute: (ctx, args) => {
+      const result = ctx.service.getSignBoundaryEvents({
+        date: args.date as string | undefined,
+        timezone: args.timezone as string | undefined,
+        days_ahead: args.days_ahead as number | undefined,
+        bodies: args.bodies as SignBoundaryBody[] | undefined,
       });
       return { kind: 'state', data: result.data, text: result.text };
     },

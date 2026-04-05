@@ -1,5 +1,5 @@
 import type { Disambiguation } from '../time-utils.js';
-import type { ElectionalHouseSystem, HouseSystem } from '../types.js';
+import type { ElectionalHouseSystem, HouseSystem, SignBoundaryBody } from '../types.js';
 
 /**
  * Public input type for building and caching the shared natal chart payload.
@@ -64,6 +64,16 @@ export interface GetRisingSignWindowsInput {
   longitude: number;
   timezone: string;
   mode?: 'approximate' | 'exact';
+}
+
+/**
+ * Public input type for stateless sign-boundary event lookup.
+ */
+export interface GetSignBoundaryEventsInput {
+  date?: string;
+  timezone?: string;
+  days_ahead?: number;
+  bodies?: SignBoundaryBody[];
 }
 
 /**
